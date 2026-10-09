@@ -10,7 +10,7 @@
 | Inventory | Member 2 | `inventory` | `inventory.branch_id`, `inventory.product_id` | Chưa chốt | NOT_STARTED | — | Order sẽ gọi service tồn kho, không tự tạo entity inventory. |
 | Order | Member 3 | `orders`, `order_items` | `orders.user_id`, `orders.branch_id`, `order_items.product_id` | Entity, DTO, repository, CRUD API đã tạo; enum `OrderStatus`, `OrderItemType`, `OrderItemStatus` | IN_PROGRESS | 2026-10-09 | IDs ngoại hiện là `Long`; chưa map JPA sang các module khác. |
 | Tour & guide | Member 4 | `tour_events`, `event_details`, `event_images`, `tour_guides` | `event_id`, `guide_id`, `user_id` | Chưa chốt | NOT_STARTED | — | — |
-| Schedule & participant | Member 5 | `event_schedules`, `event_schedule_history`, `event_participants` | `schedule_id`, `event_id`, `branch_id`, `guide_id`, `user_id` | Chưa chốt | NOT_STARTED | — | — |
+| Schedule & participant | Member 5 | `event_schedules`, `event_schedule_history`, `event_participants` | `event_schedules.schedule_id`, `event_participants.participant_id`, `event_id`, `branch_id`, `guide_id`, `user_id` | Entity, DTO, Repository, Service, API; enums `ScheduleStatus`, `ParticipantStatus`, `CheckInStatus` | IN_PROGRESS | 2026-10-09 | Atomic update kiểm tra capacity; FK ngoại hiện là `Long`; sẵn sàng cho Payment map `participant_id`. |
 | Payment & report | Member 6 | `transactions` | `transaction_id`, `order_id`, `participant_id` | Chưa chốt | NOT_STARTED | — | Không map trước khi Order/Participant sẵn sàng. |
 
 ## Change log
@@ -19,6 +19,7 @@
 | --- | --- | --- | --- | --- | --- |
 | 2026-10-09 | Order | Member 3 | `order/entity`, `order/dto`, `order/repository` | Khởi tạo entity `Order`, `OrderItem`, DTO và repository | Chờ Account, Branch, Product chuyển sang `READY_TO_MAP` trước khi dùng `@ManyToOne`. |
 | 2026-10-09 | Order | Member 3 | `order/service`, `order/controller` | Thêm CRUD `POST/GET/PUT/DELETE /api/orders` và validation ngày thuê | Chưa gọi Product/Inventory; giá và tồn kho vẫn là dữ liệu request tạm thời. |
+| 2026-10-09 | Schedule & participant | Member 5 | `schedule/entity`, `schedule/dto`, `schedule/repository`, `schedule/service`, `schedule/controller` | Khởi tạo đầy đủ Entity, DTO, Atomic Update repo, nghiệp vụ dời lịch (lưu history), đăng ký (re-registration & concurrency safe), check-in, hủy vé | Foreign keys ngoại (event_id, branch_id, guide_id, user_id) tạm dùng `Long`; sẵn sàng `participant_id` cho Module 6 (Payment). |
 
 ## Quy tắc map entity
 
