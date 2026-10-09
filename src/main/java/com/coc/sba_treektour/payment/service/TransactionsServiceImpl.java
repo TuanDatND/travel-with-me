@@ -5,6 +5,7 @@ import com.coc.sba_treektour.payment.dto.CreateZaloPayPaymentRequest;
 import com.coc.sba_treektour.payment.dto.ZaloPayCallbackRequest;
 import com.coc.sba_treektour.payment.dto.ZaloPayCallbackResponse;
 import com.coc.sba_treektour.payment.dto.ZaloPayPaymentResponse;
+import com.coc.sba_treektour.payment.dto.TransactionHistoryResponse;
 import com.coc.sba_treektour.payment.entity.Transaction;
 import com.coc.sba_treektour.payment.repository.TransactionRepository;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -189,6 +191,27 @@ public class TransactionsServiceImpl implements TransactionsService {
         } catch (JacksonException | ResponseStatusException | IllegalArgumentException exception) {
             return new ZaloPayCallbackResponse(2, "Invalid callback data");
         }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<TransactionHistoryResponse> getTransactionHistory() {
+        return transactionRepository.findAllByOrderByCreatedAtDesc()
+                .stream()
+                .map(this::toHistoryResponse)
+                .toList();
+    }
+
+    private TransactionHistoryResponse toHistoryResponse(Transaction transaction) {
+        return new TransactionHistoryResponse(
+                transaction.getId(),
+                transaction.getOrderId(),
+                transaction.getParticipantId(),
+                transaction.getTransactionType(),
+                transaction.getAmount(),
+                transaction.getPaymentMethod(),
+                transaction.getStatus(),
+                transaction.getCreatedAt());
     }
 
     private Transaction findZaloPayTransaction(Long transactionId) {

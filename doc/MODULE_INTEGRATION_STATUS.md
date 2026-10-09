@@ -11,7 +11,7 @@
 | Order | Member 3 | `orders`, `order_items` | `orders.user_id`, `orders.branch_id`, `order_items.product_id` | Entity, DTO, repository, CRUD API đã tạo; enum `OrderStatus`, `OrderItemType`, `OrderItemStatus` | IN_PROGRESS | 2026-10-09 | IDs ngoại hiện là `Long`; chưa map JPA sang các module khác. |
 | Tour & guide | Member 4 | `tour_events`, `event_details`, `event_images`, `tour_guides` | `event_id`, `guide_id`, `user_id` | Chưa chốt | NOT_STARTED | — | — |
 | Schedule & participant | Member 5 | `event_schedules`, `event_schedule_history`, `event_participants` | `schedule_id`, `event_id`, `branch_id`, `guide_id`, `user_id` | Chưa chốt | NOT_STARTED | — | — |
-| Payment & report | Member 6 | `transactions`, `Transaction` | `transaction_id`; `order_id`, `participant_id` đang lưu dạng `Long` | ZaloPay create/query/callback; enum `TransactionStatus`; create request nhận đúng một target ID và amount tạm thời | IN_PROGRESS | 2026-10-09 | Chưa map JPA sang Order/Participant. Amount từ request chỉ dùng để tích hợp tạm; production phải lấy giá từ service nội bộ khi contract upstream sẵn sàng. |
+| Payment & report | Member 6 | `transactions`, `Transaction` | `transaction_id`; `order_id`, `participant_id` đang lưu dạng `Long` | ZaloPay create/query/callback; lịch sử giao dịch mới nhất trước; enum `TransactionStatus`; create request nhận đúng một target ID và amount tạm thời | IN_PROGRESS | 2026-10-09 | Chưa map JPA sang Order/Participant. Amount từ request chỉ dùng để tích hợp tạm; production phải lấy giá từ service nội bộ khi contract upstream sẵn sàng. |
 
 ## Change log
 
@@ -22,6 +22,7 @@
 | 2026-10-09 | Payment & report | Member 6 | `payment/entity`, `payment/enums`, `payment/repository` | Tạo `Transaction`, `TransactionStatus` và repository; giữ `orderId`/`participantId` dạng `Long` | Không map JPA sang Order/Participant cho đến khi các module đích `READY_TO_MAP`. |
 | 2026-10-09 | Payment & report | Member 6 | `payment/dto`, `payment/service`, `payment/controller`, `common/config` | Thêm ZaloPay create/query/callback và HMAC; amount trong create request là contract tạm | Payment không dùng repository/entity của module khác; cần thay amount request bằng service nội bộ trước production. |
 | 2026-10-09 | Payment & report | Member 6 | `payment/dto/TransactionHistoryResponse` | Thêm contract dữ liệu trả về cho lịch sử giao dịch | Chỉ trả ID dạng `Long`, không map entity của module khác. |
+| 2026-10-09 | Payment & report | Member 6 | `payment/repository`, `payment/service` | Thêm truy vấn và service lấy lịch sử giao dịch theo `createdAt` giảm dần | Chưa có bộ lọc, phân trang hoặc validation ở mốc này. |
 
 ## Quy tắc map entity
 
