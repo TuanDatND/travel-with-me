@@ -10,12 +10,14 @@ import com.coc.sba_treektour.branch.repository.BranchRepository;
 import com.coc.sba_treektour.branch.repository.StaffRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class StaffService {
 
     private final StaffRepository staffRepository;

@@ -6,12 +6,14 @@ import com.coc.sba_treektour.branch.entity.Branch;
 import com.coc.sba_treektour.branch.repository.BranchRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class BranchService {
 
     private final BranchRepository branchRepository;

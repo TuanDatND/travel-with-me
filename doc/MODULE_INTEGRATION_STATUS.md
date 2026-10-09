@@ -4,8 +4,8 @@
 
 | Module | Owner | Tables / entities | Public IDs / quan hệ cần dùng | Contract đã chốt | Status | Last update | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| Account | Member 1 | `roles`, `users` | `users.user_id`, `users.role_id` | Chưa chốt | NOT_STARTED | — | Module khác tạm dùng `userId: Long`. |
-| Branch & staff | Member 1 | `branches`, `staff` | `branches.branch_id`, `staff.user_id`, `staff.branch_id` | Chưa chốt | NOT_STARTED | — | Module khác tạm dùng `branchId: Long`. |
+| Account | Member 1 | `roles`, `users` | `users.user_id`, `users.role_id` | Chưa chốt | IN_PROGRESS | 2026-10-10 | Đã có Entity, Repo, DTO, Service, Controller |
+| Branch & staff | Member 1 | `branches`, `staff` | `branches.branch_id`, `staff.user_id`, `staff.branch_id` | Chưa chốt | IN_PROGRESS | 2026-10-10 | Đã có Entity, Repo, DTO, Service, Controller |
 | Product | Member 2 | `products` | `products.product_id` | Chưa chốt | NOT_STARTED | — | Order tạm dùng `productId: Long`. |
 | Inventory | Member 2 | `inventory` | `inventory.branch_id`, `inventory.product_id` | Chưa chốt | NOT_STARTED | — | Order sẽ gọi service tồn kho, không tự tạo entity inventory. |
 | Order | Member 3 | `orders`, `order_items` | `orders.user_id`, `orders.branch_id`, `order_items.product_id` | Entity, DTO, repository, CRUD API đã tạo; enum `OrderStatus`, `OrderItemType`, `OrderItemStatus` | IN_PROGRESS | 2026-10-09 | IDs ngoại hiện là `Long`; chưa map JPA sang các module khác. |
