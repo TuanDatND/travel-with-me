@@ -1,5 +1,6 @@
 package com.coc.sba_treektour.payment.controller;
 
+import com.coc.sba_treektour.common.response.ApiResponse;
 import com.coc.sba_treektour.payment.dto.CreateZaloPayPaymentRequest;
 import com.coc.sba_treektour.payment.dto.ZaloPayCallbackRequest;
 import com.coc.sba_treektour.payment.dto.ZaloPayCallbackResponse;
@@ -22,14 +23,18 @@ public class ZaloPayController {
     private final TransactionsService transactionsService;
 
     @PostMapping("/create")
-    public ResponseEntity<ZaloPayPaymentResponse> createPayment(
+    public ApiResponse<ZaloPayPaymentResponse> createPayment(
             @Valid @RequestBody CreateZaloPayPaymentRequest request) {
-        return ResponseEntity.ok(transactionsService.createZaloPayPayment(request));
+        return ApiResponse.created(
+                "Tạo giao dịch ZaloPay thành công",
+                transactionsService.createZaloPayPayment(request));
     }
 
     @GetMapping("/query/{transactionId}")
-    public ResponseEntity<ZaloPayPaymentResponse> queryPayment(@PathVariable Long transactionId) {
-        return ResponseEntity.ok(transactionsService.queryZaloPayPayment(transactionId));
+    public ApiResponse<ZaloPayPaymentResponse> queryPayment(@PathVariable Long transactionId) {
+        return ApiResponse.success(
+                "Truy vấn giao dịch ZaloPay thành công",
+                transactionsService.queryZaloPayPayment(transactionId));
     }
 
     @PostMapping("/callback")

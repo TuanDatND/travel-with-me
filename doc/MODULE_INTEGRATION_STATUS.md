@@ -11,7 +11,7 @@
 | Order | Member 3 | `orders`, `order_items` | `orders.user_id`, `orders.branch_id`, `order_items.product_id` | Entity, DTO, repository, CRUD API đã tạo; enum `OrderStatus`, `OrderItemType`, `OrderItemStatus` | IN_PROGRESS | 2026-10-09 | IDs ngoại hiện là `Long`; chưa map JPA sang các module khác. |
 | Tour & guide | Member 4 | `tour_events`, `event_details`, `event_images`, `tour_guides` | `event_id`, `guide_id`, `user_id` | Chưa chốt | NOT_STARTED | — | — |
 | Schedule & participant | Member 5 | `event_schedules`, `event_schedule_history`, `event_participants` | `event_schedules.schedule_id`, `event_participants.participant_id`, `event_id`, `branch_id`, `guide_id`, `user_id` | Entity, DTO, Repository, Service, API; enums `ScheduleStatus`, `ParticipantStatus`, `CheckInStatus` | IN_PROGRESS | 2026-10-09 | Atomic update kiểm tra capacity; FK ngoại hiện là `Long`; sẵn sàng cho Payment map `participant_id`. |
-| Payment & report | Member 6 | `transactions` | `transaction_id`, `order_id`, `participant_id` | Chưa chốt | NOT_STARTED | — | Không map trước khi Order/Participant sẵn sàng. |
+| Payment & report | Member 6 | `transactions`, `Transaction` | `transaction_id`; `order_id`, `participant_id` đang lưu dạng `Long` | ZaloPay create/query/callback; lịch sử giao dịch mới nhất trước; enum `TransactionStatus`; create request nhận đúng một target ID và amount tạm thời | IN_PROGRESS | 2026-10-09 | Chưa map JPA sang Order/Participant. Amount từ request chỉ dùng để tích hợp tạm; production phải lấy giá từ service nội bộ khi contract upstream sẵn sàng. |
 
 ## Change log
 
