@@ -3,6 +3,7 @@ package com.coc.sba_treektour.branch.controller;
 import com.coc.sba_treektour.branch.dto.BranchRequest;
 import com.coc.sba_treektour.branch.dto.BranchResponse;
 import com.coc.sba_treektour.branch.service.BranchService;
+import com.coc.sba_treektour.common.response.ApiResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -19,17 +20,18 @@ public class BranchController {
     private final BranchService branchService;
 
     @GetMapping
-    public ResponseEntity<List<BranchResponse>> getAllBranches() {
-        return ResponseEntity.ok(branchService.getAllBranches());
+    public ResponseEntity<ApiResponse<List<BranchResponse>>> getAllBranches() {
+        return ResponseEntity.ok(ApiResponse.success(branchService.getAllBranches()));
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<BranchResponse> getBranchById(@PathVariable Long id) {
-        return ResponseEntity.ok(branchService.getBranchById(id));
+    public ResponseEntity<ApiResponse<BranchResponse>> getBranchById(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(branchService.getBranchById(id)));
     }
 
     @PostMapping
-    public ResponseEntity<BranchResponse> createBranch(@Valid @RequestBody BranchRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(branchService.createBranch(request));
+    public ResponseEntity<ApiResponse<BranchResponse>> createBranch(@Valid @RequestBody BranchRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.created("Tạo chi nhánh thành công", branchService.createBranch(request)));
     }
 }
