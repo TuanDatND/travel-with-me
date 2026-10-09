@@ -21,9 +21,7 @@
 | 2026-10-09 | Order | Member 3 | `order/service`, `order/controller` | Thêm CRUD `POST/GET/PUT/DELETE /api/orders` và validation ngày thuê | Chưa gọi Product/Inventory; giá và tồn kho vẫn là dữ liệu request tạm thời. |
 | 2026-10-09 | Payment & report | Member 6 | `payment/entity`, `payment/enums`, `payment/repository` | Tạo `Transaction`, `TransactionStatus` và repository; giữ `orderId`/`participantId` dạng `Long` | Không map JPA sang Order/Participant cho đến khi các module đích `READY_TO_MAP`. |
 | 2026-10-09 | Payment & report | Member 6 | `payment/dto`, `payment/service`, `payment/controller`, `common/config` | Thêm ZaloPay create/query/callback và HMAC; amount trong create request là contract tạm | Payment không dùng repository/entity của module khác; cần thay amount request bằng service nội bộ trước production. |
-| 2026-10-09 | Payment & report | Member 6 | `payment/dto/TransactionHistoryResponse` | Thêm contract dữ liệu trả về cho lịch sử giao dịch | Chỉ trả ID dạng `Long`, không map entity của module khác. |
-| 2026-10-09 | Payment & report | Member 6 | `payment/repository`, `payment/service` | Thêm truy vấn và service lấy lịch sử giao dịch theo `createdAt` giảm dần | Chưa có bộ lọc, phân trang hoặc validation ở mốc này. |
-| 2026-10-09 | Payment & report | Member 6 | `payment/controller/TransactionController`, `common/config/SecurityConfig` | Mở `GET /api/payments/transactions/history` để đọc lịch sử giao dịch | Tạm permit endpoint GET để test; cần bổ sung phân quyền cùng validation/phân trang ở mốc sau. |
+| 2026-10-09 | Payment & report | Member 6 | `payment/dto`, `payment/repository`, `payment/service`, `payment/controller`, `common/config/SecurityConfig` | Thêm `GET /api/payments/transactions/history` để lấy lịch sử giao dịch mới nhất trước và mở quyền truy cập các API Payment đang dùng để test | Chỉ trả ID dạng `Long`; chưa thêm bộ lọc, phân trang hoặc validation. |
 
 ## Quy tắc map entity
 
