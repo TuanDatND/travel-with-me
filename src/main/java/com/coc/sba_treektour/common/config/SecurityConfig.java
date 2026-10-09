@@ -2,6 +2,7 @@ package com.coc.sba_treektour.common.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 
@@ -13,6 +14,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.ignoringRequestMatchers("/api/payments/zalopay/**"))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/api/payments/zalopay/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/payments/transactions/history").permitAll()
                         .anyRequest().authenticated())
                 .build();
     }
