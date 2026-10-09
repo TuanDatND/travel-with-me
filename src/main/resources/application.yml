@@ -30,6 +30,11 @@ spring:
     locations: classpath:db/migration
     baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:true}
 
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
+
   thymeleaf:
     cache: ${THYMELEAF_CACHE:false}
 
@@ -46,3 +51,9 @@ logging:
     root: ${LOG_LEVEL_ROOT:INFO}
     com.coc.sba_treektour: ${LOG_LEVEL_APP:DEBUG}
     org.hibernate.SQL: ${LOG_LEVEL_SQL:WARN}
+
+tour:
+  cloudinary:
+    cloud-name: ${CLOUDINARY_CLOUD_NAME:}
+    api-key: ${CLOUDINARY_API_KEY:}
+    api-secret: ${CLOUDINARY_API_SECRET:}
