@@ -1,6 +1,4 @@
 spring:
-  # Loads local variables from .env when it exists. OS/container variables still
-  # take precedence, so this is safe for deployed environments.
   config:
     import: optional:file:.env[.properties]
 
