@@ -16,6 +16,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Optional;
 
+import com.coc.sba_treektour.account.service.impl.UserServiceImpl;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -34,7 +36,7 @@ public class AdminInternalUserTests {
         roleRepository = mock(RoleRepository.class);
         passwordEncoder = mock(PasswordEncoder.class);
         emailService = mock(EmailService.class);
-        userService = new UserService(userRepository, roleRepository, passwordEncoder, emailService);
+        userService = new UserServiceImpl(userRepository, roleRepository, passwordEncoder, emailService);
     }
 
     @Test
