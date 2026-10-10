@@ -1,10 +1,10 @@
 # TerraPeak Outpost — Tour & guide API
 
-Module 4, branch `feature/tour-guide`. Backend only; controllers use `/api`.
+Module 4, integration test branch `feature/tour-auth-integration` (tour + member 1 JWT). Backend only; controllers use `/api`.
 
 ## Shared response format
 
-Tour endpoints now reuse `common.response.ApiResponse` without changing the shared class. All JSON responses, including CSRF and security errors, have `status`, `message`, `data`, `timestamp`. HTTP 204 image deletion still has no body. Request bodies and database schema are unchanged.
+Tour endpoints now reuse `common.response.ApiResponse` without changing the shared class. All JSON responses, including security errors, have `status`, `message`, `data`, `timestamp`. HTTP 204 image deletion still has no body. Request bodies and database schema are unchanged.
 
 ```json
 {
@@ -39,17 +39,19 @@ Configure DB variables from `.env.example`, plus `CLOUDINARY_CLOUD_NAME`, `CLOUD
 
 Run `bash gradlew bootRun`. The Gradle wrapper currently has no executable bit, so use `bash gradlew`.
 
-## Authentication and CSRF
+## Authentication — JWT integration test branch
 
-Only GET `/api/events`, `/api/events/{eventId}`, `/api/guides`, `/api/guides/{guideId}` and `/api/tour/csrf` are public. Admin endpoints require authority `ROLE_ADMIN`. CSRF is enabled, including for multipart uploads.
+This branch is based on `main` at `eabe66f`, including member 1's latest JWT and EAGER role loading unchanged. Tour reuses the JWT service/filter with an account-status guard that rejects inactive/blocked accounts. It does not change Account code or schema. The temporary fallback security chain is removed; member 1 owns authentication for other modules.
 
-1. GET `/api/tour/csrf` and retain its session cookie.
-2. Read `data.headerName` and `data.token` from its response.
-3. Send that header and cookie on POST/PUT/PATCH/DELETE, together with the authenticated session or HTTP Basic credentials.
+1. POST `/api/auth/login` with `email` and `password`.
+2. Read `data.token`.
+3. Send `Authorization: Bearer <token>` to tour admin endpoints; the account requires `ADMIN`.
 
-Account now has an initial AuthService, but its HTTP login and shared security integration are not available yet. This module does not create accounts or grant roles. For local development only, Spring Boot's default user can be configured through `SPRING_SECURITY_USER_NAME`, `SPRING_SECURITY_USER_PASSWORD`, `SPRING_SECURITY_USER_ROLES=ADMIN` when no custom authentication provider is installed. Real users from `users` are not authenticated automatically by this module.
+GET `/api/events`, `/api/events/{eventId}`, `/api/guides`, `/api/guides/{guideId}` remain public. Tour no longer accepts HTTP Basic or cookie authentication; stateless Bearer requests do not require CSRF tokens. `/api/tour/csrf` is removed on this branch.
 
-`TourSecurityConfig` scopes its first filter chain to these endpoints. A final fallback preserves Boot's authenticated protection outside the module. Member 1 must consolidate/replace this fallback when introducing shared authentication and make sure the tour chain uses the shared authentication provider. No CORS policy was added; the intended initial client is same-origin.
+`TourExceptionHandler` takes priority for tour controllers so member 1's general handler does not replace tour HTTP status/error fields.
+
+See [JWT_TEST.md](JWT_TEST.md) for local commands. The integration is for local testing; member 1 still needs to address shared JWT key configuration and role/status loading for endpoints outside tour. No CORS policy was added.
 
 ## Endpoints
 
@@ -163,7 +165,7 @@ Module controller and tour security errors reuse the same envelope; stable error
 {"status":400,"message":"Request validation failed","data":{"code":"INVALID_INPUT","fieldErrors":{"eventName":"must not be blank"}},"timestamp":"2026-10-09T22:00:00+07:00"}
 ```
 
-400 malformed/invalid input; 401 authentication required; 403 insufficient permission/CSRF; 404 missing/hidden resource; 409 invalid transition, missing publication requirements or duplicate/reference conflict; 413 oversized image; 502 storage failure; 503 storage not configured.
+400 malformed/invalid input; 401 authentication required; 403 insufficient permission; 404 missing/hidden resource; 409 invalid transition, missing publication requirements or duplicate/reference conflict; 413 oversized image; 502 storage failure; 503 storage not configured.
 
 Internal read services for module 5:
 
@@ -176,6 +178,8 @@ These are lookups, not reservations or schedule validators. Module 5 must requir
 
 `bash gradlew compileJava test` requires a dedicated test database configured with DB_URL/DB_USERNAME/DB_PASSWORD. Existing contextLoads also requires the shared schema. Never point integration tests at a production database. API integration tests roll back their data; Cloudinary is mocked and no live assets are uploaded.
 
-Tests cover anonymous browsing, admin/customer/anonymous permissions, CSRF, draft/publish/archive, validation/filters/pagination, image IDs and ownership, storage errors, rollback compensation, guide privacy/active accounts and duplicate specialization at both service and DB level.
+Tests cover anonymous browsing, admin/customer/anonymous permissions, JWT stateless writes, draft/publish/archive, validation/filters/pagination, image IDs and ownership, storage errors, rollback compensation, guide privacy/active accounts and duplicate specialization at both service and DB level.
 
 Live Cloudinary calls still require a manual smoke test with configured credentials. The implementation does not supply a UI, login/account API, schedules, registrations or payments.
+
+JWT integration adds real login checks for ADMIN, CUSTOMER, STAFF and GUIDE, rejection of disabled/blocked accounts and invalid tokens. 19 tests pass on a separate PostgreSQL database.

@@ -1,19 +1,23 @@
 package com.coc.sba_treektour.tour.controller;
 
 import com.coc.sba_treektour.common.response.ApiResponse;
-import java.time.OffsetDateTime;
 import com.coc.sba_treektour.tour.service.TourException;
+
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.*;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
-import org.springframework.http.converter.HttpMessageNotReadableException;
-import org.springframework.web.bind.MissingServletRequestParameterException;
+
+import java.time.OffsetDateTime;
 import java.util.*;
 
+// Ưu tiên handler của tour trước handler chung để giữ đúng HTTP status và fieldErrors.
+@org.springframework.core.annotation.Order(0)
 @RestControllerAdvice(basePackages = "com.coc.sba_treektour.tour.controller")
 public class TourExceptionHandler {
     /** Tạo ApiResponse chung; data chứa mã lỗi và lỗi theo từng trường để client xử lý. */
