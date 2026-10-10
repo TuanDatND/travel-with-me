@@ -57,3 +57,11 @@ tour:
     cloud-name: ${CLOUDINARY_CLOUD_NAME:}
     api-key: ${CLOUDINARY_API_KEY:}
     api-secret: ${CLOUDINARY_API_SECRET:}
+
+zalopay:
+  app-id: ${ZALOPAY_APP_ID}
+  key1: ${ZALOPAY_KEY1}
+  key2: ${ZALOPAY_KEY2}
+  create-url: ${ZALOPAY_CREATE_URL}
+  query-url: ${ZALOPAY_QUERY_URL}
+  callback-url: ${ZALOPAY_CALLBACK_URL}
