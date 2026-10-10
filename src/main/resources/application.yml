@@ -95,3 +95,8 @@ zalopay:
   create-url: ${ZALOPAY_CREATE_URL:https://sb-openapi.zalopay.vn/v2/create}
   query-url: ${ZALOPAY_QUERY_URL:https://sb-openapi.zalopay.vn/v2/query}
   callback-url: ${ZALOPAY_CALLBACK_URL:http://localhost:8080/api/payment/zalopay/callback}
+
+jwt:
+  secret-key: ${JWT_SECRET_KEY:404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970}
+  expiration-ms: ${JWT_EXPIRATION_MS:86400000}
+
