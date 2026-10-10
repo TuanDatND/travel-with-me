@@ -2,6 +2,17 @@ spring:
   config:
     import: optional:file:.env[.properties]
 
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:thay_bang_client_id_cua_ban}
+            client-secret: ${GOOGLE_CLIENT_SECRET:thay_bang_client_secret_cua_ban}
+            scope:
+              - email
+              - profile
+
   application:
     name: ${APP_NAME:treektour}
 
@@ -31,6 +42,23 @@ spring:
     baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:true}
     ignore-missing-migrations: true
     validate-on-migrate: false
+    out-of-order: true
+
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
+        connectiontimeout: 5000
+        timeout: 5000
+        writetimeout: 5000
 
   servlet:
     multipart:
@@ -61,9 +89,9 @@ tour:
     api-secret: ${CLOUDINARY_API_SECRET:}
 
 zalopay:
-  app-id: ${ZALOPAY_APP_ID}
-  key1: ${ZALOPAY_KEY1}
-  key2: ${ZALOPAY_KEY2}
-  create-url: ${ZALOPAY_CREATE_URL}
-  query-url: ${ZALOPAY_QUERY_URL}
-  callback-url: ${ZALOPAY_CALLBACK_URL}
+  app-id: ${ZALOPAY_APP_ID:2553}
+  key1: ${ZALOPAY_KEY1:PcY4iZIKFCIdgZvA6ueMcMHHUbRLYjPL}
+  key2: ${ZALOPAY_KEY2:kLtgPl8YEStV6wsP}
+  create-url: ${ZALOPAY_CREATE_URL:https://sb-openapi.zalopay.vn/v2/create}
+  query-url: ${ZALOPAY_QUERY_URL:https://sb-openapi.zalopay.vn/v2/query}
+  callback-url: ${ZALOPAY_CALLBACK_URL:http://localhost:8080/api/payment/zalopay/callback}
