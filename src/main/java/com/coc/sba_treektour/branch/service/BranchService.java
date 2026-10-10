@@ -6,12 +6,14 @@ import com.coc.sba_treektour.branch.entity.Branch;
 import com.coc.sba_treektour.branch.repository.BranchRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class BranchService {
 
     private final BranchRepository branchRepository;
@@ -38,6 +40,31 @@ public class BranchService {
         
         Branch savedBranch = branchRepository.save(branch);
         return mapToBranchResponse(savedBranch);
+    }
+
+    public BranchResponse updateBranch(Long id, BranchRequest request) {
+        Branch branch = branchRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Branch not found with id: " + id));
+
+        branch.setName(request.getName());
+        branch.setPhone(request.getPhone());
+        branch.setAddress(request.getAddress());
+
+        Branch updatedBranch = branchRepository.save(branch);
+        return mapToBranchResponse(updatedBranch);
+    }
+
+    public BranchResponse updateBranchStatus(Long id, String status) {
+        Branch branch = branchRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Branch not found with id: " + id));
+        
+        if (!"ACTIVE".equals(status) && !"INACTIVE".equals(status)) {
+            throw new RuntimeException("Invalid status. Must be ACTIVE or INACTIVE");
+        }
+
+        branch.setStatus(status);
+        Branch updatedBranch = branchRepository.save(branch);
+        return mapToBranchResponse(updatedBranch);
     }
 
     public BranchResponse mapToBranchResponse(Branch branch) {

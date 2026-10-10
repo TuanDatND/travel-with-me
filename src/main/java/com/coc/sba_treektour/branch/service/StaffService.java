@@ -10,12 +10,14 @@ import com.coc.sba_treektour.branch.repository.BranchRepository;
 import com.coc.sba_treektour.branch.repository.StaffRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
 public class StaffService {
 
     private final StaffRepository staffRepository;
@@ -48,6 +50,35 @@ public class StaffService {
         
         Staff savedStaff = staffRepository.save(staff);
         return mapToStaffResponse(savedStaff);
+    }
+
+    public StaffResponse updateStaff(Long id, StaffRequest request) {
+        Staff staff = staffRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Staff not found with id: " + id));
+
+        if (!staff.getBranch().getId().equals(request.getBranchId())) {
+            Branch branch = branchRepository.findById(request.getBranchId())
+                    .orElseThrow(() -> new RuntimeException("Branch not found with id: " + request.getBranchId()));
+            staff.setBranch(branch);
+        }
+
+        staff.setPosition(request.getPosition());
+        
+        Staff updatedStaff = staffRepository.save(staff);
+        return mapToStaffResponse(updatedStaff);
+    }
+
+    public StaffResponse updateStaffStatus(Long id, String status) {
+        Staff staff = staffRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Staff not found with id: " + id));
+        
+        if (!"ACTIVE".equals(status) && !"INACTIVE".equals(status)) {
+            throw new RuntimeException("Invalid status. Must be ACTIVE or INACTIVE");
+        }
+
+        staff.setStatus(status);
+        Staff updatedStaff = staffRepository.save(staff);
+        return mapToStaffResponse(updatedStaff);
     }
 
     public StaffResponse mapToStaffResponse(Staff staff) {
