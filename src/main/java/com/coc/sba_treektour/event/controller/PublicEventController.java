@@ -1,22 +1,21 @@
-package com.coc.sba_treektour.tour.controller;
+package com.coc.sba_treektour.event.controller;
 
 import com.coc.sba_treektour.common.response.ApiResponse;
-import com.coc.sba_treektour.tour.dto.TourDtos.*;
-import com.coc.sba_treektour.tour.entity.*;
-import com.coc.sba_treektour.tour.service.*;
+import com.coc.sba_treektour.event.dto.EventDtos.*;
+import com.coc.sba_treektour.event.entity.*;
+import com.coc.sba_treektour.event.service.*;
 import org.springframework.web.bind.annotation.*;
+import com.coc.sba_treektour.tour.dto.TourDtos.PageResponse;
 import java.math.BigDecimal;
 
 @RestController
 @RequestMapping("/api")
-public class PublicTourController {
+public class PublicEventController {
     private final EventService events;
-    private final GuideService guides;
 
-    /** Khởi tạo controller đọc tour và hướng dẫn viên dành cho khách. */
-    public PublicTourController(EventService events, GuideService guides) {
+    /** Khởi tạo controller xử lý nội dung và ảnh tour/sự kiện. */
+    public PublicEventController(EventService events) {
         this.events = events;
-        this.guides = guides;
     }
 
     /** Nhận bộ lọc và phân trang danh sách tour công bố; không yêu cầu đăng nhập. */
@@ -48,18 +47,4 @@ public class PublicTourController {
         return ApiResponse.success(events.get(eventId, false));
     }
 
-    /** Trả hồ sơ hướng dẫn viên công khai, có thể lọc theo chuyên môn. */
-    @GetMapping("/guides")
-    public ApiResponse<PageResponse<PublicGuideResponse>> guides(
-            @RequestParam(required = false) String specialization,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return ApiResponse.success(guides.listPublic(specialization, page, size));
-    }
-
-    /** Trả thông tin nghề nghiệp của một hướng dẫn viên đang hoạt động. */
-    @GetMapping("/guides/{guideId}")
-    public ApiResponse<PublicGuideResponse> guide(@PathVariable Long guideId) {
-        return ApiResponse.success(guides.getPublic(guideId));
-    }
 }

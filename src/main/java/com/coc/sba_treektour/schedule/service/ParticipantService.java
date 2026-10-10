@@ -8,8 +8,8 @@ import com.coc.sba_treektour.schedule.entity.EventSchedule;
 import com.coc.sba_treektour.schedule.entity.ParticipantStatus;
 import com.coc.sba_treektour.schedule.repository.EventParticipantRepository;
 import com.coc.sba_treektour.schedule.repository.EventScheduleRepository;
-import com.coc.sba_treektour.tour.entity.EventStatus;
-import com.coc.sba_treektour.tour.service.EventService;
+import com.coc.sba_treektour.event.entity.EventStatus;
+import com.coc.sba_treektour.event.service.EventService;
 import com.coc.sba_treektour.tour.service.TourException;
 
 import org.springframework.http.HttpStatus;

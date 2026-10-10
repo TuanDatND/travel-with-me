@@ -1,4 +1,4 @@
-package com.coc.sba_treektour.tour.entity;
+package com.coc.sba_treektour.event.entity;
 
 public enum EventStatus {
     DRAFT,

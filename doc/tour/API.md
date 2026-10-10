@@ -183,3 +183,16 @@ Tests cover anonymous browsing, admin/customer/anonymous permissions, JWT statel
 Live Cloudinary calls still require a manual smoke test with configured credentials. The implementation does not supply a UI, login/account API, schedules, registrations or payments.
 
 JWT integration adds real login checks for ADMIN, CUSTOMER, STAFF and GUIDE, rejection of disabled/blocked accounts and invalid tokens. 19 tests pass on a separate PostgreSQL database.
+
+
+## Cấu trúc package sau khi tách event / tour (2026-10-10)
+
+- `event/controller`: `AdminEventController`, `PublicEventController` quản lý `/api/admin/events` và `/api/events`.
+- `event/dto`, `event/entity`, `event/repository`, `event/service`: nội dung tour/sự kiện, chi tiết, ảnh, enum loại/trạng thái/độ khó và Cloudinary.
+- `tour/controller`: `AdminGuideController`, `PublicGuideController` quản lý `/api/admin/guides` và `/api/guides`.
+- `tour/dto`, `tour/entity`, `tour/repository`, `tour/service`: hồ sơ hướng dẫn viên và đọc tài khoản. `TourDtos.PageResponse`, `TourQueries`, `TourException` được dùng chung trong phạm vi member 4.
+- `tour/config/TourSecurityConfig` và `tour/controller/TourExceptionHandler` tiếp tục áp dụng chung cho event, guide và các điểm nối schedule/participant; không nhân đôi cấu hình bảo mật.
+
+`event` chứa cả TREKKING và CAMPING, phân biệt bằng `eventType`; đây là tách package code, không tách dữ liệu thành hai nghiệp vụ độc lập. Endpoint, HTTP method, JSON, quyền, cấu hình `tour.cloudinary.*`, bảng/cột/PK/FK và migration giữ nguyên. Swagger đổi nhóm controller sang event/guide; bookmark dựa trên tên controller cũ cần mở lại.
+
+Module 5 dùng `event.service.EventService` và `event.entity.EventStatus`; chỉ cập nhật import trong `ScheduleService` và `ParticipantService`, không sửa nghiệp vụ lịch/đăng ký.

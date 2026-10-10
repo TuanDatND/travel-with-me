@@ -1,5 +1,6 @@
-package com.coc.sba_treektour.tour.service;
+package com.coc.sba_treektour.event.service;
 
+import com.coc.sba_treektour.tour.service.TourException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.*;

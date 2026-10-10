@@ -1,9 +1,12 @@
-package com.coc.sba_treektour.tour.service;
+package com.coc.sba_treektour.event.service;
 
-import com.coc.sba_treektour.tour.dto.TourDtos.*;
-import com.coc.sba_treektour.tour.entity.*;
-import com.coc.sba_treektour.tour.repository.EventRepository;
-import com.coc.sba_treektour.tour.repository.ImageRepository;
+import com.coc.sba_treektour.tour.service.TourQueries;
+import com.coc.sba_treektour.tour.service.TourException;
+import com.coc.sba_treektour.event.dto.EventDtos.*;
+import com.coc.sba_treektour.tour.dto.TourDtos.PageResponse;
+import com.coc.sba_treektour.event.entity.*;
+import com.coc.sba_treektour.event.repository.EventRepository;
+import com.coc.sba_treektour.event.repository.ImageRepository;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;

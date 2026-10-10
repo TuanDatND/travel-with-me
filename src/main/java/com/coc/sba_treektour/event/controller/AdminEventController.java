@@ -1,25 +1,24 @@
-package com.coc.sba_treektour.tour.controller;
+package com.coc.sba_treektour.event.controller;
 
 import com.coc.sba_treektour.common.response.ApiResponse;
-import com.coc.sba_treektour.tour.dto.TourDtos.*;
-import com.coc.sba_treektour.tour.entity.*;
-import com.coc.sba_treektour.tour.service.*;
+import com.coc.sba_treektour.event.dto.EventDtos.*;
+import com.coc.sba_treektour.event.entity.*;
+import com.coc.sba_treektour.event.service.*;
 import jakarta.validation.Valid;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import com.coc.sba_treektour.tour.dto.TourDtos.PageResponse;
 import java.math.BigDecimal;
 
 @RestController
 @RequestMapping("/api/admin")
-public class AdminTourController {
+public class AdminEventController {
     private final EventService events;
-    private final GuideService guides;
 
-    /** Khởi tạo controller quản trị tour và hướng dẫn viên; filter bảo mật yêu cầu ADMIN. */
-    public AdminTourController(EventService events, GuideService guides) {
+    /** Khởi tạo controller xử lý nội dung và ảnh tour/sự kiện. */
+    public AdminEventController(EventService events) {
         this.events = events;
-        this.guides = guides;
     }
 
     /** Lấy danh sách tour quản trị với bộ lọc nội dung, giá và trạng thái. */
@@ -99,41 +98,4 @@ public class AdminTourController {
         events.deleteImage(eventId, imageId);
     }
 
-    /** Lấy hồ sơ quản trị theo chuyên môn, trạng thái hoặc tài khoản. */
-    @GetMapping("/guides")
-    public ApiResponse<PageResponse<AdminGuideResponse>> guides(
-            @RequestParam(required = false) String specialization,
-            @RequestParam(required = false) GuideStatus status,
-            @RequestParam(required = false) Long userId,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
-        return ApiResponse.success(guides.listAdmin(specialization, status, userId, page, size));
-    }
-
-    /** Lấy chi tiết quản trị của một hồ sơ hướng dẫn viên. */
-    @GetMapping("/guides/{guideId}")
-    public ApiResponse<AdminGuideResponse> guide(@PathVariable Long guideId) {
-        return ApiResponse.success(guides.getAdmin(guideId));
-    }
-
-    /** Tạo hồ sơ chuyên môn từ tài khoản có sẵn sau khi kiểm tra request. */
-    @PostMapping("/guides")
-    @ResponseStatus(HttpStatus.CREATED)
-    public ApiResponse<AdminGuideResponse> createGuide(@Valid @RequestBody GuideCreateInput input) {
-        return ApiResponse.created("Tạo hồ sơ hướng dẫn viên thành công", guides.create(input));
-    }
-
-    /** Cập nhật kinh nghiệm và chuyên môn; không cho đổi tài khoản liên kết. */
-    @PutMapping("/guides/{guideId}")
-    public ApiResponse<AdminGuideResponse> updateGuide(
-            @PathVariable Long guideId, @Valid @RequestBody GuideUpdateInput input) {
-        return ApiResponse.success(guides.update(guideId, input));
-    }
-
-    /** Kích hoạt hoặc ngừng hoạt động một hồ sơ hướng dẫn viên. */
-    @PatchMapping("/guides/{guideId}/status")
-    public ApiResponse<AdminGuideResponse> guideStatus(
-            @PathVariable Long guideId, @Valid @RequestBody GuideStatusInput input) {
-        return ApiResponse.success(guides.status(guideId, input.status()));
-    }
 }

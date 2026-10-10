@@ -1,8 +1,11 @@
 package com.coc.sba_treektour.tour;
 
 import com.coc.sba_treektour.tour.entity.*;
+import com.coc.sba_treektour.event.entity.*;
 import com.coc.sba_treektour.tour.repository.*;
+import com.coc.sba_treektour.event.repository.*;
 import com.coc.sba_treektour.tour.service.*;
+import com.coc.sba_treektour.event.service.*;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.transaction.support.*;
