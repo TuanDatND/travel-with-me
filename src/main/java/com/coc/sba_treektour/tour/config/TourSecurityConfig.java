@@ -33,7 +33,7 @@ public class TourSecurityConfig {
         this.mapper = mapper;
     }
 
-    /** Cho khách xem nội dung công khai và xác thực ADMIN bằng JWT chung của member 1. */
+    /** Phân quyền tour, lịch và vé; dùng JWT chung và kiểm tra tài khoản ACTIVE. */
     @Bean
     @Order(1)
     SecurityFilterChain tourSecurity(
@@ -47,7 +47,10 @@ public class TourSecurityConfig {
                         "/api/admin/events",
                         "/api/admin/events/**",
                         "/api/admin/guides",
-                        "/api/admin/guides/**")
+                        "/api/admin/guides/**",
+                        "/api/schedules",
+                        "/api/schedules/**",
+                        "/api/participants/**")
                 .authorizeHttpRequests(
                         auth ->
                                 auth.requestMatchers(
@@ -57,6 +60,30 @@ public class TourSecurityConfig {
                                                 "/api/guides",
                                                 "/api/guides/*")
                                         .permitAll()
+                                        .requestMatchers(
+                                                HttpMethod.GET,
+                                                "/api/schedules",
+                                                "/api/schedules/*")
+                                        .permitAll()
+                                        .requestMatchers(
+                                                HttpMethod.POST, "/api/schedules/*/register")
+                                        .authenticated()
+                                        .requestMatchers(
+                                                HttpMethod.GET, "/api/schedules/*/participants")
+                                        .hasAnyAuthority("ADMIN", "STAFF", "GUIDE")
+                                        .requestMatchers(
+                                                HttpMethod.PATCH,
+                                                "/api/participants/*/check-in",
+                                                "/api/participants/*/no-show")
+                                        .hasAnyAuthority("ADMIN", "STAFF", "GUIDE")
+                                        .requestMatchers(
+                                                HttpMethod.PATCH,
+                                                "/api/participants/*/confirm-payment")
+                                        .hasAnyAuthority("ADMIN", "STAFF")
+                                        .requestMatchers("/api/participants/**")
+                                        .authenticated()
+                                        .requestMatchers("/api/schedules", "/api/schedules/**")
+                                        .hasAnyAuthority("ADMIN", "STAFF")
                                         .requestMatchers("/api/admin/**")
                                         .hasAuthority("ADMIN")
                                         .anyRequest()

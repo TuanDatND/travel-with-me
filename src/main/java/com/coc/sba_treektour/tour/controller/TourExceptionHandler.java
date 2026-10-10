@@ -18,7 +18,11 @@ import java.util.*;
 
 // Ưu tiên handler của tour trước handler chung để giữ đúng HTTP status và fieldErrors.
 @org.springframework.core.annotation.Order(0)
-@RestControllerAdvice(basePackages = "com.coc.sba_treektour.tour.controller")
+@RestControllerAdvice(
+        basePackages = {
+            "com.coc.sba_treektour.tour.controller",
+            "com.coc.sba_treektour.schedule.controller"
+        })
 public class TourExceptionHandler {
     /** Tạo ApiResponse chung; data chứa mã lỗi và lỗi theo từng trường để client xử lý. */
     private ResponseEntity<ApiResponse<?>> error(
