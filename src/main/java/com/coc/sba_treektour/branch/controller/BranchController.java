@@ -34,4 +34,18 @@ public class BranchController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.created("Tạo chi nhánh thành công", branchService.createBranch(request)));
     }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<ApiResponse<BranchResponse>> updateBranch(
+            @PathVariable Long id, 
+            @Valid @RequestBody BranchRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật chi nhánh thành công", branchService.updateBranch(id, request)));
+    }
+
+    @PutMapping("/{id}/status")
+    public ResponseEntity<ApiResponse<BranchResponse>> updateBranchStatus(
+            @PathVariable Long id, 
+            @RequestParam String status) {
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật trạng thái thành công", branchService.updateBranchStatus(id, status)));
+    }
 }

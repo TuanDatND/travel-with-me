@@ -39,8 +39,8 @@ public class SecurityConfig {
                     "/api/auth/**"
                 ).permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/branches/**").permitAll()
-                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/branches/**", "/api/staff/**").hasRole("ADMIN")
-                .requestMatchers("/api/staff/**").hasAnyRole("ADMIN", "STAFF")
+                .requestMatchers("/api/branches/**").hasAuthority("ADMIN")
+                .requestMatchers("/api/staff/**").hasAnyAuthority("ADMIN", "STAFF")
                 .anyRequest().authenticated()
             )
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

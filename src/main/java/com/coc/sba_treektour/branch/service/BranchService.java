@@ -42,6 +42,31 @@ public class BranchService {
         return mapToBranchResponse(savedBranch);
     }
 
+    public BranchResponse updateBranch(Long id, BranchRequest request) {
+        Branch branch = branchRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Branch not found with id: " + id));
+
+        branch.setName(request.getName());
+        branch.setPhone(request.getPhone());
+        branch.setAddress(request.getAddress());
+
+        Branch updatedBranch = branchRepository.save(branch);
+        return mapToBranchResponse(updatedBranch);
+    }
+
+    public BranchResponse updateBranchStatus(Long id, String status) {
+        Branch branch = branchRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Branch not found with id: " + id));
+        
+        if (!"ACTIVE".equals(status) && !"INACTIVE".equals(status)) {
+            throw new RuntimeException("Invalid status. Must be ACTIVE or INACTIVE");
+        }
+
+        branch.setStatus(status);
+        Branch updatedBranch = branchRepository.save(branch);
+        return mapToBranchResponse(updatedBranch);
+    }
+
     public BranchResponse mapToBranchResponse(Branch branch) {
         return BranchResponse.builder()
                 .id(branch.getId())

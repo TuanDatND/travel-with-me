@@ -32,7 +32,7 @@ public class AuthService {
             throw new RuntimeException("Email is already taken!");
         }
 
-        Role userRole = roleRepository.findByName("ROLE_USER")
+        Role userRole = roleRepository.findByName("CUSTOMER")
                 .orElseThrow(() -> new RuntimeException("Default role not found"));
 
         User user = User.builder()

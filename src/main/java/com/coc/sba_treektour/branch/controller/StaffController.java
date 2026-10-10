@@ -29,4 +29,18 @@ public class StaffController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.created("Gán nhân viên thành công", staffService.assignStaff(request)));
     }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<ApiResponse<StaffResponse>> updateStaff(
+            @PathVariable Long id, 
+            @Valid @RequestBody StaffRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật thông tin nhân viên thành công", staffService.updateStaff(id, request)));
+    }
+
+    @PutMapping("/{id}/status")
+    public ResponseEntity<ApiResponse<StaffResponse>> updateStaffStatus(
+            @PathVariable Long id, 
+            @RequestParam String status) {
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật trạng thái nhân viên thành công", staffService.updateStaffStatus(id, status)));
+    }
 }
