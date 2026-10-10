@@ -1,5 +1,6 @@
-package com.coc.sba_treektour.tour.service;
+package com.coc.sba_treektour.event.service;
 
+import com.coc.sba_treektour.tour.service.TourException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;

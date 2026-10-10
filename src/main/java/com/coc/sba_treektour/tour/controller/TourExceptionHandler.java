@@ -21,6 +21,7 @@ import java.util.*;
 @RestControllerAdvice(
         basePackages = {
             "com.coc.sba_treektour.tour.controller",
+            "com.coc.sba_treektour.event.controller",
             "com.coc.sba_treektour.schedule.controller"
         })
 public class TourExceptionHandler {

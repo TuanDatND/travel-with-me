@@ -8,8 +8,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 import com.coc.sba_treektour.tour.entity.*;
+import com.coc.sba_treektour.event.entity.*;
 import com.coc.sba_treektour.tour.repository.*;
+import com.coc.sba_treektour.event.repository.*;
 import com.coc.sba_treektour.tour.service.*;
+import com.coc.sba_treektour.event.service.*;
 import com.jayway.jsonpath.JsonPath;
 
 import org.junit.jupiter.api.*;

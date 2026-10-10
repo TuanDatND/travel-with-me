@@ -9,9 +9,9 @@ import com.coc.sba_treektour.schedule.entity.ScheduleStatus;
 import com.coc.sba_treektour.schedule.repository.EventParticipantRepository;
 import com.coc.sba_treektour.schedule.repository.EventScheduleHistoryRepository;
 import com.coc.sba_treektour.schedule.repository.EventScheduleRepository;
-import com.coc.sba_treektour.tour.entity.EventStatus;
+import com.coc.sba_treektour.event.entity.EventStatus;
 import com.coc.sba_treektour.tour.entity.GuideStatus;
-import com.coc.sba_treektour.tour.service.EventService;
+import com.coc.sba_treektour.event.service.EventService;
 import com.coc.sba_treektour.tour.service.GuideService;
 import com.coc.sba_treektour.tour.service.TourException;
 

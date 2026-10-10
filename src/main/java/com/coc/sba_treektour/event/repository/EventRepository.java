@@ -1,6 +1,6 @@
-package com.coc.sba_treektour.tour.repository;
+package com.coc.sba_treektour.event.repository;
 
-import com.coc.sba_treektour.tour.entity.TourEvent;
+import com.coc.sba_treektour.event.entity.TourEvent;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;

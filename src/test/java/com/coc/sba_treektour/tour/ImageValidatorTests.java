@@ -1,6 +1,7 @@
 package com.coc.sba_treektour.tour;
 
 import com.coc.sba_treektour.tour.service.*;
+import com.coc.sba_treektour.event.service.*;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.http.HttpStatus;
