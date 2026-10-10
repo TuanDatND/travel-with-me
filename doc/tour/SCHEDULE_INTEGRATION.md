@@ -139,7 +139,9 @@ Success và lỗi đều dùng ApiResponse hiện có. Lỗi tích hợp dùng `
 
 ## Kiểm thử
 
-**Kết quả: compileJava và toàn bộ 27 tests PASS**, gồm 8 tests tích hợp mới, 19 tests hiện có.
+**Kết quả trước khi merge main: compileJava và toàn bộ 27 tests PASS**, gồm 8 tests tích hợp mới, 19 tests hiện có.
+
+Sau khi merge `origin/main` commit `271c105` vào nhánh này (merge `8384d50`), compileJava và toàn bộ **31 tests PASS** trên PostgreSQL local riêng. Kết quả gồm thêm 4 tests mới của member 1; không gửi email hoặc đăng nhập Google thật.
 
 `TourScheduleIntegrationTests` dùng PostgreSQL local riêng, controller/service thật và login/JWT thật; không mock tour, guide, lịch hay vé. Fixture tour PUBLISHED được chèn SQL để tập trung kiểm tra điểm nối; việc tạo/công bố tour qua API được kiểm tra bởi bộ test tour hiện có.
 

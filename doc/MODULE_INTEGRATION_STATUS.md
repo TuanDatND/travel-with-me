@@ -47,6 +47,8 @@
 
 | 2026-10-10 | Tour & guide + Schedule integration | Member 4 | `doc/tour/SUPABASE_MEMBER45_DEMO_20261010.md`, `CHECK_SUPABASE_MEMBER45.sql` | Theo yêu cầu chạy demo HTTP trên backend 8081/Supabase: 22/22 PASS và SELECT DB xác nhận tour 4 PUBLISHED, guide 4 ACTIVE, lịch 1 FULL, vé 1 CANCELLED/vé 2 PENDING, giá 1500000 | Không đổi code/schema hoặc dữ liệu có sẵn. Tạo dữ liệu demo mới; ảnh placeholder metadata seed cho đúng tour demo, không test upload Cloudinary/payment. |
 
+| 2026-10-10 | Tour & guide + Schedule integration | Member 4 | Merge origin/main 271c105 → feature/tour-schedule-integration (8384d50) | Lưu code tích hợp fed2122 rồi merge main mới của member 1 không conflict; compileJava + 31 tests PASS trên PostgreSQL local riêng, build output tách khỏi backend đang chạy | Không sửa nghiệp vụ member 1; chưa push, chưa restart backend hoặc chạy migration mới lên Supabase. Các vấn đề review member 1 chưa được sửa trong lần merge. |
+
 ## Quy tắc map entity
 
 Chỉ map quan hệ JPA khi module đích có trạng thái `READY_TO_MAP`. Khi map, cập nhật change log với các thông tin: entity nguồn, entity đích, cột FK, loại quan hệ, `fetch` strategy và migration (nếu có).
