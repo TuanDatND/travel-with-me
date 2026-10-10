@@ -1,20 +1,30 @@
 package com.coc.sba_treektour.tour.config;
 
-import jakarta.servlet.http.HttpServletResponse;
+import com.coc.sba_treektour.common.config.JwtAuthenticationFilter;
+import com.coc.sba_treektour.common.config.JwtService;
 import com.coc.sba_treektour.common.response.ApiResponse;
-import tools.jackson.databind.ObjectMapper;
-import java.time.OffsetDateTime;
-import java.util.Map;
+
+import jakarta.servlet.http.HttpServletResponse;
+
 import org.springframework.context.annotation.*;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.config.Customizer;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.web.csrf.CsrfToken;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import tools.jackson.databind.ObjectMapper;
+
+import java.time.OffsetDateTime;
+import java.util.Map;
 
 @Configuration
 public class TourSecurityConfig {
@@ -25,10 +35,15 @@ public class TourSecurityConfig {
         this.mapper = mapper;
     }
 
-    /** Cho khách đọc API công khai, yêu cầu ADMIN cho quản trị và giữ CSRF khi ghi dữ liệu. */
+    /** Cho khách xem nội dung công khai và xác thực ADMIN bằng JWT chung của member 1. */
     @Bean
     @Order(1)
-    SecurityFilterChain tourSecurity(HttpSecurity http) throws Exception {
+    SecurityFilterChain tourSecurity(
+            HttpSecurity http,
+            JwtService jwtService,
+            UserDetailsService accounts,
+            PlatformTransactionManager transactionManager)
+            throws Exception {
         http.securityMatcher(
                         "/api/events",
                         "/api/events/**",
@@ -37,8 +52,7 @@ public class TourSecurityConfig {
                         "/api/admin/events",
                         "/api/admin/events/**",
                         "/api/admin/guides",
-                        "/api/admin/guides/**",
-                        "/api/tour/csrf")
+                        "/api/admin/guides/**")
                 .authorizeHttpRequests(
                         auth ->
                                 auth.requestMatchers(
@@ -46,14 +60,20 @@ public class TourSecurityConfig {
                                                 "/api/events",
                                                 "/api/events/*",
                                                 "/api/guides",
-                                                "/api/guides/*",
-                                                "/api/tour/csrf")
+                                                "/api/guides/*")
                                         .permitAll()
                                         .requestMatchers("/api/admin/**")
                                         .hasRole("ADMIN")
                                         .anyRequest()
                                         .denyAll())
-                .httpBasic(Customizer.withDefaults())
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(
+                        session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .httpBasic(AbstractHttpConfigurer::disable)
+                .formLogin(AbstractHttpConfigurer::disable)
+                .addFilterBefore(
+                        tourJwtFilter(jwtService, accounts, transactionManager),
+                        UsernamePasswordAuthenticationFilter.class)
                 .exceptionHandling(
                         errors ->
                                 errors.authenticationEntryPoint(
@@ -82,21 +102,38 @@ public class TourSecurityConfig {
                                                                 response,
                                                                 403,
                                                                 "FORBIDDEN",
-                                                                "Access denied or invalid CSRF token");
+                                                                "Access denied");
                                                 }));
-        // Giữ CSRF cho cả xác thực bằng phiên trình duyệt và HTTP Basic.
+        // API chỉ nhận Bearer token, không dùng cookie hoặc HTTP Basic để xác thực.
         return http.build();
     }
 
-    /** Giữ bảo vệ mặc định cho đường dẫn khác đến khi module tài khoản cung cấp cấu hình chung. */
-    @Bean
-    @Order(Integer.MAX_VALUE)
-    SecurityFilterChain applicationFallbackSecurity(HttpSecurity http) throws Exception {
-        // Giữ bảo vệ mặc định ngoài module đến khi phần tài khoản cung cấp filter chain chung.
-        return http.authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
-                .httpBasic(Customizer.withDefaults())
-                .formLogin(Customizer.withDefaults())
-                .build();
+    /** Đọc quyền LAZY trong transaction và chặn tài khoản bị khóa trước khi xác thực JWT. */
+    private JwtAuthenticationFilter tourJwtFilter(
+            JwtService jwtService,
+            UserDetailsService accounts,
+            PlatformTransactionManager transactionManager) {
+        var transaction = new TransactionTemplate(transactionManager);
+        transaction.setReadOnly(true);
+        return new JwtAuthenticationFilter(
+                jwtService,
+                email ->
+                        transaction.execute(
+                                status -> {
+                                    var account = accounts.loadUserByUsername(email);
+                                    if (!account.isEnabled()
+                                            || !account.isAccountNonLocked()
+                                            || !account.isAccountNonExpired()
+                                            || !account.isCredentialsNonExpired()) {
+                                        throw new UsernameNotFoundException(
+                                                "Account is not active");
+                                    }
+                                    // Sao chép quyền trong transaction để filter không truy cập
+                                    // entity LAZY sau đó.
+                                    return org.springframework.security.core.userdetails.User
+                                            .withUserDetails(account)
+                                            .build();
+                                }));
     }
 
     /** Ghi lỗi xác thực hoặc phân quyền dưới dạng JSON thống nhất. */
@@ -112,14 +149,5 @@ public class TourSecurityConfig {
                                         message,
                                         Map.of("code", code, "fieldErrors", Map.of()),
                                         OffsetDateTime.now())));
-    }
-
-    @RestController
-    static class CsrfController {
-        /** Trả CSRF token để client gửi cùng cookie phiên trong các request thay đổi dữ liệu. */
-        @GetMapping("/api/tour/csrf")
-        public ApiResponse<CsrfToken> csrf(CsrfToken token) {
-            return ApiResponse.success(token);
-        }
     }
 }

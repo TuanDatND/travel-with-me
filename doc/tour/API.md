@@ -1,6 +1,6 @@
 # TerraPeak Outpost — Tour & guide API
 
-Module 4, branch `feature/tour-guide`. Backend only; controllers use `/api`.
+Module 4, integration test branch `feature/tour-auth-test` (tour + member 1 JWT). Backend only; controllers use `/api`.
 
 ## Shared response format
 
@@ -39,17 +39,19 @@ Configure DB variables from `.env.example`, plus `CLOUDINARY_CLOUD_NAME`, `CLOUD
 
 Run `bash gradlew bootRun`. The Gradle wrapper currently has no executable bit, so use `bash gradlew`.
 
-## Authentication and CSRF
+## Authentication — JWT integration test branch
 
-Only GET `/api/events`, `/api/events/{eventId}`, `/api/guides`, `/api/guides/{guideId}` and `/api/tour/csrf` are public. Admin endpoints require authority `ROLE_ADMIN`. CSRF is enabled, including for multipart uploads.
+This branch includes member 1's `feature/account-branch-api` unchanged. Tour uses its JWT service/filter, with a module-local account reader that loads LAZY roles inside a read-only transaction and rejects inactive/blocked accounts. It does not change Account code or schema. The temporary fallback security chain is removed; member 1 owns authentication for other modules.
 
-1. GET `/api/tour/csrf` and retain its session cookie.
-2. Read `data.headerName` and `data.token` from its response.
-3. Send that header and cookie on POST/PUT/PATCH/DELETE, together with the authenticated session or HTTP Basic credentials.
+1. POST `/api/auth/login` with `email` and `password`.
+2. Read `data.token`.
+3. Send `Authorization: Bearer <token>` to tour admin endpoints; the account requires `ROLE_ADMIN`.
 
-Account now has an initial AuthService, but its HTTP login and shared security integration are not available yet. This module does not create accounts or grant roles. For local development only, Spring Boot's default user can be configured through `SPRING_SECURITY_USER_NAME`, `SPRING_SECURITY_USER_PASSWORD`, `SPRING_SECURITY_USER_ROLES=ADMIN` when no custom authentication provider is installed. Real users from `users` are not authenticated automatically by this module.
+GET `/api/events`, `/api/events/{eventId}`, `/api/guides`, `/api/guides/{guideId}` remain public. Tour no longer accepts HTTP Basic or cookie authentication; stateless Bearer requests do not require CSRF tokens. `/api/tour/csrf` is removed on this branch.
 
-`TourSecurityConfig` scopes its first filter chain to these endpoints. A final fallback preserves Boot's authenticated protection outside the module. Member 1 must consolidate/replace this fallback when introducing shared authentication and make sure the tour chain uses the shared authentication provider. No CORS policy was added; the intended initial client is same-origin.
+`TourExceptionHandler` takes priority for tour controllers so member 1's general handler does not replace tour HTTP status/error fields.
+
+See [JWT_TEST.md](JWT_TEST.md) for local commands. The integration is for local testing; member 1 still needs to address shared JWT key configuration and role/status loading for endpoints outside tour. No CORS policy was added.
 
 ## Endpoints
 

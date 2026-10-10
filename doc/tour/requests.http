@@ -1,11 +1,11 @@
 # REST client examples. Set credentials locally; never commit real secrets.
-@baseUrl = http://localhost:8080
+@baseUrl = http://localhost:8081
 @eventId = 1
 @guideId = 1
 @userId = 123
-@adminUsername = replace-locally
-@adminPassword = replace-locally
-@csrfToken = paste-token-from-csrf-response
+@email = tour-admin@example.test
+@password = tour-demo-pass
+@token = paste-data-token-from-login
 
 ### Public catalog
 GET {{baseUrl}}/api/events?eventType=TREKKING&page=0&size=20
@@ -16,14 +16,15 @@ GET {{baseUrl}}/api/events/{{eventId}}
 ### Public guides
 GET {{baseUrl}}/api/guides?specialization=trek
 
-### Keep the returned session cookie and copy data.token for subsequent writes
-GET {{baseUrl}}/api/tour/csrf
-Authorization: Basic {{adminUsername}} {{adminPassword}}
+### Login through member 1; copy data.token to @token above
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{"email":"{{email}}","password":"{{password}}"}
 
 ### Create draft; copy response data.eventId
 POST {{baseUrl}}/api/admin/events
-Authorization: Basic {{adminUsername}} {{adminPassword}}
-X-CSRF-TOKEN: {{csrfToken}}
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
@@ -42,8 +43,7 @@ Content-Type: application/json
 
 ### Upload before publishing; replace local image path
 POST {{baseUrl}}/api/admin/events/{{eventId}}/images
-Authorization: Basic {{adminUsername}} {{adminPassword}}
-X-CSRF-TOKEN: {{csrfToken}}
+Authorization: Bearer {{token}}
 Content-Type: multipart/form-data; boundary=TourImageBoundary
 
 --TourImageBoundary
@@ -59,16 +59,14 @@ Content-Type: image/jpeg
 
 ### Publish
 PATCH {{baseUrl}}/api/admin/events/{{eventId}}/status
-Authorization: Basic {{adminUsername}} {{adminPassword}}
-X-CSRF-TOKEN: {{csrfToken}}
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {"status":"PUBLISHED"}
 
 ### Create guide from an existing active account
 POST {{baseUrl}}/api/admin/guides
-Authorization: Basic {{adminUsername}} {{adminPassword}}
-X-CSRF-TOKEN: {{csrfToken}}
+Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {"userId":{{userId}},"experienceYears":3,"specialization":"Mountain trekking"}
