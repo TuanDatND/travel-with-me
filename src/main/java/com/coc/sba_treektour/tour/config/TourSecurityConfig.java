@@ -18,8 +18,6 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import tools.jackson.databind.ObjectMapper;
 
@@ -39,10 +37,7 @@ public class TourSecurityConfig {
     @Bean
     @Order(1)
     SecurityFilterChain tourSecurity(
-            HttpSecurity http,
-            JwtService jwtService,
-            UserDetailsService accounts,
-            PlatformTransactionManager transactionManager)
+            HttpSecurity http, JwtService jwtService, UserDetailsService accounts)
             throws Exception {
         http.securityMatcher(
                         "/api/events",
@@ -63,7 +58,7 @@ public class TourSecurityConfig {
                                                 "/api/guides/*")
                                         .permitAll()
                                         .requestMatchers("/api/admin/**")
-                                        .hasRole("ADMIN")
+                                        .hasAuthority("ADMIN")
                                         .anyRequest()
                                         .denyAll())
                 .csrf(AbstractHttpConfigurer::disable)
@@ -72,7 +67,7 @@ public class TourSecurityConfig {
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .formLogin(AbstractHttpConfigurer::disable)
                 .addFilterBefore(
-                        tourJwtFilter(jwtService, accounts, transactionManager),
+                        tourJwtFilter(jwtService, accounts),
                         UsernamePasswordAuthenticationFilter.class)
                 .exceptionHandling(
                         errors ->
@@ -108,32 +103,22 @@ public class TourSecurityConfig {
         return http.build();
     }
 
-    /** Đọc quyền LAZY trong transaction và chặn tài khoản bị khóa trước khi xác thực JWT. */
+    /** Tái sử dụng JWT của member 1 và kiểm tra trạng thái tài khoản trước khi cấp quyền tour. */
     private JwtAuthenticationFilter tourJwtFilter(
-            JwtService jwtService,
-            UserDetailsService accounts,
-            PlatformTransactionManager transactionManager) {
-        var transaction = new TransactionTemplate(transactionManager);
-        transaction.setReadOnly(true);
+            JwtService jwtService, UserDetailsService accounts) {
         return new JwtAuthenticationFilter(
                 jwtService,
-                email ->
-                        transaction.execute(
-                                status -> {
-                                    var account = accounts.loadUserByUsername(email);
-                                    if (!account.isEnabled()
-                                            || !account.isAccountNonLocked()
-                                            || !account.isAccountNonExpired()
-                                            || !account.isCredentialsNonExpired()) {
-                                        throw new UsernameNotFoundException(
-                                                "Account is not active");
-                                    }
-                                    // Sao chép quyền trong transaction để filter không truy cập
-                                    // entity LAZY sau đó.
-                                    return org.springframework.security.core.userdetails.User
-                                            .withUserDetails(account)
-                                            .build();
-                                }));
+                email -> {
+                    var account = accounts.loadUserByUsername(email);
+                    if (!account.isEnabled()
+                            || !account.isAccountNonLocked()
+                            || !account.isAccountNonExpired()
+                            || !account.isCredentialsNonExpired()) {
+                        throw new UsernameNotFoundException("Account is not active");
+                    }
+                    // Member 1 đã tải role EAGER; giữ principal gốc để các API lấy được userId.
+                    return account;
+                });
     }
 
     /** Ghi lỗi xác thực hoặc phân quyền dưới dạng JSON thống nhất. */

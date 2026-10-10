@@ -37,8 +37,8 @@ class TourJwtIntegrationTests {
         userIds.add(
                 jdbc.queryForObject(
                         "INSERT INTO users(role_id,full_name,email,password,status) SELECT"
-                            + " role_id,?,?,?,'ACTIVE' FROM roles WHERE role_name=? RETURNING"
-                            + " user_id",
+                                + " role_id,?,?,?,'ACTIVE' FROM roles WHERE role_name=? RETURNING"
+                                + " user_id",
                         Long.class,
                         "Tour JWT test",
                         email,
@@ -65,8 +65,8 @@ class TourJwtIntegrationTests {
     /** Kiểm tra quyền tour, tạo guide, tài khoản bị khóa và token sai mà không dùng mock user. */
     @Test
     void realLoginTokensAuthorizeTourWithoutSessionOrCsrf() throws Exception {
-        String adminEmail = account("ROLE_ADMIN");
-        String customerEmail = account("ROLE_USER");
+        String adminEmail = account("ADMIN");
+        String customerEmail = account("CUSTOMER");
         String admin = "Bearer " + login(adminEmail);
         String customer = "Bearer " + login(customerEmail);
         mvc.perform(get("/api/events")).andExpect(status().isOk());
@@ -75,6 +75,11 @@ class TourJwtIntegrationTests {
                 .andExpect(status().isForbidden());
         mvc.perform(get("/api/admin/events").header("Authorization", admin))
                 .andExpect(status().isOk());
+        for (String role : List.of("STAFF", "GUIDE")) {
+            String token = "Bearer " + login(account(role));
+            mvc.perform(get("/api/admin/events").header("Authorization", token))
+                    .andExpect(status().isForbidden());
+        }
         mvc.perform(get("/api/admin/events").with(httpBasic(adminEmail, "test-password")))
                 .andExpect(status().isUnauthorized());
         var created =

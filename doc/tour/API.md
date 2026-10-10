@@ -1,10 +1,10 @@
 # TerraPeak Outpost — Tour & guide API
 
-Module 4, integration test branch `feature/tour-auth-test` (tour + member 1 JWT). Backend only; controllers use `/api`.
+Module 4, integration test branch `feature/tour-auth-integration` (tour + member 1 JWT). Backend only; controllers use `/api`.
 
 ## Shared response format
 
-Tour endpoints now reuse `common.response.ApiResponse` without changing the shared class. All JSON responses, including CSRF and security errors, have `status`, `message`, `data`, `timestamp`. HTTP 204 image deletion still has no body. Request bodies and database schema are unchanged.
+Tour endpoints now reuse `common.response.ApiResponse` without changing the shared class. All JSON responses, including security errors, have `status`, `message`, `data`, `timestamp`. HTTP 204 image deletion still has no body. Request bodies and database schema are unchanged.
 
 ```json
 {
@@ -41,11 +41,11 @@ Run `bash gradlew bootRun`. The Gradle wrapper currently has no executable bit, 
 
 ## Authentication — JWT integration test branch
 
-This branch includes member 1's `feature/account-branch-api` unchanged. Tour uses its JWT service/filter, with a module-local account reader that loads LAZY roles inside a read-only transaction and rejects inactive/blocked accounts. It does not change Account code or schema. The temporary fallback security chain is removed; member 1 owns authentication for other modules.
+This branch is based on `main` at `eabe66f`, including member 1's latest JWT and EAGER role loading unchanged. Tour reuses the JWT service/filter with an account-status guard that rejects inactive/blocked accounts. It does not change Account code or schema. The temporary fallback security chain is removed; member 1 owns authentication for other modules.
 
 1. POST `/api/auth/login` with `email` and `password`.
 2. Read `data.token`.
-3. Send `Authorization: Bearer <token>` to tour admin endpoints; the account requires `ROLE_ADMIN`.
+3. Send `Authorization: Bearer <token>` to tour admin endpoints; the account requires `ADMIN`.
 
 GET `/api/events`, `/api/events/{eventId}`, `/api/guides`, `/api/guides/{guideId}` remain public. Tour no longer accepts HTTP Basic or cookie authentication; stateless Bearer requests do not require CSRF tokens. `/api/tour/csrf` is removed on this branch.
 
@@ -165,7 +165,7 @@ Module controller and tour security errors reuse the same envelope; stable error
 {"status":400,"message":"Request validation failed","data":{"code":"INVALID_INPUT","fieldErrors":{"eventName":"must not be blank"}},"timestamp":"2026-10-09T22:00:00+07:00"}
 ```
 
-400 malformed/invalid input; 401 authentication required; 403 insufficient permission/CSRF; 404 missing/hidden resource; 409 invalid transition, missing publication requirements or duplicate/reference conflict; 413 oversized image; 502 storage failure; 503 storage not configured.
+400 malformed/invalid input; 401 authentication required; 403 insufficient permission; 404 missing/hidden resource; 409 invalid transition, missing publication requirements or duplicate/reference conflict; 413 oversized image; 502 storage failure; 503 storage not configured.
 
 Internal read services for module 5:
 
@@ -178,6 +178,8 @@ These are lookups, not reservations or schedule validators. Module 5 must requir
 
 `bash gradlew compileJava test` requires a dedicated test database configured with DB_URL/DB_USERNAME/DB_PASSWORD. Existing contextLoads also requires the shared schema. Never point integration tests at a production database. API integration tests roll back their data; Cloudinary is mocked and no live assets are uploaded.
 
-Tests cover anonymous browsing, admin/customer/anonymous permissions, CSRF, draft/publish/archive, validation/filters/pagination, image IDs and ownership, storage errors, rollback compensation, guide privacy/active accounts and duplicate specialization at both service and DB level.
+Tests cover anonymous browsing, admin/customer/anonymous permissions, JWT stateless writes, draft/publish/archive, validation/filters/pagination, image IDs and ownership, storage errors, rollback compensation, guide privacy/active accounts and duplicate specialization at both service and DB level.
 
 Live Cloudinary calls still require a manual smoke test with configured credentials. The implementation does not supply a UI, login/account API, schedules, registrations or payments.
+
+JWT integration adds real login checks for ADMIN, CUSTOMER, STAFF and GUIDE, rejection of disabled/blocked accounts and invalid tokens. 19 tests pass on a separate PostgreSQL database.

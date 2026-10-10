@@ -58,7 +58,7 @@ class TourApiIntegrationTests {
         userId =
                 jdbc.queryForObject(
                         "INSERT INTO users(role_id,full_name,email,password) VALUES (?,?,?,?)"
-                            + " RETURNING user_id",
+                                + " RETURNING user_id",
                         Long.class,
                         roleId,
                         "Guide Name",
@@ -133,7 +133,7 @@ class TourApiIntegrationTests {
 
     /** Kiểm tra khách hàng không được quản trị tour hoặc hướng dẫn viên. */
     @Test
-    @WithMockUser(roles = "CUSTOMER")
+    @WithMockUser(authorities = "CUSTOMER")
     void customerCannotManage() throws Exception {
         mvc.perform(get("/api/admin/guides")).andExpect(status().isForbidden());
         mvc.perform(
@@ -145,7 +145,7 @@ class TourApiIntegrationTests {
 
     /** Kiểm tra ADMIN ghi dữ liệu không cần CSRF khi API dùng JWT stateless. */
     @Test
-    @WithMockUser(roles = "ADMIN")
+    @WithMockUser(authorities = "ADMIN")
     void adminCanWriteWithoutCsrf() throws Exception {
         mvc.perform(
                         post("/api/admin/events")
@@ -156,7 +156,7 @@ class TourApiIntegrationTests {
 
     /** Kiểm tra luồng tạo nháp, thêm ảnh, công bố, tìm kiếm công khai và lưu trữ tour. */
     @Test
-    @WithMockUser(roles = "ADMIN")
+    @WithMockUser(authorities = "ADMIN")
     void createUploadPublishBrowseAndArchive() throws Exception {
         long eventId =
                 id(
@@ -219,7 +219,7 @@ class TourApiIntegrationTests {
 
     /** Kiểm tra xử lý lỗi lưu trữ, ID ảnh không thuộc tour và file giả ảnh. */
     @Test
-    @WithMockUser(roles = "ADMIN")
+    @WithMockUser(authorities = "ADMIN")
     void imageOwnershipAndStorageFailureAreHandled() throws Exception {
         TourEvent e = event(EventStatus.DRAFT);
         when(storage.upload(any()))
@@ -246,7 +246,7 @@ class TourApiIntegrationTests {
 
     /** Kiểm tra lỗi dữ liệu, JSON và phân trang trả đúng status cùng cấu trúc lỗi. */
     @Test
-    @WithMockUser(roles = "ADMIN")
+    @WithMockUser(authorities = "ADMIN")
     void validationAndPaginationErrorsAreStructured() throws Exception {
         mvc.perform(
                         post("/api/admin/events")
@@ -271,7 +271,7 @@ class TourApiIntegrationTests {
 
     /** Kiểm tra nhiều chuyên môn cùng tài khoản, ẩn dữ liệu riêng tư và chặn chuyên môn trùng. */
     @Test
-    @WithMockUser(roles = "ADMIN")
+    @WithMockUser(authorities = "ADMIN")
     void guidesAllowDifferentSpecializationsAndHidePrivateFields() throws Exception {
         String input =
                 "{\"userId\":" + userId + ",\"experienceYears\":3,\"specialization\":\"Trekking\"}";
@@ -314,7 +314,7 @@ class TourApiIntegrationTests {
 
     /** Kiểm tra tài khoản bị khóa không tạo được hồ sơ mới và bị ẩn công khai. */
     @Test
-    @WithMockUser(roles = "ADMIN")
+    @WithMockUser(authorities = "ADMIN")
     void blockedAccountsCannotGetNewProfilesAndAreHidden() throws Exception {
         TourGuide g = new TourGuide();
         g.setUserId(userId);
@@ -338,7 +338,7 @@ class TourApiIntegrationTests {
 
     /** Kiểm tra không thể sửa tour công bố thành nội dung thiếu điều kiện bắt buộc. */
     @Test
-    @WithMockUser(roles = "ADMIN")
+    @WithMockUser(authorities = "ADMIN")
     void publishedContentCannotBeMadeIncomplete() throws Exception {
         long eventId =
                 id(
@@ -368,7 +368,7 @@ class TourApiIntegrationTests {
 
     /** Kiểm tra metadata còn nguyên khi Cloudinary không xóa được tài sản. */
     @Test
-    @WithMockUser(roles = "ADMIN")
+    @WithMockUser(authorities = "ADMIN")
     void deleteImageKeepsRecordWhenStorageFails() throws Exception {
         TourEvent e = event(EventStatus.DRAFT);
         when(storage.upload(any()))
@@ -399,7 +399,7 @@ class TourApiIntegrationTests {
     void databaseRejectsDuplicateSpecializationEvenWithoutServiceCheck() {
         jdbc.update(
                 "INSERT INTO tour_guides(user_id,experience_years,specialization) VALUES"
-                    + " (?,1,'Trekking')",
+                        + " (?,1,'Trekking')",
                 userId);
         assertThatThrownBy(
                         () ->
@@ -413,18 +413,18 @@ class TourApiIntegrationTests {
 
     /** Kiểm tra JPA lưu cập nhật hồ sơ managed và DB từ chối đổi sang chuyên môn trùng. */
     @Test
-    @WithMockUser(roles = "ADMIN")
+    @WithMockUser(authorities = "ADMIN")
     void managedGuideUpdatesPersistAndDatabaseRejectsDuplicateUpdates() throws Exception {
         Long first =
                 jdbc.queryForObject(
                         "INSERT INTO tour_guides(user_id,experience_years,specialization) VALUES"
-                            + " (?,1,'Trekking') RETURNING guide_id",
+                                + " (?,1,'Trekking') RETURNING guide_id",
                         Long.class,
                         userId);
         Long second =
                 jdbc.queryForObject(
                         "INSERT INTO tour_guides(user_id,experience_years,specialization) VALUES"
-                            + " (?,1,'Camping') RETURNING guide_id",
+                                + " (?,1,'Camping') RETURNING guide_id",
                         Long.class,
                         userId);
         mvc.perform(
