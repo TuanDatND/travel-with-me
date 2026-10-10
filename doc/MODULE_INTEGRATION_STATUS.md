@@ -39,6 +39,8 @@
 
 | 2026-10-10 | Tour & guide | Member 4 | `tour/config`, tour tests/docs | Cập nhật main eabe66f; quyền tour dùng ADMIN theo member 1, bỏ transaction/copy role tạm vì Account đã EAGER; giữ guard ACTIVE/BLOCKED | Không đổi bảng/PK/FK; 19 tests PASS trên DB mới riêng; chỉ đọc Supabase xác nhận checksum V1/V3 khớp. Cấu hình ZaloPay giả chỉ ở .env local. |
 
+| 2026-10-10 | Tour & guide | Member 4 | `doc/tour/SWAGGER_TEST_20261010.md` | Kiểm tra UI Swagger trên Supabase: CRUD nội dung, trạng thái, validation, auth và xử lý ảnh thiếu cấu hình; chạy lại 19 tests local PASS | Không đổi code/schema; dữ liệu test tour 2 ARCHIVED, guide 1 INACTIVE. Cloudinary thật và công bố thành công chưa test trên Swagger. |
+
 ## Quy tắc map entity
 
 Chỉ map quan hệ JPA khi module đích có trạng thái `READY_TO_MAP`. Khi map, cập nhật change log với các thông tin: entity nguồn, entity đích, cột FK, loại quan hệ, `fetch` strategy và migration (nếu có).
