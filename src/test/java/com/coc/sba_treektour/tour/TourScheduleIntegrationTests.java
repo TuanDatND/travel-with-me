@@ -1,4 +1,4 @@
-package com.coc.sba_treektour.tour;
+package com.coc.sba_treektour.modules.tour;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;

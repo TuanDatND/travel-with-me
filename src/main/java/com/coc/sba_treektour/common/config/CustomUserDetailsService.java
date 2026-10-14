@@ -1,6 +1,6 @@
 package com.coc.sba_treektour.common.config;
 
-import com.coc.sba_treektour.account.repository.UserRepository;
+import com.coc.sba_treektour.modules.account.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
