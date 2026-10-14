@@ -37,8 +37,8 @@ public class UserServiceImpl implements UserService {
         }
 
         String roleName = request.getRole().toUpperCase();
-        if (!"STAFF".equals(roleName) && !"GUIDE".equals(roleName)) {
-            throw new RuntimeException("Chỉ được phép tạo tài khoản nội bộ cho vai trò STAFF hoặc GUIDE!");
+        if (!"STAFF".equals(roleName) && !"GUIDE".equals(roleName) && !"BRANCH_ADMIN".equals(roleName)) {
+            throw new RuntimeException("Chỉ được phép tạo tài khoản nội bộ cho vai trò STAFF, BRANCH_ADMIN hoặc GUIDE!");
         }
 
         Role role = roleRepository.findByName(roleName)

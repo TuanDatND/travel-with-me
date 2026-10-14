@@ -4,6 +4,7 @@ import com.coc.sba_treektour.modules.branch.dto.BranchRequest;
 import com.coc.sba_treektour.modules.branch.dto.BranchResponse;
 import com.coc.sba_treektour.modules.branch.entity.Branch;
 import com.coc.sba_treektour.modules.branch.repository.BranchRepository;
+import com.coc.sba_treektour.modules.branch.service.BranchAccessService;
 import com.coc.sba_treektour.modules.branch.service.BranchService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -18,6 +19,7 @@ import java.util.stream.Collectors;
 public class BranchServiceImpl implements BranchService {
 
     private final BranchRepository branchRepository;
+    private final BranchAccessService branchAccess;
 
     @Override
     public List<BranchResponse> getAllBranches() {
@@ -35,6 +37,7 @@ public class BranchServiceImpl implements BranchService {
 
     @Override
     public BranchResponse createBranch(BranchRequest request) {
+        branchAccess.requireAdmin();
         Branch branch = Branch.builder()
                 .name(request.getName())
                 .phone(request.getPhone())
@@ -48,6 +51,7 @@ public class BranchServiceImpl implements BranchService {
 
     @Override
     public BranchResponse updateBranch(Long id, BranchRequest request) {
+        branchAccess.requireBranchAccess(id);
         Branch branch = branchRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Branch not found with id: " + id));
 
@@ -61,6 +65,7 @@ public class BranchServiceImpl implements BranchService {
 
     @Override
     public BranchResponse updateBranchStatus(Long id, String status) {
+        branchAccess.requireAdmin();
         Branch branch = branchRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Branch not found with id: " + id));
         

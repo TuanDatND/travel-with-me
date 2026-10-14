@@ -18,6 +18,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
+import com.coc.sba_treektour.common.security.Roles;
 import com.coc.sba_treektour.modules.account.controller.OAuth2AuthenticationSuccessHandler;
 
 @Configuration
@@ -42,10 +43,25 @@ public class SecurityConfig {
                     "/api/auth/**"
                 ).permitAll()
                 .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/branches/**").permitAll()
-                .requestMatchers("/api/branches/**").hasAuthority("ADMIN")
-                .requestMatchers("/api/staff/**").hasAnyAuthority("ADMIN", "STAFF")
-                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/users/internal").hasAuthority("ADMIN")
+                // Chỉ ADMIN tổng được tạo chi nhánh và đổi trạng thái chi nhánh
+                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/branches").hasAuthority(Roles.ADMIN)
+                .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/branches/*/status").hasAuthority(Roles.ADMIN)
+                // ADMIN tổng và BRANCH_ADMIN được sửa thông tin chi nhánh (service kiểm tra đúng chi nhánh)
+                .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/branches/*")
+                    .hasAnyAuthority(Roles.ADMIN, Roles.BRANCH_ADMIN)
+                .requestMatchers("/api/branches/**").hasAuthority(Roles.ADMIN)
+                // Nhân viên: STAFF chỉ xem; ADMIN và BRANCH_ADMIN được gán/sửa (service kiểm tra phạm vi chi nhánh)
+                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/staff/**")
+                    .hasAnyAuthority(Roles.ADMIN, Roles.BRANCH_ADMIN, Roles.STAFF)
+                .requestMatchers("/api/staff/**").hasAnyAuthority(Roles.ADMIN, Roles.BRANCH_ADMIN)
+                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/users/internal").hasAuthority(Roles.ADMIN)
                 .anyRequest().authenticated()
+            )
+            .exceptionHandling(ex -> ex
+                .authenticationEntryPoint((request, response, e) ->
+                    writeError(response, 401, "Chưa đăng nhập hoặc token không hợp lệ"))
+                .accessDeniedHandler((request, response, e) ->
+                    writeError(response, 403, "Bạn không có quyền thực hiện thao tác này"))
             )
             .oauth2Login(oauth2 -> oauth2
                 .successHandler(oAuth2AuthenticationSuccessHandler)
@@ -57,6 +73,16 @@ public class SecurityConfig {
             .httpBasic(AbstractHttpConfigurer::disable);
             
         return http.build();
+    }
+
+    /** Ghi lỗi theo đúng định dạng ApiResponse (status, message, data, timestamp). */
+    private static void writeError(jakarta.servlet.http.HttpServletResponse response, int status, String message)
+            throws java.io.IOException {
+        response.setStatus(status);
+        response.setContentType("application/json;charset=UTF-8");
+        response.getWriter().write("{\"status\":" + status
+                + ",\"message\":\"" + message.replace("\"", "\\\"")
+                + "\",\"data\":null,\"timestamp\":\"" + java.time.OffsetDateTime.now() + "\"}");
     }
 
     @Bean
