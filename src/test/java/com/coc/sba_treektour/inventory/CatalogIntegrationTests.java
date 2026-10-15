@@ -87,12 +87,8 @@ class CatalogIntegrationTests {
     }
 
     @Test
-    void desktopPagesAndTheirAssetsLoadBeforeLoginWhileDataStaysProtected() throws Exception {
-        for (String path : List.of("/equipment.html", "/equipment-detail.html", "/equipment-admin.html",
-                "/equipment-edit.html", "/inventory.html", "/login.html", "/assets/catalog/catalog.css",
-                "/assets/catalog/common.js", "/assets/catalog/products.js", "/assets/catalog/inventory.js")) {
-            mvc.perform(get(path)).andExpect(status().isOk());
-        }
+    void publicCatalogLoadsWithoutLoginWhileManagementDataStaysProtected() throws Exception {
+        mvc.perform(get("/api/products")).andExpect(status().isOk());
         mvc.perform(get("/api/admin/products")).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/inventory/branches/" + branch)).andExpect(status().isUnauthorized());
     }

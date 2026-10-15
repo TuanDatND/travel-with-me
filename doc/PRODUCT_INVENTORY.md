@@ -2,7 +2,7 @@
 
 ## Phạm vi
 
-- Web desktop gồm các trang riêng: `/equipment.html` (danh sách), `/equipment-detail.html?id=...` (chi tiết/tra cứu lượng thuê), `/equipment-admin.html` (quản lý), `/equipment-edit.html[?id=...]` (thêm/sửa), `/inventory.html` (tồn kho), `/login.html` (đăng nhập). Sidebar và thanh tài khoản dùng chung; bảng quản lý và biểu mẫu không trộn vào trang khách.
+- Web desktop chuyển sang repo `AnhND81225/travel-with-me-Frontend`, module `src/features/equipment`. Routes: `/shop`, `/rent`, `/catalog`, `/gear/:id`, `/admin/catalog`, `/admin/catalog/new`, `/admin/catalog/:id/edit`, `/admin/inventory`, `/staff/inventory`, `/login`. Backend đã gỡ trang HTML và assets demo, giữ nguyên API/schema/ID. Vite proxy `/api` đến localhost:8080 khi phát triển; production cần reverse proxy tương đương.
 - Đăng nhập qua API Account hiện có. ADMIN tạo/sửa/kích hoạt/ngừng thiết bị; ADMIN/STAFF nhập, kiểm kê, tạm dừng kho. STAFF phải có hồ sơ ACTIVE ở đúng chi nhánh ACTIVE.
 - Dùng `ApiResponse(status,message,data,timestamp)`, JWT Bearer và các authority `ADMIN`, `STAFF`, `CUSTOMER` hiện có. Tài khoản không ACTIVE không được xác thực tại API module này.
 - Giao diện giữ JWT trong sessionStorage của tab để chuyển trang/tải lại không mất đăng nhập; không lưu mật khẩu hoặc token vào localStorage. Đăng xuất xóa JWT, đóng tab kết thúc phiên phía trình duyệt. Mỗi trang quản lý tải lại hồ sơ `/api/users/me`; backend tiếp tục kiểm tra JWT/role/chi nhánh cho từng API. Return URL chỉ cho phép các trang nội bộ của module.

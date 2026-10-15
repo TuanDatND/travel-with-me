@@ -19,12 +19,10 @@ public class CatalogSecurityConfig {
     @Bean @Order(2)
     SecurityFilterChain catalogSecurity(HttpSecurity http, JwtService jwt, UserDetailsService accounts, ObjectMapper mapper) throws Exception {
         return http.securityMatcher("/api/products", "/api/products/**", "/api/admin/products", "/api/admin/products/**",
-                        "/api/inventory", "/api/inventory/**", "/equipment.html", "/equipment-detail.html",
-                        "/equipment-admin.html", "/equipment-edit.html", "/inventory.html", "/login.html", "/assets/catalog/**")
+                        "/api/inventory", "/api/inventory/**")
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                .authorizeHttpRequests(a -> a.requestMatchers(HttpMethod.GET, "/equipment.html", "/equipment-detail.html",
-                                "/equipment-admin.html", "/equipment-edit.html", "/inventory.html", "/login.html", "/assets/catalog/**",
+                .authorizeHttpRequests(a -> a.requestMatchers(HttpMethod.GET,
                                 "/api/products", "/api/products/*", "/api/inventory/availability").permitAll()
                         .requestMatchers("/api/admin/products", "/api/admin/products/**").hasAuthority("ADMIN")
                         .requestMatchers("/api/inventory/**").hasAnyAuthority("ADMIN", "STAFF").anyRequest().denyAll())

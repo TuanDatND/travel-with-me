@@ -2,9 +2,12 @@
 
 ## Thiết bị và tồn kho
 
-Mở `http://localhost:8080/equipment.html` để xem danh sách thiết bị trên web desktop.
-Trang đăng nhập: `/login.html`; quản lý: `/equipment-admin.html`; tồn kho: `/inventory.html`.
-Chi tiết và thêm/sửa thiết bị là các trang riêng, điều hướng bằng menu bên trái.
+Giao diện nằm ở repo riêng `travel-with-me-Frontend` cạnh backend.
+Chạy backend bằng IntelliJ ở cổng 8080; trong thư mục frontend chạy `npm ci` rồi `npm run dev`.
+Mở `http://localhost:3000/shop` hoặc `/rent`; đăng nhập `/login`;
+quản lý `/admin/catalog`; thêm/sửa `/admin/catalog/new`, `/admin/catalog/:id/edit`;
+tồn kho `/admin/inventory` hoặc `/staff/inventory`; chi tiết `/gear/:id`.
+Frontend dùng Vite proxy `/api` tới backend; backend chỉ phục vụ API, đã gỡ các trang demo HTML.
 Tài liệu API và đầu nối Order: [doc/PRODUCT_INVENTORY.md](doc/PRODUCT_INVENTORY.md).
 Request mẫu: [doc/product-inventory.http](doc/product-inventory.http).
 
