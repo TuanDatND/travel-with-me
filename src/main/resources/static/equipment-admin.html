@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Quản lý thiết bị · TreekTour</title><link rel="stylesheet" href="/assets/catalog/catalog.css"><script type="module" src="/assets/catalog/admin-products.js"></script></head>
+<body data-page="admin"><div id="shell"></div><main>
+  <div class="breadcrumb">Quản trị / Thiết bị</div><header class="page-heading"><div><p class="eyebrow">DANH MỤC SẢN PHẨM</p><h1>Quản lý thiết bị</h1><p class="muted">Quản lý giá bán, giá thuê và trạng thái kinh doanh.</p></div><a class="button" href="/equipment-edit.html">+ Thêm thiết bị</a></header>
+  <div id="notice" role="status" aria-live="polite" hidden></div>
+  <section class="panel" id="workspace" hidden><form id="filters" class="filters compact"><label>Tên thiết bị<input name="keyword" type="search" placeholder="Tìm theo tên…"></label><label>Trạng thái<select name="status"><option value="">Tất cả trạng thái</option><option value="ACTIVE">Đang hoạt động</option><option value="INACTIVE">Ngừng hoạt động</option></select></label><button>Tìm kiếm</button></form>
+  <div class="section-heading"><h2>Danh sách thiết bị</h2><span id="count" class="muted"></span></div><div class="table-scroll"><table><thead><tr><th>Thiết bị</th><th>Danh mục</th><th>Giá bán</th><th>Giá thuê / ngày</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody id="rows"></tbody></table></div>
+  <div class="pagination"><button id="prev" class="secondary" disabled>← Trước</button><span id="paging"></span><button id="next" class="secondary" disabled>Sau →</button></div></section>
+</main></body></html>
