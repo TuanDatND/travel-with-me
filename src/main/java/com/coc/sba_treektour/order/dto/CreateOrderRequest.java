@@ -10,7 +10,6 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 public record CreateOrderRequest(
-        @NotNull Long userId,
         @NotNull Long branchId,
         OffsetDateTime orderDate,
         OrderStatus status,
