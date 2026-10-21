@@ -12,5 +12,6 @@ public interface BranchService {
     BranchResponse createBranch(BranchRequest request);
     BranchResponse updateBranch(Long id, BranchRequest request);
     BranchResponse updateBranchStatus(Long id, String status);
+    void deleteBranch(Long id);
     BranchResponse mapToBranchResponse(Branch branch);
 }

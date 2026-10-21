@@ -5,6 +5,7 @@ import com.coc.sba_treektour.modules.branch.dto.BranchResponse;
 import com.coc.sba_treektour.modules.branch.entity.Branch;
 import com.coc.sba_treektour.modules.branch.repository.BranchRepository;
 import com.coc.sba_treektour.modules.branch.service.BranchService;
+import com.coc.sba_treektour.modules.branch.repository.StaffRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -18,6 +19,7 @@ import java.util.stream.Collectors;
 public class BranchServiceImpl implements BranchService {
 
     private final BranchRepository branchRepository;
+    private final StaffRepository staffRepository;
 
     @Override
     public List<BranchResponse> getAllBranches() {
@@ -71,6 +73,23 @@ public class BranchServiceImpl implements BranchService {
         branch.setStatus(status);
         Branch updatedBranch = branchRepository.save(branch);
         return mapToBranchResponse(updatedBranch);
+    }
+
+    @Override
+    public void deleteBranch(Long id) {
+        Branch branch = branchRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Branch not found with id: " + id));
+
+        if (staffRepository.existsByBranchId(id)) {
+            throw new RuntimeException("Không thể xóa chi nhánh vì vẫn còn nhân viên đang trực thuộc!");
+        }
+
+        try {
+            branchRepository.delete(branch);
+        } catch (Exception ex) {
+            branch.setStatus("INACTIVE");
+            branchRepository.save(branch);
+        }
     }
 
     @Override

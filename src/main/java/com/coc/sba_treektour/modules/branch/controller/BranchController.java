@@ -48,4 +48,10 @@ public class BranchController {
             @RequestParam String status) {
         return ResponseEntity.ok(ApiResponse.success("Cập nhật trạng thái thành công", branchService.updateBranchStatus(id, status)));
     }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<Void>> deleteBranch(@PathVariable Long id) {
+        branchService.deleteBranch(id);
+        return ResponseEntity.ok(ApiResponse.success("Xóa chi nhánh thành công", null));
+    }
 }
