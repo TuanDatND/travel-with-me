@@ -1,6 +1,6 @@
 package com.coc.sba_treektour.common.config;
 
-import com.coc.sba_treektour.account.entity.User;
+import com.coc.sba_treektour.modules.account.entity.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;

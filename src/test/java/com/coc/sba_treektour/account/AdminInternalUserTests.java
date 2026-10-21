@@ -1,12 +1,12 @@
-package com.coc.sba_treektour.account;
+package com.coc.sba_treektour.modules.account;
 
-import com.coc.sba_treektour.account.dto.CreateInternalUserRequest;
-import com.coc.sba_treektour.account.dto.InternalUserResponse;
-import com.coc.sba_treektour.account.entity.Role;
-import com.coc.sba_treektour.account.entity.User;
-import com.coc.sba_treektour.account.repository.RoleRepository;
-import com.coc.sba_treektour.account.repository.UserRepository;
-import com.coc.sba_treektour.account.service.UserService;
+import com.coc.sba_treektour.modules.account.dto.CreateInternalUserRequest;
+import com.coc.sba_treektour.modules.account.dto.InternalUserResponse;
+import com.coc.sba_treektour.modules.account.entity.Role;
+import com.coc.sba_treektour.modules.account.entity.User;
+import com.coc.sba_treektour.modules.account.repository.RoleRepository;
+import com.coc.sba_treektour.modules.account.repository.UserRepository;
+import com.coc.sba_treektour.modules.account.service.UserService;
 import com.coc.sba_treektour.common.service.EmailService;
 import com.coc.sba_treektour.common.util.PasswordGenerator;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,6 +15,8 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Optional;
+
+import com.coc.sba_treektour.modules.account.service.impl.UserServiceImpl;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -34,7 +36,7 @@ public class AdminInternalUserTests {
         roleRepository = mock(RoleRepository.class);
         passwordEncoder = mock(PasswordEncoder.class);
         emailService = mock(EmailService.class);
-        userService = new UserService(userRepository, roleRepository, passwordEncoder, emailService);
+        userService = new UserServiceImpl(userRepository, roleRepository, passwordEncoder, emailService);
     }
 
     @Test

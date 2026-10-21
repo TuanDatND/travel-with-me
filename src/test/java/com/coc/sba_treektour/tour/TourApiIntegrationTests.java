@@ -1,4 +1,4 @@
-package com.coc.sba_treektour.tour;
+package com.coc.sba_treektour.modules.tour;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -7,9 +7,12 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-import com.coc.sba_treektour.tour.entity.*;
-import com.coc.sba_treektour.tour.repository.*;
-import com.coc.sba_treektour.tour.service.*;
+import com.coc.sba_treektour.modules.tour.entity.*;
+import com.coc.sba_treektour.modules.event.entity.*;
+import com.coc.sba_treektour.modules.tour.repository.*;
+import com.coc.sba_treektour.modules.event.repository.*;
+import com.coc.sba_treektour.modules.tour.service.*;
+import com.coc.sba_treektour.modules.event.service.*;
 import com.jayway.jsonpath.JsonPath;
 
 import org.junit.jupiter.api.*;

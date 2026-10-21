@@ -1,0 +1,48 @@
+@host = http://localhost:8080
+@token = paste-jwt-token-here
+@branchId = 1
+@productId = 1
+
+### Đăng nhập (dùng tài khoản local của anh; lấy data.token)
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{"email":"admin@treektour.com","password":"Admin@123"}
+
+### Tạo thiết bị; thay productId bằng data.id trả về
+POST {{host}}/api/admin/products
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"name":"Lều 4 người","category":"Camping","salePrice":1500000,"rentalPricePerDay":150000}
+
+### Danh sách cho khách
+GET {{host}}/api/products?mode=RENTAL&category=Camping&minPrice=100000&maxPrice=200000&page=0&size=20
+
+### Nhập kho ở chi nhánh có thật
+POST {{host}}/api/inventory/branches/{{branchId}}/products/{{productId}}/import
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"quantity":10}
+
+### Xem kho
+GET {{host}}/api/inventory/branches/{{branchId}}
+Authorization: Bearer {{token}}
+
+### Kiểm kê, không sửa quantityRented
+PUT {{host}}/api/inventory/branches/{{branchId}}/products/{{productId}}
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"quantityTotal":10,"quantityAvailable":9}
+
+### Lượng có thể thuê; thay bằng ngày tương lai lúc chạy
+GET {{host}}/api/inventory/availability?branchId={{branchId}}&productId={{productId}}&startDate=2026-12-01&endDate=2026-12-03
+
+### Ngừng thiết bị
+PATCH {{host}}/api/admin/products/{{productId}}/status
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"status":"INACTIVE"}

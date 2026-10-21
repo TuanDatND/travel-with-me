@@ -37,3 +37,8 @@ out/
 .vscode/
 
 .env
+
+# Local runtimes, database and machine-specific Gradle settings
+.local/
+.gradle-user-home/
+gradle.properties

@@ -18,7 +18,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
-import com.coc.sba_treektour.account.controller.OAuth2AuthenticationSuccessHandler;
+import com.coc.sba_treektour.modules.account.controller.OAuth2AuthenticationSuccessHandler;
 
 @Configuration
 @EnableWebSecurity
