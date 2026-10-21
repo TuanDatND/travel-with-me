@@ -12,4 +12,5 @@ public interface StaffRepository extends JpaRepository<Staff, Long> {
     List<Staff> findByBranchId(Long branchId);
     Optional<Staff> findByUserId(Long userId);
     boolean existsByUserId(Long userId);
+    boolean existsByBranchId(Long branchId);
 }

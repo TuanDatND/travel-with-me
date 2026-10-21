@@ -26,6 +26,13 @@ public class StaffServiceImpl implements StaffService {
     private final UserRepository userRepository;
 
     @Override
+    public List<StaffResponse> getAllStaff() {
+        return staffRepository.findAll().stream()
+                .map(this::mapToStaffResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public List<StaffResponse> getStaffByBranch(Long branchId) {
         return staffRepository.findByBranchId(branchId).stream()
                 .map(this::mapToStaffResponse)
@@ -43,6 +50,10 @@ public class StaffServiceImpl implements StaffService {
         
         User user = userRepository.findById(request.getUserId())
                 .orElseThrow(() -> new RuntimeException("User not found with id: " + request.getUserId()));
+
+        if (user.getRole() == null || !"STAFF".equals(user.getRole().getName())) {
+            throw new RuntimeException("Chỉ được gán người dùng có vai trò STAFF vào chi nhánh!");
+        }
 
         Staff staff = Staff.builder()
                 .branch(branch)
@@ -84,6 +95,13 @@ public class StaffServiceImpl implements StaffService {
         staff.setStatus(status);
         Staff updatedStaff = staffRepository.save(staff);
         return mapToStaffResponse(updatedStaff);
+    }
+
+    @Override
+    public void deleteStaff(Long id) {
+        Staff staff = staffRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Staff not found with id: " + id));
+        staffRepository.delete(staff);
     }
 
     @Override

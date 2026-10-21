@@ -62,16 +62,16 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
                     .build());
         });
 
-        String jwtToken = jwtService.generateToken(user);
+                String jwtToken = jwtService.generateToken(user);
+        String roleName = (user.getRole() != null) ? user.getRole().getName() : "CUSTOMER";
 
-        response.setContentType("text/html;charset=UTF-8");
-        response.getWriter().write(
-                "<html><body>" +
-                "<h2>Đăng nhập thành công!</h2>" +
-                "<p>Copy đoạn Token bên dưới và dán vào Swagger:</p>" +
-                "<textarea rows='5' cols='100' readonly>" + jwtToken + "</textarea>" +
-                "<br><br><a href='http://localhost:8080/swagger-ui/index.html'>Quay lại Swagger</a>" +
-                "</body></html>"
-        );
+        // Chuyển hướng trực tiếp sang đúng trang theo Role kèm JWT token
+        String targetUrl = switch (roleName) {
+            case "ADMIN" -> "http://localhost:3000/admin?token=" + jwtToken;
+            case "STAFF" -> "http://localhost:3000/staff?token=" + jwtToken;
+            default -> "http://localhost:3000/passport?token=" + jwtToken;
+        };
+
+        response.sendRedirect(targetUrl);
     }
 }
