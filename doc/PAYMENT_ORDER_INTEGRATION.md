@@ -100,7 +100,7 @@ Giao dịch provider còn PENDING vẫn chặn tạo lại; không tự chuyển
 
 ## Thanh toán lại cùng Order
 
-FE bật nút Thanh toán lại khi giao dịch còn PENDING. POST /api/payments/zalopay/retry nhận cùng body create (orderId, redirectUrl), chỉ dành cho Order.
+FE giữ nhãn nút “Thanh toán”, kể cả khi dùng luồng thanh toán lại cho giao dịch PENDING. POST /api/payments/zalopay/retry nhận cùng body create (orderId, redirectUrl), chỉ dành cho Order.
 Backend kiểm tra chủ đơn/Order PENDING; query lượt cũ trước. Nếu SUCCEEDED trả kết quả cũ, không thu lần nữa. Nếu còn PENDING, gọi /v2/cancel cùng môi trường provider và MAC key1; chỉ ghi CANCELLED khi provider return_code=1. Sau đó gọi luồng create có khóa Order và kiểm tra số dư/giao dịch PENDING một lần nữa. Đơn và tổng tiền không đổi, không tạo Order mới.
 Cancel bị từ chối thì query lại để nhận trường hợp thanh toán thắng cuộc đua; còn chưa rõ trả 409, timeout trả 502, không tạo mới. Không dựa vào status redirect để ghi CANCELLED.
 Build + 35 tests Payment/Order PASS với mock (gồm 5 ca retry); FE build PASS. Chưa thử API cancel với app sandbox thật hoặc concurrency PostgreSQL.
@@ -115,6 +115,19 @@ POST `/api/payments/zalopay/{transactionId}/cancel`, không body, JWT chủ đơ
 - Chỉ khi provider cancel return_code=1 mới chuyển CANCELLED dưới khóa orders → transactions; không ghi đè SUCCEEDED đồng thời.
 - Provider từ chối cancel thì query lại; chưa rõ trả 409, lỗi mạng trả 502 và giữ PENDING.
 - Dùng chung xử lý với retry; không tạo giao dịch hoặc đơn mới trong API cancel.
-- FE có nút Hủy lượt thanh toán khi PENDING; tạm dừng polling trong khi hủy, hiển thị CANCELLED/thành công/lỗi, cho thanh toán lại nếu đơn chưa trả và còn PENDING.
+- FE có nút “Hủy thanh toán” cạnh “Kiểm tra lại” khi giao dịch PENDING; tạm dừng polling trong khi hủy, hiển thị CANCELLED/thành công/lỗi, cho thanh toán lại nếu đơn chưa trả và còn PENDING.
 
 Kiểm tra compileJava + 40 tests Payment/Order PASS (mock), FE build PASS; chưa thử API cancel trên sandbox thật.
+
+## Giao diện và điểm nối FE hiện tại — 2026-10-23
+
+- Repo FE: `travel-with-me-Frontend`, nhánh triển khai `feature/transactions`. Các route `/payment/result`, `/payment/success`, `/payment/pending` dùng `UserLayout` (header/footer có sẵn), hiển thị theo kết quả backend; không tin route success hoặc redirect để ghi nhận tiền.
+- Nút danh sách đơn và nút bên trong trang đều ghi “Thanh toán”. Nút này gọi create hoặc retry tùy trạng thái giao dịch.
+- Trang Payment có “Kiểm tra lại” và “Hủy thanh toán” (chỉ khi PENDING). Hủy chỉ kết thúc giao dịch sau xác nhận provider, giữ nguyên đơn để thanh toán lại; đây không phải hoàn tiền.
+- Banner lớn đầu trang đã bỏ. Thông báo lỗi, kết quả hủy và chi tiết thanh toán vẫn hiển thị.
+- Polling FE mỗi 5 giây, tối đa 6 lần; chạy nền không bật loading/khóa nút hoặc làm nhảy bố cục. Bỏ qua khi tab ẩn, request còn chạy hoặc người dùng đang thanh toán/hủy; loại phản hồi cũ. Dữ liệu Order không đổi được giữ nguyên để tránh tải lại danh mục không cần thiết.
+- Nút “Hủy đơn hàng” trong Đơn của tôi cho phép xử lý đơn PENDING/UNPAID/paidAmount=0: FE đọc lại Order, tìm/query giao dịch; nếu còn PENDING gọi Payment cancel trước; chỉ gọi API Order cancel hiện có khi backend Order trả canCancel=true. Không hủy đơn nếu vừa thu tiền hoặc provider chưa xác nhận. Không sửa code backend Order.
+- Helper nối luồng này là `src/features/payment/cancelUnpaidOrder.ts`; chỉ dùng cho đơn chưa thu tiền. Đơn đã thu cần luồng hoàn tiền riêng.
+- Hoàn tiền chưa triển khai theo yêu cầu tạm dừng của người dùng; không có API/nút hoàn tiền mới trong mốc này.
+
+Xác minh gần nhất: backend compileJava + 40 tests Payment/Order PASS với mock; FE production build PASS; helper hủy đơn chưa trả tiền có 4 kiểm tra mock PASS. Kiểm tra TypeScript toàn FE còn bốn lỗi đã có tại AdminStaffPage (successInfo/setCopied), không sửa trong phạm vi Payment. Chưa tự thực hiện hủy/thanh toán thật qua sandbox hoặc kiểm thử khóa đồng thời PostgreSQL.
