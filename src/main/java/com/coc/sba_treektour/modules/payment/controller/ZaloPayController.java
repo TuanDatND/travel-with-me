@@ -2,13 +2,10 @@ package com.coc.sba_treektour.modules.payment.controller;
 
 import com.coc.sba_treektour.common.response.ApiResponse;
 import com.coc.sba_treektour.modules.payment.dto.CreateZaloPayPaymentRequest;
-import com.coc.sba_treektour.modules.payment.dto.ZaloPayCallbackRequest;
-import com.coc.sba_treektour.modules.payment.dto.ZaloPayCallbackResponse;
 import com.coc.sba_treektour.modules.payment.dto.ZaloPayPaymentResponse;
 import com.coc.sba_treektour.modules.payment.service.TransactionsService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ZaloPayController {
     private final TransactionsService transactionsService;
 
-    @PostMapping("/create")
+    @PostMapping("/")
     public ApiResponse<ZaloPayPaymentResponse> createPayment(
             @Valid @RequestBody CreateZaloPayPaymentRequest request) {
         return ApiResponse.created(
@@ -37,9 +34,4 @@ public class ZaloPayController {
                 transactionsService.queryZaloPayPayment(transactionId));
     }
 
-    @PostMapping("/callback")
-    public ResponseEntity<ZaloPayCallbackResponse> callback(
-            @Valid @RequestBody ZaloPayCallbackRequest request) {
-        return ResponseEntity.ok(transactionsService.processZaloPayCallback(request));
-    }
 }

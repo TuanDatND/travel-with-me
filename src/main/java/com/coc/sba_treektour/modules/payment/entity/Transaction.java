@@ -1,6 +1,7 @@
 package com.coc.sba_treektour.modules.payment.entity;
 
 import com.coc.sba_treektour.modules.payment.enums.TransactionStatus;
+import com.coc.sba_treektour.modules.order.entity.Order;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -24,8 +25,15 @@ public class Transaction {
     @Column(name = "transaction_id", nullable = false)
     private Long id;
 
-    @Column(name = "order_id")
-    private Long orderId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "order_id")
+    @ToString.Exclude
+    private Order order;
+
+    // DTO/API vẫn công bố ID Long, không trả entity Order ra JSON.
+    public Long getOrderId() {
+        return order == null ? null : order.getId();
+    }
 
     @Column(name = "participant_id")
     private Long participantId;
