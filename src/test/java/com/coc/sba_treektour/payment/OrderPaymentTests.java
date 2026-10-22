@@ -172,6 +172,101 @@ class OrderPaymentTests {
         verify(repository,never()).saveAndFlush(any());
     }
 
+    @Test void recoversAndQueriesPendingPaymentByOrderWithoutBrowserStorage() {
+        when(orders.findById(5L)).thenReturn(Optional.of(order));
+        when(repository.findFirstByOrder_IdAndPaymentMethodAndTransactionTypeAndStatusOrderByIdDesc(
+                5L,"ZALOPAY","PAYMENT",PENDING)).thenReturn(Optional.of(transaction));
+        server.expect(requestTo(config.getQueryUrl())).andRespond(withSuccess(
+                "{\"return_code\":1,\"amount\":200000}",MediaType.APPLICATION_JSON));
+        var result = service.queryOrderPayment(5L);
+        assertEquals(11L,result.transactionId());
+        assertEquals(SUCCEEDED,result.status());
+        verify(repository,never()).findFirstByOrder_IdAndPaymentMethodAndTransactionTypeOrderByIdDesc(anyLong(),anyString(),anyString());
+    }
+
+    @Test void orderWithoutPaymentReturnsNullWithoutCallingProvider() {
+        when(orders.findById(5L)).thenReturn(Optional.of(order));
+        assertNull(service.queryOrderPayment(5L));
+        server.verify();
+    }
+
+    @Test void recoveryChecksOwnerBeforeReadingTransactions() {
+        when(orders.findById(5L)).thenReturn(Optional.of(order));
+        owner.setEmail("other@test.local");
+        assertEquals(403,assertThrows(ResponseStatusException.class, () -> service.queryOrderPayment(5L)).getStatusCode().value());
+        verify(repository,never()).findFirstByOrder_IdAndPaymentMethodAndTransactionTypeAndStatusOrderByIdDesc(anyLong(),anyString(),anyString(),any());
+    }
+
+    private CreateZaloPayPaymentRequest retryRequest() {
+        return new CreateZaloPayPaymentRequest(5L,null,null,null,null,"http://localhost:3000/payment/result");
+    }
+
+    private void pendingAttempt() {
+        when(repository.findFirstByOrder_IdAndPaymentMethodAndTransactionTypeAndStatusOrderByIdDesc(
+                5L,"ZALOPAY","PAYMENT",PENDING)).thenReturn(Optional.of(transaction));
+    }
+
+    @Test void retryCancelsProviderAttemptBeforeCreatingAnotherOnSameOrder() {
+        pendingAttempt();
+        server.expect(requestTo(config.getQueryUrl())).andRespond(withSuccess(
+                "{\"return_code\":3,\"is_processing\":true}",MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://provider.test/v2/cancel")).andExpect(content().string(
+                org.hamcrest.Matchers.containsString("app_trans_id=261023_TWM_11")))
+                .andRespond(withSuccess("{\"return_code\":1}",MediaType.APPLICATION_JSON));
+        server.expect(requestTo(config.getCreateUrl())).andRespond(withSuccess(
+                "{\"return_code\":1,\"order_url\":\"https://provider.test/pay/new\"}",MediaType.APPLICATION_JSON));
+        var result = service.retryOrderPayment(retryRequest());
+        assertEquals(PENDING,result.status());
+        assertEquals(5L,result.orderId());
+        assertEquals(CANCELLED,transaction.getStatus());
+        var saved = org.mockito.ArgumentCaptor.forClass(Transaction.class);
+        verify(repository,times(2)).saveAndFlush(saved.capture());
+        assertEquals(order,saved.getAllValues().getLast().getOrder());
+        server.verify();
+    }
+
+    @Test void retryReturnsAlreadySucceededInsteadOfChargingAgain() {
+        pendingAttempt();
+        server.expect(requestTo(config.getQueryUrl())).andRespond(withSuccess(
+                "{\"return_code\":1,\"amount\":200000}",MediaType.APPLICATION_JSON));
+        assertEquals(SUCCEEDED,service.retryOrderPayment(retryRequest()).status());
+        verify(repository,times(1)).saveAndFlush(transaction);
+        server.verify();
+    }
+
+    @Test void cancelTimeoutDoesNotCreateNewAttempt() {
+        pendingAttempt();
+        server.expect(requestTo(config.getQueryUrl())).andRespond(withSuccess(
+                "{\"return_code\":3,\"is_processing\":true}",MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://provider.test/v2/cancel"))
+                .andRespond(withException(new java.io.IOException("timeout")));
+        assertEquals(502,assertThrows(ResponseStatusException.class,
+                () -> service.retryOrderPayment(retryRequest())).getStatusCode().value());
+        assertEquals(PENDING,transaction.getStatus());
+        verify(repository,never()).saveAndFlush(any());
+    }
+
+    @Test void cancelRejectedRequeriesAndDoesNotCreateNewAttempt() {
+        pendingAttempt();
+        server.expect(requestTo(config.getQueryUrl())).andRespond(withSuccess(
+                "{\"return_code\":3,\"is_processing\":true}",MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://provider.test/v2/cancel")).andRespond(withSuccess(
+                "{\"return_code\":2,\"sub_return_code\":-500}",MediaType.APPLICATION_JSON));
+        server.expect(requestTo(config.getQueryUrl())).andRespond(withSuccess(
+                "{\"return_code\":3,\"is_processing\":true}",MediaType.APPLICATION_JSON));
+        assertEquals(409,assertThrows(ResponseStatusException.class,
+                () -> service.retryOrderPayment(retryRequest())).getStatusCode().value());
+        verify(repository,never()).saveAndFlush(any());
+    }
+
+    @Test void retryRejectsOtherOwnerBeforeProviderCall() {
+        owner.setEmail("someone@test.local");
+        assertEquals(403,assertThrows(ResponseStatusException.class,
+                () -> service.retryOrderPayment(retryRequest())).getStatusCode().value());
+        verify(repository,never()).saveAndFlush(any());
+        server.verify();
+    }
+
     @Test void queryCannotDowngradeSucceededPayment() {
         transaction.setStatus(SUCCEEDED);
         server.expect(requestTo(config.getQueryUrl())).andRespond(withSuccess("{\"return_code\":2}",MediaType.APPLICATION_JSON));

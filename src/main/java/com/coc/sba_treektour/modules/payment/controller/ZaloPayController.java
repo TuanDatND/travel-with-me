@@ -27,6 +27,17 @@ public class ZaloPayController {
                 transactionsService.createZaloPayPayment(request));
     }
 
+    @PostMapping("/retry")
+    public ApiResponse<ZaloPayPaymentResponse> retryOrderPayment(
+            @Valid @RequestBody CreateZaloPayPaymentRequest request) {
+        return ApiResponse.success("Đã xử lý thanh toán lại", transactionsService.retryOrderPayment(request));
+    }
+
+    @GetMapping("/orders/{orderId}/payment")
+    public ApiResponse<ZaloPayPaymentResponse> queryOrderPayment(@PathVariable Long orderId) {
+        return ApiResponse.success("Đã kiểm tra thanh toán của đơn", transactionsService.queryOrderPayment(orderId));
+    }
+
     @GetMapping("/query/{transactionId}")
     public ApiResponse<ZaloPayPaymentResponse> queryPayment(@PathVariable Long transactionId) {
         return ApiResponse.success(

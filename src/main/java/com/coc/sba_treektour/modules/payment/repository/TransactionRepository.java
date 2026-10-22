@@ -11,6 +11,12 @@ import jakarta.persistence.LockModeType;
 
 
 public interface TransactionRepository extends JpaRepository<Transaction, Long> {
+    Optional<Transaction> findFirstByOrder_IdAndPaymentMethodAndTransactionTypeAndStatusOrderByIdDesc(
+            Long orderId, String paymentMethod, String transactionType, TransactionStatus status);
+
+    Optional<Transaction> findFirstByOrder_IdAndPaymentMethodAndTransactionTypeOrderByIdDesc(
+            Long orderId, String paymentMethod, String transactionType);
+
     boolean existsByOrder_IdAndTransactionTypeAndStatus(Long orderId, String transactionType,
             TransactionStatus status);
 

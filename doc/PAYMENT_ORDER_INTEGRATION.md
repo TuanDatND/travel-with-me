@@ -83,3 +83,25 @@ Chưa kiểm chứng mapping/JPQL hoặc khóa đồng thời trên PostgreSQL t
 Nguồn chính thức: [Create Order](https://docs.zalopay.vn/docs/specs/order-create),
 [Query Order Status](https://docs.zalopay.vn/docs/specs/order-query),
 [Status Codes](https://docs.zalopay.vn/docs/developer-tools/knowledge-base/status-codes).
+
+## Redirect từ Swagger và phiên FE
+
+JWT trong Swagger không tự đăng nhập FE. Trang kết quả cần phiên đăng nhập FE của chủ đơn;
+Payment FE báo yêu cầu đăng nhập và giữ đường dẫn kết quả trong login?returnTo=... để quay lại query.
+Không chuyển JWT vào redirectUrl hoặc lưu JWT mới vào localStorage.
+Query/create trả thêm orderId/participantId để trang kết quả lấy được đơn dù không có mapping sessionStorage.
+Payment fetch không follow redirect đăng nhập OAuth; lỗi auth/network hiển thị hướng dẫn kiểm tra hoặc đăng nhập lại.
+
+## Tự phục hồi giao dịch theo đơn
+
+GET /api/payments/zalopay/orders/{orderId}/payment yêu cầu JWT chủ đơn, ưu tiên giao dịch PENDING để query provider; nếu không có pending lấy giao dịch gần nhất; chưa từng thanh toán trả data=null.
+FE dùng API này khi vào trang theo orderId; không phụ thuộc mapping sessionStorage, không yêu cầu người dùng nhập transactionId. Nếu create bị 409 do request đồng thời hoặc giao dịch cũ, FE kiểm tra lại đơn/giao dịch. Link đăng nhập chỉ hiện với lỗi 401/403.
+Giao dịch provider còn PENDING vẫn chặn tạo lại; không tự chuyển FAILED để bỏ chặn.
+
+## Thanh toán lại cùng Order
+
+FE bật nút Thanh toán lại khi giao dịch còn PENDING. POST /api/payments/zalopay/retry nhận cùng body create (orderId, redirectUrl), chỉ dành cho Order.
+Backend kiểm tra chủ đơn/Order PENDING; query lượt cũ trước. Nếu SUCCEEDED trả kết quả cũ, không thu lần nữa. Nếu còn PENDING, gọi /v2/cancel cùng môi trường provider và MAC key1; chỉ ghi CANCELLED khi provider return_code=1. Sau đó gọi luồng create có khóa Order và kiểm tra số dư/giao dịch PENDING một lần nữa. Đơn và tổng tiền không đổi, không tạo Order mới.
+Cancel bị từ chối thì query lại để nhận trường hợp thanh toán thắng cuộc đua; còn chưa rõ trả 409, timeout trả 502, không tạo mới. Không dựa vào status redirect để ghi CANCELLED.
+Build + 35 tests Payment/Order PASS với mock (gồm 5 ca retry); FE build PASS. Chưa thử API cancel với app sandbox thật hoặc concurrency PostgreSQL.
+Contract provider: https://docs.zalopay.vn/docs/specs/order-cancel (API explorer: POST /v2/cancel, MAC app_id|app_trans_id|key1).

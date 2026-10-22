@@ -148,6 +148,74 @@ public class TransactionsServiceImpl implements TransactionsService {
         return queryProvider(transaction);
     }
 
+    @Override
+    public ZaloPayPaymentResponse queryOrderPayment(Long orderId) {
+        Transaction transaction = paymentTransaction.execute(tx -> {
+            Order order = orderRepository.findById(orderId)
+                    .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Order not found"));
+            requireOrderOwner(order);
+            // A previous pending attempt must be reconciled even if a later attempt exists.
+            return transactionRepository.findFirstByOrder_IdAndPaymentMethodAndTransactionTypeAndStatusOrderByIdDesc(
+                            orderId, PAYMENT_METHOD, PAYMENT, PENDING)
+                    .or(() -> transactionRepository.findFirstByOrder_IdAndPaymentMethodAndTransactionTypeOrderByIdDesc(
+                            orderId, PAYMENT_METHOD, PAYMENT))
+                    .orElse(null);
+        });
+        if (transaction == null) return null;
+        if (transaction.getStatus() == PENDING) return queryProvider(transaction);
+        return new ZaloPayPaymentResponse(transaction.getId(), buildAppTransId(transaction),
+                transaction.getStatus(), orderId, transaction.getParticipantId(), null);
+    }
+
+    @Override
+    public ZaloPayPaymentResponse retryOrderPayment(CreateZaloPayPaymentRequest request) {
+        if (request.orderId() == null || request.participantId() != null)
+            throw new ResponseStatusException(BAD_REQUEST, "Thanh toán lại yêu cầu orderId và không nhận participantId");
+        Transaction pending = paymentTransaction.execute(tx -> {
+            Order order = lockPendingOrder(request.orderId());
+            return transactionRepository.findFirstByOrder_IdAndPaymentMethodAndTransactionTypeAndStatusOrderByIdDesc(
+                    order.getId(), PAYMENT_METHOD, PAYMENT, PENDING).orElse(null);
+        });
+        if (pending != null) {
+            // Never trust the browser's cancellation hint: ask the provider before replacing the attempt.
+            ZaloPayPaymentResponse result = queryProvider(pending);
+            if (result.status() == SUCCEEDED) return result;
+            if (result.status() == PENDING) {
+                String appTransId = buildAppTransId(pending);
+                MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+                form.add("app_id", String.valueOf(zaloPayConfig.getAppId()));
+                form.add("app_trans_id", appTransId);
+                form.add("mac", hmacSha256(zaloPayConfig.getKey1(),
+                        zaloPayConfig.getAppId() + "|" + appTransId + "|" + zaloPayConfig.getKey1()));
+                JsonNode cancelled;
+                try {
+                    // Same provider/environment as create/query; official endpoint is /v2/cancel.
+                    String cancelUrl = UriComponentsBuilder.fromUriString(zaloPayConfig.getQueryUrl())
+                            .replacePath("/v2/cancel").replaceQuery(null).build().toUriString();
+                    cancelled = zaloPayRestClient.post().uri(cancelUrl)
+                            .contentType(MediaType.APPLICATION_FORM_URLENCODED).body(form)
+                            .retrieve().body(JsonNode.class);
+                } catch (RuntimeException exception) {
+                    throw new ResponseStatusException(BAD_GATEWAY,
+                            "Chưa xác nhận được hủy giao dịch cũ. Hãy kiểm tra lại, chưa tạo thanh toán mới.", exception);
+                }
+                if (cancelled == null || cancelled.path("return_code").asInt() != 1) {
+                    // Payment may have won the race with cancellation: reconcile instead of charging again.
+                    result = queryZaloPayPayment(pending.getId());
+                    if (result.status() == SUCCEEDED) return result;
+                    throw new ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,
+                            "ZaloPay chưa xác nhận hủy lượt thanh toán cũ. Vui lòng kiểm tra lại sau.");
+                }
+                Transaction current = updatePaymentStatus(pending.getId(), TransactionStatus.CANCELLED);
+                if (current.getStatus() == SUCCEEDED)
+                    return new ZaloPayPaymentResponse(current.getId(), appTransId, SUCCEEDED,
+                            request.orderId(), current.getParticipantId(), cancelled);
+            }
+        }
+        // Rechecks owner, Order PENDING, pending attempts and paid balance under the same Order lock.
+        return createZaloPayPayment(request);
+    }
+
     // Internal reconciliation has no browser/JWT dependency; it never accepts user-supplied outcomes.
     void reconcilePendingPayment(Long transactionId) {
         Transaction transaction = paymentTransaction.execute(tx -> findZaloPayTransaction(transactionId));

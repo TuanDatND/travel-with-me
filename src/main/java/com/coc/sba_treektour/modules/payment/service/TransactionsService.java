@@ -10,5 +10,9 @@ public interface TransactionsService {
 
     ZaloPayPaymentResponse queryZaloPayPayment(Long transactionId);
 
+    ZaloPayPaymentResponse queryOrderPayment(Long orderId);
+
+    ZaloPayPaymentResponse retryOrderPayment(CreateZaloPayPaymentRequest request);
+
     TransactionHistoryPageResponse getTransactionHistory(int page, int size);
 }
