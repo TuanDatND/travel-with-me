@@ -17,9 +17,13 @@ public class OrderItem {
     @JoinColumn(name = "order_id", nullable = false)
     private Order order;
 
-    // Product is owned by the product module; keep only its ID until integration.
+    // Keep the ID contract for DTOs; the association is read-only on the same FK.
     @Column(name = "product_id", nullable = false)
     private Long productId;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "product_id", insertable = false, updatable = false)
+    private com.coc.sba_treektour.modules.product.entity.Product product;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "item_type", nullable = false, length = 30)
@@ -57,6 +61,7 @@ public class OrderItem {
     void assignOrder(Order order) { this.order = order; }
 
     public Long getId() { return id; }
+    public void setStatus(OrderItemStatus status) { this.status = status; }
     public Long getProductId() { return productId; }
     public OrderItemType getItemType() { return itemType; }
     public int getQuantity() { return quantity; }

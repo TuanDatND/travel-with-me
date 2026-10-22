@@ -1,5 +1,7 @@
 package com.coc.sba_treektour.modules.order.entity;
 
+import com.coc.sba_treektour.modules.account.entity.User;
+import com.coc.sba_treektour.modules.branch.entity.Branch;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -15,12 +17,13 @@ public class Order {
     @Column(name = "order_id")
     private Long id;
 
-    // Foreign-key relationships will be added when account/branch modules expose their entities.
-    @Column(name = "user_id", nullable = false)
-    private Long userId;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
-    @Column(name = "branch_id", nullable = false)
-    private Long branchId;
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "branch_id", nullable = false)
+    private Branch branch;
 
     @Column(name = "order_date", nullable = false)
     private OffsetDateTime orderDate;
@@ -37,17 +40,16 @@ public class Order {
 
     protected Order() {}
 
-    public Order(Long userId, Long branchId, OffsetDateTime orderDate, OrderStatus status, BigDecimal totalAmount) {
-        this.userId = userId;
-        this.branchId = branchId;
+    public Order(User user, Branch branch, OffsetDateTime orderDate, OrderStatus status, BigDecimal totalAmount) {
+        this.user = user;
+        this.branch = branch;
         this.orderDate = orderDate;
         this.status = status;
         this.totalAmount = totalAmount;
     }
 
-    public void update(Long userId, Long branchId, OffsetDateTime orderDate, OrderStatus status, BigDecimal totalAmount) {
-        this.userId = userId;
-        this.branchId = branchId;
+    public void update(Branch branch, OffsetDateTime orderDate, OrderStatus status, BigDecimal totalAmount) {
+        this.branch = branch;
         this.orderDate = orderDate;
         this.status = status;
         this.totalAmount = totalAmount;
@@ -64,8 +66,10 @@ public class Order {
     }
 
     public Long getId() { return id; }
-    public Long getUserId() { return userId; }
-    public Long getBranchId() { return branchId; }
+    public void setStatus(OrderStatus status) { this.status = status; }
+    public Long getUserId() { return user.getId(); }
+    public Long getBranchId() { return branch.getId(); }
+    public User getUser() { return user; }
     public OffsetDateTime getOrderDate() { return orderDate; }
     public OrderStatus getStatus() { return status; }
     public BigDecimal getTotalAmount() { return totalAmount; }

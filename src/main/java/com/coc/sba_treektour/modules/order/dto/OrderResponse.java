@@ -7,5 +7,7 @@ import java.util.List;
 
 public record OrderResponse(
         Long id, Long userId, Long branchId, OrderStatus status,
-        BigDecimal totalAmount, OffsetDateTime orderDate, List<OrderItemResponse> items) {
+        BigDecimal totalAmount, OffsetDateTime orderDate, List<OrderItemResponse> items,
+        String paymentStatus, BigDecimal paidAmount, BigDecimal remainingAmount,
+        boolean canApprove, boolean canCancel) {
 }
