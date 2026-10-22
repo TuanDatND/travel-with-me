@@ -14,5 +14,7 @@ public interface TransactionsService {
 
     ZaloPayPaymentResponse retryOrderPayment(CreateZaloPayPaymentRequest request);
 
+    ZaloPayPaymentResponse cancelZaloPayPayment(Long transactionId);
+
     TransactionHistoryPageResponse getTransactionHistory(int page, int size);
 }

@@ -267,6 +267,52 @@ class OrderPaymentTests {
         server.verify();
     }
 
+    @Test void cancelUnpaidPaymentThenRepeatedCancelIsIdempotent() {
+        server.expect(requestTo(config.getQueryUrl())).andRespond(withSuccess(
+                "{\"return_code\":3,\"is_processing\":true}",MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://provider.test/v2/cancel")).andRespond(withSuccess(
+                "{\"return_code\":1}",MediaType.APPLICATION_JSON));
+        assertEquals(CANCELLED,service.cancelZaloPayPayment(11L).status());
+        assertEquals(CANCELLED,service.cancelZaloPayPayment(11L).status());
+        verify(repository,times(1)).saveAndFlush(transaction);
+        verify(order,never()).setStatus(any());
+        server.verify();
+    }
+
+    @Test void cannotCancelAlreadyPaidPayment() {
+        transaction.setStatus(SUCCEEDED);
+        assertEquals(409,assertThrows(ResponseStatusException.class,
+                () -> service.cancelZaloPayPayment(11L)).getStatusCode().value());
+        verify(repository,never()).saveAndFlush(any());
+        server.verify();
+    }
+
+    @Test void cancelDetectsPaymentSucceededAtProvider() {
+        server.expect(requestTo(config.getQueryUrl())).andRespond(withSuccess(
+                "{\"return_code\":1,\"amount\":200000}",MediaType.APPLICATION_JSON));
+        assertEquals(SUCCEEDED,service.cancelZaloPayPayment(11L).status());
+        verify(repository,times(1)).saveAndFlush(transaction);
+        server.verify();
+    }
+
+    @Test void cancelRequiresOwner() {
+        owner.setEmail("other@test.local");
+        assertEquals(403,assertThrows(ResponseStatusException.class,
+                () -> service.cancelZaloPayPayment(11L)).getStatusCode().value());
+        verify(repository,never()).saveAndFlush(any());
+        server.verify();
+    }
+
+    @Test void cancelTransportErrorKeepsPending() {
+        server.expect(requestTo(config.getQueryUrl())).andRespond(withSuccess(
+                "{\"return_code\":3,\"is_processing\":true}",MediaType.APPLICATION_JSON));
+        server.expect(requestTo("https://provider.test/v2/cancel")).andRespond(withException(new java.io.IOException("timeout")));
+        assertEquals(502,assertThrows(ResponseStatusException.class,
+                () -> service.cancelZaloPayPayment(11L)).getStatusCode().value());
+        assertEquals(PENDING,transaction.getStatus());
+        verify(repository,never()).saveAndFlush(any());
+    }
+
     @Test void queryCannotDowngradeSucceededPayment() {
         transaction.setStatus(SUCCEEDED);
         server.expect(requestTo(config.getQueryUrl())).andRespond(withSuccess("{\"return_code\":2}",MediaType.APPLICATION_JSON));

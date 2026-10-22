@@ -38,6 +38,12 @@ public class ZaloPayController {
         return ApiResponse.success("Đã kiểm tra thanh toán của đơn", transactionsService.queryOrderPayment(orderId));
     }
 
+    @PostMapping("/{transactionId}/cancel")
+    public ApiResponse<ZaloPayPaymentResponse> cancelPayment(@PathVariable Long transactionId) {
+        return ApiResponse.success("Đã kiểm tra yêu cầu hủy thanh toán",
+                transactionsService.cancelZaloPayPayment(transactionId));
+    }
+
     @GetMapping("/query/{transactionId}")
     public ApiResponse<ZaloPayPaymentResponse> queryPayment(@PathVariable Long transactionId) {
         return ApiResponse.success(

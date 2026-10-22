@@ -177,43 +177,64 @@ public class TransactionsServiceImpl implements TransactionsService {
                     order.getId(), PAYMENT_METHOD, PAYMENT, PENDING).orElse(null);
         });
         if (pending != null) {
-            // Never trust the browser's cancellation hint: ask the provider before replacing the attempt.
-            ZaloPayPaymentResponse result = queryProvider(pending);
+            ZaloPayPaymentResponse result = cancelUnpaidAttempt(pending);
             if (result.status() == SUCCEEDED) return result;
-            if (result.status() == PENDING) {
-                String appTransId = buildAppTransId(pending);
-                MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
-                form.add("app_id", String.valueOf(zaloPayConfig.getAppId()));
-                form.add("app_trans_id", appTransId);
-                form.add("mac", hmacSha256(zaloPayConfig.getKey1(),
-                        zaloPayConfig.getAppId() + "|" + appTransId + "|" + zaloPayConfig.getKey1()));
-                JsonNode cancelled;
-                try {
-                    // Same provider/environment as create/query; official endpoint is /v2/cancel.
-                    String cancelUrl = UriComponentsBuilder.fromUriString(zaloPayConfig.getQueryUrl())
-                            .replacePath("/v2/cancel").replaceQuery(null).build().toUriString();
-                    cancelled = zaloPayRestClient.post().uri(cancelUrl)
-                            .contentType(MediaType.APPLICATION_FORM_URLENCODED).body(form)
-                            .retrieve().body(JsonNode.class);
-                } catch (RuntimeException exception) {
-                    throw new ResponseStatusException(BAD_GATEWAY,
-                            "Chưa xác nhận được hủy giao dịch cũ. Hãy kiểm tra lại, chưa tạo thanh toán mới.", exception);
-                }
-                if (cancelled == null || cancelled.path("return_code").asInt() != 1) {
-                    // Payment may have won the race with cancellation: reconcile instead of charging again.
-                    result = queryZaloPayPayment(pending.getId());
-                    if (result.status() == SUCCEEDED) return result;
-                    throw new ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,
-                            "ZaloPay chưa xác nhận hủy lượt thanh toán cũ. Vui lòng kiểm tra lại sau.");
-                }
-                Transaction current = updatePaymentStatus(pending.getId(), TransactionStatus.CANCELLED);
-                if (current.getStatus() == SUCCEEDED)
-                    return new ZaloPayPaymentResponse(current.getId(), appTransId, SUCCEEDED,
-                            request.orderId(), current.getParticipantId(), cancelled);
-            }
         }
         // Rechecks owner, Order PENDING, pending attempts and paid balance under the same Order lock.
         return createZaloPayPayment(request);
+    }
+
+    @Override
+    public ZaloPayPaymentResponse cancelZaloPayPayment(Long transactionId) {
+        Transaction transaction = paymentTransaction.execute(tx -> {
+            Transaction found = findZaloPayTransaction(transactionId);
+            if (found.getOrder() == null)
+                throw new ResponseStatusException(BAD_REQUEST, "Hủy thanh toán tour chưa được tích hợp");
+            requireOrderOwner(found.getOrder());
+            return found;
+        });
+        if (transaction.getStatus() == SUCCEEDED)
+            throw new ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,
+                    "Giao dịch đã thanh toán thành công, không thể hủy. Cần sử dụng hoàn tiền.");
+        return cancelUnpaidAttempt(transaction);
+    }
+
+    private ZaloPayPaymentResponse cancelUnpaidAttempt(Transaction transaction) {
+        if (transaction.getStatus() == FAILED || transaction.getStatus() == TransactionStatus.CANCELLED)
+            return paymentResponse(transaction, null);
+        // Query before cancellation: money may have arrived since the browser was closed.
+        ZaloPayPaymentResponse result = queryProvider(transaction);
+        if (result.status() != PENDING) return result;
+        String appTransId = buildAppTransId(transaction);
+        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+        form.add("app_id", String.valueOf(zaloPayConfig.getAppId()));
+        form.add("app_trans_id", appTransId);
+        form.add("mac", hmacSha256(zaloPayConfig.getKey1(),
+                zaloPayConfig.getAppId() + "|" + appTransId + "|" + zaloPayConfig.getKey1()));
+        JsonNode cancelled;
+        try {
+            String cancelUrl = UriComponentsBuilder.fromUriString(zaloPayConfig.getQueryUrl())
+                    .replacePath("/v2/cancel").replaceQuery(null).build().toUriString();
+            cancelled = zaloPayRestClient.post().uri(cancelUrl)
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED).body(form)
+                    .retrieve().body(JsonNode.class);
+        } catch (RuntimeException exception) {
+            throw new ResponseStatusException(BAD_GATEWAY,
+                    "Chưa xác nhận được hủy giao dịch. Vui lòng kiểm tra lại.", exception);
+        }
+        if (cancelled == null || cancelled.path("return_code").asInt() != 1) {
+            result = queryProvider(transaction);
+            if (result.status() != PENDING) return result;
+            throw new ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,
+                    "ZaloPay chưa xác nhận hủy giao dịch. Vui lòng kiểm tra lại sau.");
+        }
+        // Same locked transition as query/retry; concurrent success must not be overwritten.
+        return paymentResponse(updatePaymentStatus(transaction.getId(), TransactionStatus.CANCELLED), cancelled);
+    }
+
+    private ZaloPayPaymentResponse paymentResponse(Transaction transaction, JsonNode providerResponse) {
+        return new ZaloPayPaymentResponse(transaction.getId(), buildAppTransId(transaction),
+                transaction.getStatus(), transaction.getOrderId(), transaction.getParticipantId(), providerResponse);
     }
 
     // Internal reconciliation has no browser/JWT dependency; it never accepts user-supplied outcomes.

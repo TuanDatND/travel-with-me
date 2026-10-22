@@ -105,3 +105,16 @@ Backend kiểm tra chủ đơn/Order PENDING; query lượt cũ trước. Nếu 
 Cancel bị từ chối thì query lại để nhận trường hợp thanh toán thắng cuộc đua; còn chưa rõ trả 409, timeout trả 502, không tạo mới. Không dựa vào status redirect để ghi CANCELLED.
 Build + 35 tests Payment/Order PASS với mock (gồm 5 ca retry); FE build PASS. Chưa thử API cancel với app sandbox thật hoặc concurrency PostgreSQL.
 Contract provider: https://docs.zalopay.vn/docs/specs/order-cancel (API explorer: POST /v2/cancel, MAC app_id|app_trans_id|key1).
+
+## API hủy riêng một lượt thanh toán
+
+POST `/api/payments/zalopay/{transactionId}/cancel`, không body, JWT chủ đơn.
+- Kiểm tra giao dịch ZALOPAY/PAYMENT thuộc chủ đơn ACTIVE; tour chưa tích hợp hủy trả 400.
+- Đã SUCCEEDED trong DB trả 409 (cần hoàn tiền); FAILED/CANCELLED trả trạng thái hiện tại, không gọi provider lại.
+- PENDING query provider trước; nếu đã thành công trả SUCCEEDED để FE báo kết quả, không gọi cancel.
+- Chỉ khi provider cancel return_code=1 mới chuyển CANCELLED dưới khóa orders → transactions; không ghi đè SUCCEEDED đồng thời.
+- Provider từ chối cancel thì query lại; chưa rõ trả 409, lỗi mạng trả 502 và giữ PENDING.
+- Dùng chung xử lý với retry; không tạo giao dịch hoặc đơn mới trong API cancel.
+- FE có nút Hủy lượt thanh toán khi PENDING; tạm dừng polling trong khi hủy, hiển thị CANCELLED/thành công/lỗi, cho thanh toán lại nếu đơn chưa trả và còn PENDING.
+
+Kiểm tra compileJava + 40 tests Payment/Order PASS (mock), FE build PASS; chưa thử API cancel trên sandbox thật.
