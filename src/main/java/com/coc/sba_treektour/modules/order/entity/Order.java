@@ -66,6 +66,7 @@ public class Order {
     }
 
     public Long getId() { return id; }
+    public void setStatus(OrderStatus status) { this.status = status; }
     public Long getUserId() { return user.getId(); }
     public Long getBranchId() { return branch.getId(); }
     public User getUser() { return user; }

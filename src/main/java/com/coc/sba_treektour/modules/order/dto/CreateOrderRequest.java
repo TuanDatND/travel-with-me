@@ -10,9 +10,9 @@ import java.time.OffsetDateTime;
 import java.util.List;
 
 public record CreateOrderRequest(
-        @NotNull Long branchId,
+        @NotNull @jakarta.validation.constraints.Positive Long branchId,
         OffsetDateTime orderDate,
         OrderStatus status,
-        @NotNull @DecimalMin(value = "0.0", inclusive = true) BigDecimal totalAmount,
-        @NotEmpty List<@Valid CreateOrderItemRequest> items) {
+        BigDecimal totalAmount,
+        @NotEmpty List<@NotNull @Valid CreateOrderItemRequest> items) {
 }

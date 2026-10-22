@@ -51,4 +51,15 @@ public class OrderController {
         orderService.delete(id, principal.getName());
         return ResponseEntity.noContent().build();
     }
+
+    @PostMapping("/{id}/cancel")
+    public ApiResponse<OrderResponse> cancel(@PathVariable Long id, Principal principal) {
+        return ApiResponse.success(orderService.cancel(id, principal.getName()));
+    }
+
+    @PostMapping("/{id}/{action:confirm|hand-over|return}")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public ApiResponse<OrderResponse> operate(@PathVariable Long id, @PathVariable String action) {
+        return ApiResponse.success(orderService.operate(id, action));
+    }
 }
