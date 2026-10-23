@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class ZaloPayController {
     private final TransactionsService transactionsService;
 
-    @PostMapping("/")
+    @PostMapping
     @Operation(description = "Chọn một loại thanh toán: orderId cho đơn thiết bị hoặc participantId cho vé tour. Giá, người trả và return URL do backend xác định.",
             requestBody = @io.swagger.v3.oas.annotations.parameters.RequestBody(
                     required = true,
