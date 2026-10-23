@@ -28,6 +28,9 @@ public class EventSchedule {
     @Column(name = "end_datetime", nullable = false)
     private OffsetDateTime endDatetime;
 
+    @Column(name = "registration_closes_at", nullable = false)
+    private OffsetDateTime registrationClosesAt;
+
     @Column(name = "max_participants", nullable = false)
     private Integer maxParticipants;
 
@@ -51,6 +54,7 @@ public class EventSchedule {
         this.guideId = guideId;
         this.startDatetime = startDatetime;
         this.endDatetime = endDatetime;
+        this.registrationClosesAt = startDatetime;
         this.maxParticipants = maxParticipants;
         this.currentParticipants = 0;
         this.status = ScheduleStatus.OPEN;
@@ -58,6 +62,8 @@ public class EventSchedule {
     }
 
     public void updateDetails(Long guideId, Integer maxParticipants) {
+        if (maxParticipants == null || maxParticipants < 1 || maxParticipants < currentParticipants)
+            throw new IllegalArgumentException("Sức chứa phải dương và không nhỏ hơn số chỗ đã giữ");
         this.guideId = guideId;
         this.maxParticipants = maxParticipants;
         if (this.currentParticipants >= maxParticipants && this.status == ScheduleStatus.OPEN) {
@@ -75,6 +81,28 @@ public class EventSchedule {
     public void updateStatus(ScheduleStatus newStatus) {
         this.status = newStatus;
     }
+
+    public void setRegistrationClosesAt(OffsetDateTime cutoff) {
+        if (cutoff == null || cutoff.isAfter(startDatetime))
+            throw new IllegalArgumentException("Hạn đăng ký không được sau giờ khởi hành");
+        this.registrationClosesAt = cutoff;
+    }
+
+    /** Caller must hold the schedule write lock for the whole transaction. */
+    public void reserve(OffsetDateTime now) {
+        if (status != ScheduleStatus.OPEN || !now.isBefore(registrationClosesAt) || currentParticipants >= maxParticipants)
+            throw new com.coc.sba_treektour.modules.schedule.exception.ScheduleNotAvailableException("Lịch đã đóng đăng ký hoặc hết chỗ");
+        currentParticipants++;
+        if (currentParticipants.equals(maxParticipants)) status = ScheduleStatus.FULL;
+    }
+
+    public void release() {
+        if (currentParticipants <= 0) throw new IllegalStateException("Sức chứa không nhất quán");
+        currentParticipants--;
+        if (status == ScheduleStatus.FULL) status = ScheduleStatus.OPEN;
+    }
+
+    public OffsetDateTime getRegistrationClosesAt() { return registrationClosesAt; }
 
     public Long getId() { return id; }
     public Long getEventId() { return eventId; }

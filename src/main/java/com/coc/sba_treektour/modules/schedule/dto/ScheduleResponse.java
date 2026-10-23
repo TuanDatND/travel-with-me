@@ -13,5 +13,6 @@ public record ScheduleResponse(
         Integer maxParticipants,
         Integer currentParticipants,
         ScheduleStatus status,
-        OffsetDateTime createdAt
+        OffsetDateTime createdAt,
+        OffsetDateTime registrationClosesAt
 ) {}
