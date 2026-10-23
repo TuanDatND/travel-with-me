@@ -1,5 +1,10 @@
 # Tích hợp tour/guide với lịch và đăng ký
 
+> Bản ghi tích hợp ngày 2026-10-10. Contract module 5 đã cập nhật ngày 2026-10-21:
+> xem [Module 5 hiện tại](../MODULE_5_SCHEDULE_PARTICIPANT.md) và
+> [request mẫu](../module5.http). Quyền STAFF theo chi nhánh, hạn giữ chỗ,
+> điều kiện điểm danh và body confirm-payment trong tài liệu bên dưới đã được thay thế.
+
 Ngày: 2026-10-10. Nhánh: `feature/tour-schedule-integration`.
 
 ## Phạm vi

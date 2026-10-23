@@ -23,5 +23,7 @@ public record CreateScheduleRequest(
 
         @NotNull(message = "maxParticipants is required")
         @Min(value = 1, message = "maxParticipants must be at least 1")
-        Integer maxParticipants
+        Integer maxParticipants,
+
+        OffsetDateTime registrationClosesAt
 ) {}

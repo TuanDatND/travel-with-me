@@ -1,4 +1,4 @@
-package com.coc.sba_treektour.modules.tour;
+package com.coc.sba_treektour.modules.schedule;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -21,9 +21,13 @@ import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.concurrent.*;
 
-@SpringBootTest
+@SpringBootTest(properties = "schedule.expiry.enabled=false")
 @AutoConfigureMockMvc
-class TourScheduleIntegrationTests {
+class ScheduleIntegrationTests {
+    @Autowired com.coc.sba_treektour.modules.schedule.service.HoldExpiryService expiry;
+    @Autowired com.coc.sba_treektour.modules.schedule.service.ParticipantPaymentService paymentService;
+    @Autowired com.coc.sba_treektour.modules.schedule.service.ScheduleService scheduleService;
+    @Autowired com.coc.sba_treektour.modules.account.repository.UserRepository accounts;
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired PasswordEncoder passwords;
@@ -261,7 +265,7 @@ class TourScheduleIntegrationTests {
         jdbc.update("UPDATE tour_events SET status='PUBLISHED' WHERE event_id=?", eventId);
         jdbc.update(
                 "UPDATE event_schedules SET start_datetime=now()-interval '2"
-                        + " hours',end_datetime=now()+interval '2 hours' WHERE schedule_id=?",
+                        + " hours',end_datetime=now()+interval '2 hours',registration_closes_at=now()-interval '2 hours' WHERE schedule_id=?",
                 scheduleId);
         call(post("/api/schedules/{id}/register", scheduleId), customer, "{}", 409);
     }
@@ -275,17 +279,17 @@ class TourScheduleIntegrationTests {
         call(get("/api/schedules/{id}/participants", scheduleId), customer, null, 403);
         call(get("/api/schedules/{id}/participants", scheduleId), guide, null, 200);
         call(patch("/api/participants/{id}/check-in", ticket), guide, null, 400);
-        call(patch("/api/participants/{id}/confirm-payment", ticket), admin, null, 200);
+        confirm(ticket);
+        changeStatus(scheduleId, "CLOSED", 200);
+        jdbc.update("UPDATE event_schedules SET start_datetime=now()-interval '1 minute',end_datetime=now()+interval '2 hours',registration_closes_at=now()-interval '1 minute' WHERE schedule_id=?", scheduleId);
         jdbc.update("UPDATE tour_guides SET user_id=? WHERE guide_id=?", users.get(0), guideId);
         call(patch("/api/participants/{id}/check-in", ticket), guide, null, 403);
         jdbc.update("UPDATE tour_guides SET user_id=? WHERE guide_id=?", users.get(3), guideId);
         call(patch("/api/participants/{id}/check-in", ticket), guide, null, 200);
         call(patch("/api/participants/{id}/no-show", ticket), guide, null, 400);
-        call(
-                patch("/api/schedules/{id}/status", scheduleId),
-                admin,
-                "{\"status\":\"COMPLETED\"}",
-                200);
+        changeStatus(scheduleId, "IN_PROGRESS", 200);
+        jdbc.update("UPDATE event_schedules SET start_datetime=now()-interval '4 hours',end_datetime=now()-interval '1 hour',registration_closes_at=now()-interval '4 hours' WHERE schedule_id=?", scheduleId);
+        changeStatus(scheduleId, "COMPLETED", 200);
         var completed = call(get("/api/participants/{id}", ticket), customer, null, 200);
         assertThat(
                         (String)
@@ -314,8 +318,8 @@ class TourScheduleIntegrationTests {
                 200);
         var history = call(get("/api/schedules/{id}/histories", scheduleId), admin, null, 200);
         assertThat((List<?>) JsonPath.read(history.getResponse().getContentAsString(), "$.data"))
-                .hasSize(1);
-        call(get("/api/schedules/{id}/histories", scheduleId), guide, null, 403);
+                .hasSize(2);
+        call(get("/api/schedules/{id}/histories", scheduleId), guide, null, 200);
         jdbc.update("UPDATE users SET status='BLOCKED' WHERE user_id=?", users.get(1));
         call(post("/api/schedules/{id}/register", scheduleId), customer, "{}", 401);
     }
@@ -484,6 +488,9 @@ class TourScheduleIntegrationTests {
     @AfterEach
     void cleanup() {
         if (eventId != null) {
+            jdbc.update("DELETE FROM schedule_payment_reviews WHERE participant_id IN (SELECT p.participant_id FROM event_participants p JOIN event_schedules s ON s.schedule_id=p.schedule_id WHERE s.event_id=?)", eventId);
+            jdbc.update("DELETE FROM schedule_participant_history WHERE participant_id IN (SELECT p.participant_id FROM event_participants p JOIN event_schedules s ON s.schedule_id=p.schedule_id WHERE s.event_id=?)", eventId);
+            jdbc.update("DELETE FROM transactions WHERE participant_id IN (SELECT p.participant_id FROM event_participants p JOIN event_schedules s ON s.schedule_id=p.schedule_id WHERE s.event_id=?)", eventId);
             jdbc.update(
                     "DELETE FROM event_participants WHERE schedule_id IN (SELECT schedule_id FROM"
                             + " event_schedules WHERE event_id=?)",
@@ -496,7 +503,282 @@ class TourScheduleIntegrationTests {
             jdbc.update("DELETE FROM tour_events WHERE event_id=?", eventId);
         }
         for (Long user : users) jdbc.update("DELETE FROM tour_guides WHERE user_id=?", user);
+        for (Long user : users) jdbc.update("DELETE FROM staff WHERE user_id=?", user);
         if (branchId != null) jdbc.update("DELETE FROM branches WHERE branch_id=?", branchId);
+        for (Long branch : extraBranches) jdbc.update("DELETE FROM branches WHERE branch_id=?", branch);
         for (Long user : users) jdbc.update("DELETE FROM users WHERE user_id=?", user);
+    }
+
+    private final List<Long> extraBranches = new ArrayList<>();
+
+    @Test
+    void attendanceWindowAndCompletionPreserveNoShowAndRepeatedPayment() throws Exception {
+        long schedule = schedule(2);
+        long present = id(call(post("/api/schedules/{id}/register", schedule), customer, "{}", 201));
+        long absent = id(call(post("/api/schedules/{id}/register", schedule), other, "{}", 201));
+        long transaction = transaction(present, "SUCCEEDED", 1500000);
+        var reference = registrationReference(present);
+        assertThat(paymentConfirm(present, reference, transaction)).isEqualTo("CONFIRMED");
+        confirm(absent);
+        changeStatus(schedule, "CLOSED", 200);
+        call(patch("/api/participants/{id}/check-in", present), guide, null, 400);
+        call(patch("/api/participants/{id}/no-show", absent), guide, null, 400);
+        jdbc.update("UPDATE event_schedules SET start_datetime=now()-interval '1 minute',end_datetime=now()+interval '2 hours',registration_closes_at=now()-interval '1 minute' WHERE schedule_id=?", schedule);
+        call(patch("/api/participants/{id}/check-in", present), guide, null, 200);
+        call(patch("/api/participants/{id}/check-in", present), guide, null, 200);
+        call(post("/api/participants/{id}/cancel", present), customer, null, 400);
+        jdbc.update("UPDATE event_schedules SET start_datetime=now()-interval '45 minutes',registration_closes_at=now()-interval '45 minutes' WHERE schedule_id=?", schedule);
+        call(patch("/api/participants/{id}/no-show", absent), guide, null, 200);
+        call(patch("/api/participants/{id}/no-show", absent), guide, null, 200);
+        changeStatus(schedule, "IN_PROGRESS", 200);
+        changeStatus(schedule, "COMPLETED", 400);
+        jdbc.update("UPDATE event_schedules SET start_datetime=now()-interval '4 hours',end_datetime=now()-interval '1 hour',registration_closes_at=now()-interval '4 hours' WHERE schedule_id=?", schedule);
+        changeStatus(schedule, "COMPLETED", 200);
+        assertThat(jdbc.queryForObject("SELECT participant_status FROM event_participants WHERE participant_id=?", String.class, present)).isEqualTo("COMPLETED");
+        assertThat(jdbc.queryForObject("SELECT participant_status FROM event_participants WHERE participant_id=?", String.class, absent)).isEqualTo("NO_SHOW");
+        assertThat(paymentConfirm(present, reference, transaction)).isEqualTo("CONFIRMED");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM schedule_payment_reviews WHERE participant_id=?", Integer.class, present)).isZero();
+    }
+
+    @Test
+    void wrongPaymentAmountAndReferenceRequireReviewWithoutConfirming() throws Exception {
+        long schedule = schedule(2);
+        long ticket = id(call(post("/api/schedules/{id}/register", schedule), customer, "{}", 201));
+        long wrongAmount = transaction(ticket, "SUCCEEDED", 100);
+        assertThat(paymentConfirm(ticket, registrationReference(ticket), wrongAmount)).isEqualTo("REVIEW_REQUIRED");
+        long wrongAttempt = transaction(ticket, "SUCCEEDED", 1500000);
+        assertThat(paymentConfirm(ticket, UUID.randomUUID(), wrongAttempt)).isEqualTo("REVIEW_REQUIRED");
+        assertThat(jdbc.queryForObject("SELECT participant_status FROM event_participants WHERE participant_id=?", String.class, ticket)).isEqualTo("PENDING");
+        assertThat(jdbc.queryForObject("SELECT amount FROM schedule_payment_reviews WHERE transaction_id=?", Integer.class, wrongAmount)).isEqualTo(100);
+        // A reviewed transaction needs reconciliation; retrying it must not auto-confirm/refund twice.
+        assertThat(paymentConfirm(ticket, registrationReference(ticket), wrongAttempt)).isEqualTo("REVIEW_REQUIRED");
+    }
+
+    @Test
+    void expiryAndCancellationRaceReleasesOneSeatAndClosesDueSchedule() throws Exception {
+        long schedule = schedule(1);
+        long ticket = id(call(post("/api/schedules/{id}/register", schedule), customer, "{}", 201));
+        jdbc.update("UPDATE event_participants SET expires_at=now()-interval '1 second' WHERE participant_id=?", ticket);
+        assertThat(race(() -> { expiry.expireSchedule(schedule); return 200; },
+                () -> mvc.perform(post("/api/participants/{id}/cancel", ticket).header("Authorization", customer)).andReturn().getResponse().getStatus()))
+                .containsExactly(200, 200);
+        assertThat(jdbc.queryForObject("SELECT current_participants FROM event_schedules WHERE schedule_id=?", Integer.class, schedule)).isZero();
+        jdbc.update("UPDATE event_schedules SET registration_closes_at=now()-interval '1 minute' WHERE schedule_id=?", schedule);
+        expiry.expireSchedule(schedule);
+        expiry.expireSchedule(schedule);
+        assertThat(jdbc.queryForObject("SELECT status FROM event_schedules WHERE schedule_id=?", String.class, schedule)).isEqualTo("CLOSED");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM event_schedule_history WHERE schedule_id=? AND new_status='CLOSED'", Integer.class, schedule)).isEqualTo(1);
+    }
+
+    @Test
+    void earlierRescheduleShortensHoldsAndHistoryKeepsTheActor() throws Exception {
+        long schedule = schedule(2);
+        long ticket = id(call(post("/api/schedules/{id}/register", schedule), customer, "{}", 201));
+        var cutoff = OffsetDateTime.now().plusMinutes(5).withNano(0);
+        call(post("/api/schedules/{id}/reschedule", schedule), admin,
+                "{\"newStartDatetime\":\"" + start.plusDays(1) + "\",\"newEndDatetime\":\"" + start.plusDays(1).plusHours(4)
+                        + "\",\"registrationClosesAt\":\"" + cutoff + "\",\"changeReason\":\"Điều chỉnh thời hạn\"}", 200);
+        assertThat(jdbc.queryForObject("SELECT expires_at FROM event_participants WHERE participant_id=?", OffsetDateTime.class, ticket).toInstant()).isEqualTo(cutoff.toInstant());
+        assertThat(jdbc.queryForObject("SELECT changed_by FROM event_schedule_history WHERE schedule_id=? ORDER BY history_id DESC LIMIT 1", Long.class, schedule)).isEqualTo(users.getFirst());
+        call(get("/api/participants/{id}/histories", ticket), other, null, 403);
+        call(get("/api/participants/{id}/histories", ticket), customer, null, 200);
+        call(get("/api/schedules/{id}/participants", schedule).param("size", "1"), guide, null, 200);
+    }
+
+    @Test
+    void staffMustBelongToTheActiveOrganizingBranch() throws Exception {
+        String staff = account("STAFF");
+        long staffId = users.getLast();
+        jdbc.update("INSERT INTO staff(user_id,branch_id) VALUES (?,?)", staffId, branchId);
+        long own = schedule(2);
+        long ticket = id(call(post("/api/schedules/{id}/register", own), customer, "{}", 201));
+        long foreign = jdbc.queryForObject("INSERT INTO branches(branch_name) VALUES ('Other test branch') RETURNING branch_id", Long.class);
+        extraBranches.add(foreign);
+        long another = id(call(post("/api/schedules"), admin, scheduleBody(null, start.plusDays(2), 2), 201));
+        jdbc.update("UPDATE event_schedules SET branch_id=? WHERE schedule_id=?", foreign, another);
+        long otherTicket = id(call(post("/api/schedules/{id}/register", another), other, "{}", 201));
+        call(get("/api/schedules/{id}/participants", own), staff, null, 200);
+        call(get("/api/schedules/{id}/participants", another), staff, null, 403);
+        call(get("/api/schedules/{id}/histories", another), staff, null, 403);
+        call(get("/api/participants/{id}", otherTicket), staff, null, 403);
+        call(post("/api/participants/{id}/cancel", otherTicket), staff, "{\"reason\":\"Hủy thay khách\"}", 403);
+        call(patch("/api/participants/{id}/confirm-payment", otherTicket), staff, confirmationBody(otherTicket), 403);
+        call(patch("/api/participants/{id}/check-in", otherTicket), staff, null, 403);
+        call(patch("/api/participants/{id}/no-show", otherTicket), staff, null, 403);
+        call(put("/api/schedules/{id}", another), staff, "{\"maxParticipants\":3}", 403);
+        call(patch("/api/schedules/{id}/status", another), staff, "{\"status\":\"CLOSED\",\"changeReason\":\"Close\"}", 403);
+        call(post("/api/schedules/{id}/reschedule", another), staff,
+                "{\"newStartDatetime\":\"" + start.plusDays(3) + "\",\"newEndDatetime\":\"" + start.plusDays(3).plusHours(4)
+                        + "\",\"changeReason\":\"Move\"}", 403);
+        var foreignBody = scheduleBody(null, start.plusDays(4), 2).replace("\"branchId\":" + branchId, "\"branchId\":" + foreign);
+        call(post("/api/schedules"), staff, foreignBody, 403);
+        call(post("/api/participants/{id}/cancel", ticket), staff, null, 400);
+        call(post("/api/participants/{id}/cancel", ticket), staff, "{\"reason\":\"Khách yêu cầu\"}", 200);
+        jdbc.update("UPDATE staff SET status='INACTIVE' WHERE user_id=?", staffId);
+        call(get("/api/schedules/{id}/participants", own), staff, null, 403);
+        jdbc.update("UPDATE staff SET status='ACTIVE' WHERE user_id=?", staffId);
+        jdbc.update("UPDATE branches SET status='INACTIVE' WHERE branch_id=?", branchId);
+        call(get("/api/schedules/{id}/participants", own), staff, null, 403);
+    }
+
+    @Test
+    void publishedSchedulesArePublicButHiddenSchedulesAreBranchScoped() throws Exception {
+        String staff = account("STAFF");
+        long staffId = users.getLast();
+        long schedule = schedule(2);
+        jdbc.update("UPDATE tour_events SET status='ARCHIVED' WHERE event_id=?", eventId);
+        call(get("/api/schedules/{id}", schedule), staff, null, 404);
+        var empty = call(get("/api/schedules").param("eventId", eventId.toString()), staff, null, 200);
+        assertThat((List<?>) JsonPath.read(empty.getResponse().getContentAsString(), "$.data")).isEmpty();
+        jdbc.update("INSERT INTO staff(user_id,branch_id) VALUES (?,?)", staffId, branchId);
+        call(get("/api/schedules/{id}", schedule), staff, null, 200);
+        var visible = call(get("/api/schedules").param("eventId", eventId.toString()), staff, null, 200);
+        assertThat((List<?>) JsonPath.read(visible.getResponse().getContentAsString(), "$.data")).hasSize(1);
+    }
+
+    @Test
+    void fullIsDerivedAndLifecycleCannotSkipAheadOrReopenAfterCutoff() throws Exception {
+        long schedule = schedule(1);
+        changeStatus(schedule, "FULL", 400);
+        changeStatus(schedule, "COMPLETED", 400);
+        changeStatus(schedule, "IN_PROGRESS", 400);
+        call(post("/api/schedules/{id}/register", schedule), admin, "{}", 403);
+        call(post("/api/schedules/{id}/register", schedule), guide, "{}", 403);
+        call(post("/api/schedules/{id}/register", schedule), customer, "{}", 201);
+        changeStatus(schedule, "CLOSED", 200);
+        changeStatus(schedule, "OPEN", 200);
+        assertThat(jdbc.queryForObject("SELECT status FROM event_schedules WHERE schedule_id=?", String.class, schedule)).isEqualTo("FULL");
+        changeStatus(schedule, "CLOSED", 200);
+        jdbc.update("UPDATE event_schedules SET registration_closes_at=now()-interval '1 minute' WHERE schedule_id=?", schedule);
+        changeStatus(schedule, "OPEN", 400);
+    }
+
+    @Test
+    void holdsExpireOnceAndReregistrationRejectsOldManualConfirmationReference() throws Exception {
+        long schedule = schedule(1);
+        long ticket = id(call(post("/api/schedules/{id}/register", schedule), customer, "{}", 201));
+        String oldConfirmation = confirmationBody(ticket);
+        jdbc.update("UPDATE event_participants SET expires_at=now()-interval '1 second' WHERE participant_id=?", ticket);
+        expiry.expireSchedule(schedule);
+        expiry.expireSchedule(schedule);
+        assertThat(jdbc.queryForObject("SELECT current_participants FROM event_schedules WHERE schedule_id=?", Integer.class, schedule)).isZero();
+        assertThat(jdbc.queryForObject("SELECT participant_status FROM event_participants WHERE participant_id=?", String.class, ticket)).isEqualTo("EXPIRED");
+        assertThat(id(call(post("/api/schedules/{id}/register", schedule), customer, "{}", 201))).isEqualTo(ticket);
+        call(patch("/api/participants/{id}/confirm-payment", ticket), admin, oldConfirmation, 409);
+        confirm(ticket);
+        confirm(ticket);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM schedule_participant_history WHERE participant_id=? AND action='MANUAL_CONFIRM'", Integer.class, ticket)).isEqualTo(1);
+        call(patch("/api/participants/{id}/check-in", ticket), guide, null, 400);
+        call(patch("/api/participants/{id}/no-show", ticket), guide, null, 400);
+    }
+
+    @Test
+    void cancellingScheduleCancelsTicketsAndQueuesManualRefundReview() throws Exception {
+        long schedule = schedule(2);
+        long ticket = id(call(post("/api/schedules/{id}/register", schedule), customer, "{}", 201));
+        call(post("/api/schedules/{id}/register", schedule), other, "{}", 201);
+        confirm(ticket);
+        changeStatus(schedule, "CANCELLED", 200);
+        changeStatus(schedule, "CANCELLED", 200);
+        assertThat(jdbc.queryForObject("SELECT current_participants FROM event_schedules WHERE schedule_id=?", Integer.class, schedule)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM event_participants WHERE schedule_id=? AND participant_status='CANCELLED'", Integer.class, schedule)).isEqualTo(2);
+        call(patch("/api/participants/{id}/confirm-payment", ticket), admin, confirmationBody(ticket), 409);
+        call(patch("/api/participants/{id}/check-in", ticket), guide, null, 400);
+        call(patch("/api/participants/{id}/no-show", ticket), guide, null, 400);
+        var reviews = call(get("/api/participants/payment-reviews").param("branchId", branchId.toString()), admin, null, 200);
+        assertThat((List<?>) JsonPath.read(reviews.getResponse().getContentAsString(), "$.data")).hasSize(1);
+        call(get("/api/participants/payment-reviews"), customer, null, 403);
+    }
+
+    @Test
+    void callbackValidatesPersistedTransactionAndIsIdempotent() throws Exception {
+        long schedule = schedule(1);
+        long ticket = id(call(post("/api/schedules/{id}/register", schedule), customer, "{}", 201));
+        long transaction = transaction(ticket, "PENDING", 1500000);
+        var reference = registrationReference(ticket);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> paymentConfirm(ticket, reference, transaction))
+                .isInstanceOf(com.coc.sba_treektour.modules.schedule.exception.ScheduleConflictException.class);
+        jdbc.update("UPDATE transactions SET status='SUCCEEDED' WHERE transaction_id=?", transaction);
+        assertThat(paymentConfirm(ticket, reference, transaction)).isEqualTo("CONFIRMED");
+        assertThat(paymentConfirm(ticket, reference, transaction)).isEqualTo("CONFIRMED");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM schedule_participant_history WHERE participant_id=? AND action='PAYMENT_CONFIRM'", Integer.class, ticket)).isEqualTo(1);
+        call(post("/api/participants/{id}/cancel", ticket), customer, null, 200);
+        assertThat(paymentConfirm(ticket, reference, transaction)).isEqualTo("REVIEW_REQUIRED");
+        call(post("/api/schedules/{id}/register", schedule), customer, "{}", 409);
+    }
+
+    @Test
+    void lateOrWrongAttemptPaymentNeverResurrectsAnExpiredTicket() throws Exception {
+        long schedule = schedule(1);
+        long ticket = id(call(post("/api/schedules/{id}/register", schedule), customer, "{}", 201));
+        var reference = registrationReference(ticket);
+        long transaction = transaction(ticket, "SUCCEEDED", 1500000);
+        jdbc.update("UPDATE event_participants SET expires_at=now()-interval '1 second' WHERE participant_id=?", ticket);
+        assertThat(paymentConfirm(ticket, reference, transaction)).isEqualTo("REVIEW_REQUIRED");
+        assertThat(paymentConfirm(ticket, reference, transaction)).isEqualTo("REVIEW_REQUIRED");
+        assertThat(jdbc.queryForObject("SELECT participant_status FROM event_participants WHERE participant_id=?", String.class, ticket)).isEqualTo("EXPIRED");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM schedule_payment_reviews WHERE transaction_id=?", Integer.class, transaction)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT current_participants FROM event_schedules WHERE schedule_id=?", Integer.class, schedule)).isZero();
+    }
+
+    @Test
+    void cancellationAndPaymentRaceKeepsCapacityAndReviewConsistent() throws Exception {
+        long schedule = schedule(1);
+        long ticket = id(call(post("/api/schedules/{id}/register", schedule), customer, "{}", 201));
+        var reference = registrationReference(ticket);
+        long transaction = transaction(ticket, "SUCCEEDED", 1500000);
+        race(() -> { paymentConfirm(ticket, reference, transaction); return 200; },
+                () -> mvc.perform(post("/api/participants/{id}/cancel", ticket).header("Authorization", customer)).andReturn().getResponse().getStatus());
+        assertThat(jdbc.queryForObject("SELECT participant_status FROM event_participants WHERE participant_id=?", String.class, ticket)).isEqualTo("CANCELLED");
+        assertThat(jdbc.queryForObject("SELECT current_participants FROM event_schedules WHERE schedule_id=?", Integer.class, schedule)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM schedule_payment_reviews WHERE transaction_id=?", Integer.class, transaction)).isEqualTo(1);
+    }
+
+    @Test
+    void invalidPaginationAndMalformedBodiesReturn400AndServiceCallsAreProtected() throws Exception {
+        call(get("/api/schedules").param("size", "101"), null, null, 400);
+        call(get("/api/schedules").param("page", "-1"), null, null, 400);
+        call(get("/api/schedules").param("status", "INVALID"), null, null, 400);
+        call(post("/api/schedules"), admin, "{", 400);
+        var user = accounts.findById(users.get(1)).orElseThrow();
+        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(user, null, user.getAuthorities()));
+        try {
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> scheduleService.create(null))
+                    .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> paymentService.confirm(1L, UUID.randomUUID(), 1L))
+                    .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+        } finally { org.springframework.security.core.context.SecurityContextHolder.clearContext(); }
+    }
+
+    private UUID registrationReference(long ticket) {
+        return jdbc.queryForObject("SELECT registration_reference FROM event_participants WHERE participant_id=?", UUID.class, ticket);
+    }
+
+    private long transaction(long ticket, String status, int amount) {
+        return jdbc.queryForObject("INSERT INTO transactions(participant_id,transaction_type,amount,payment_method,status) VALUES (?,'PAYMENT',?,'ZALOPAY',?) RETURNING transaction_id", Long.class, ticket, amount, status);
+    }
+
+    private String paymentConfirm(long ticket, UUID reference, long transaction) {
+        var context = org.springframework.security.core.context.SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken("internal-payment", null,
+                List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("SCHEDULE_PAYMENT"))));
+        org.springframework.security.core.context.SecurityContextHolder.setContext(context);
+        try { return paymentService.confirm(ticket, reference, transaction).name(); }
+        finally { org.springframework.security.core.context.SecurityContextHolder.clearContext(); }
+    }
+
+    private void changeStatus(long id, String state, int expected) throws Exception {
+        call(patch("/api/schedules/{id}/status", id), admin,
+                "{\"status\":\"" + state + "\",\"changeReason\":\"Kiểm thử nghiệp vụ\"}", expected);
+    }
+
+    private String confirmationBody(long ticket) {
+        var reference = jdbc.queryForObject("SELECT registration_reference FROM event_participants WHERE participant_id=?", UUID.class, ticket);
+        return "{\"registrationReference\":\"" + reference + "\",\"paymentReference\":\"RECEIPT-" + ticket + "\"}";
+    }
+
+    private void confirm(long ticket) throws Exception {
+        call(patch("/api/participants/{id}/confirm-payment", ticket), admin, confirmationBody(ticket), 200);
     }
 }

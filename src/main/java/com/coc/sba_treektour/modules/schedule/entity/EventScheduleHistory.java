@@ -40,6 +40,9 @@ public class EventScheduleHistory {
     @Column(name = "changed_at", nullable = false, updatable = false)
     private OffsetDateTime changedAt;
 
+    @Column(name = "changed_by")
+    private Long changedBy;
+
     protected EventScheduleHistory() {}
 
     public EventScheduleHistory(EventSchedule schedule,
@@ -68,4 +71,6 @@ public class EventScheduleHistory {
     public String getNewStatus() { return newStatus; }
     public String getChangeReason() { return changeReason; }
     public OffsetDateTime getChangedAt() { return changedAt; }
+    public Long getChangedBy() { return changedBy; }
+    public void setChangedBy(Long userId) { this.changedBy = userId; }
 }

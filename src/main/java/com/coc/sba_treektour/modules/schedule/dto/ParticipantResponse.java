@@ -13,5 +13,7 @@ public record ParticipantResponse(
         ParticipantStatus participantStatus,
         CheckInStatus checkInStatus,
         BigDecimal registeredPrice,
-        String note
+        String note,
+        java.util.UUID registrationReference,
+        OffsetDateTime expiresAt
 ) {}
