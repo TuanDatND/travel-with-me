@@ -14,7 +14,6 @@
 
 | Module | Owner | Tables / entities | Public IDs / quan hệ cần dùng | Contract đã chốt | Status | Last update | Notes |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 2026-10-23 | Payment & report | Member 6 (Codex) | doc/MODULE_INTEGRATION_STATUS.md | Chốt Transaction READY_TO_MAP: PK transaction_id Long; FK order_id/participant_id LAZY; giữ schema và enum, không migration mới. Đồng bộ ghi chú path/body FE theo controller hiện tại. | Cho phép module khác map Transaction; kiểm thử DB/provider thật, tour FE, refund/report vẫn chưa hoàn tất. |
 | Account | Member 1 | `roles`, `users` | `users.user_id`, `users.role_id` | Chưa chốt | IN_PROGRESS | 2026-10-10 | Đã có Entity, Repo, DTO, Service, Controller |
 | Branch & staff | Member 1 | `branches`, `staff` | `branches.branch_id`, `staff.user_id`, `staff.branch_id` | Chưa chốt | IN_PROGRESS | 2026-10-10 | Đã có Entity, Repo, DTO, Service, Controller |
 | Product | Member 2 | `products`, Product | PK `product_id` | Public /api/products search/category/mode/price/page; ADMIN CRUD/status; ACTIVE/INACTIVE; giá NUMERIC(18,2), ít nhất một loại giá | READY_TO_MAP | 2026-10-15 | Codex: modules/product/**, frontend/src/features/equipment, CatalogIntegrationTests, doc/PRODUCT_INVENTORY.md; giữ V1/schema/ID; compileJava + 47 tests PASS (16 mới). UI login/tạo thiết bị/nhập kho/tra cứu lượng thuê PASS; demo local product 1, branch 9, stock 10. |
