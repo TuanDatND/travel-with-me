@@ -58,6 +58,9 @@ public class TransactionsServiceImpl implements TransactionsService {
     private static final String PAYMENT_METHOD = "ZALOPAY";
     private static final String PAYMENT = "PAYMENT";
     private static final int PAYMENT_LIFETIME_SECONDS = 900;
+    @org.springframework.beans.factory.annotation.Value("${payment.return-url}")
+    private String returnUrl;
+
     private final TransactionRepository transactionRepository;
     private final ZaloPayConfig zaloPayConfig;
     private final RestClient zaloPayRestClient;
@@ -65,14 +68,16 @@ public class TransactionsServiceImpl implements TransactionsService {
     private final OrderRepository orderRepository;
     private final TransactionTemplate paymentTransaction;
     private final EntityManager entityManager;
+    private final ParticipantPaymentBridge participantPayments;
 
     @Override
     public ZaloPayPaymentResponse createZaloPayPayment(CreateZaloPayPaymentRequest request) {
-        if (!request.isParticipantPaymentValid()) throw new ResponseStatusException(BAD_REQUEST, "Tour payment requires amount and appUser");
         if (!request.isTargetValid()) throw new ResponseStatusException(BAD_REQUEST, "Provide exactly one target");
+        int[] paymentLifetime = { PAYMENT_LIFETIME_SECONDS };
         Transaction transaction = paymentTransaction.execute(tx -> {
-            BigDecimal amount = request.amount();
+            BigDecimal amount;
             Order order = null;
+            com.coc.sba_treektour.modules.schedule.entity.EventParticipant participant = null;
             if (request.orderId() != null) {
                 order = lockPendingOrder(request.orderId());
                 amount = order.getTotalAmount();
@@ -82,20 +87,23 @@ public class TransactionsServiceImpl implements TransactionsService {
                 if (pending) throw new ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT, "Order already has a pending payment; query it first");
                 if (paid.signum() > 0) throw new ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT, "Order already has received payment; reconcile before retrying");
             }
+            else {
+                participant = participantPayments.prepare(request.participantId());
+                amount = participant.getRegisteredPrice();
+                paymentLifetime[0] = participantPayments.lifetimeSeconds(participant);
+            }
             toVnd(amount);
             return transactionRepository.saveAndFlush(Transaction.builder()
-                    .order(order).participantId(request.participantId())
+                    .order(order).participant(participant)
                     .transactionType(PAYMENT).amount(amount).paymentMethod(PAYMENT_METHOD)
                     .status(PENDING).createdAt(OffsetDateTime.now(VIETNAM_ZONE)).build());
         });
         long amountInVnd = toVnd(transaction.getAmount());
-        String appUser = request.orderId() != null ? "order_" + request.orderId() : request.appUser().trim();
-        OffsetDateTime now = transaction.getCreatedAt();
-
+        String appUser = request.orderId() != null ? "order_" + request.orderId() : "participant_" + request.participantId();
         String appTransId = buildAppTransId(transaction);
-        long appTime = now.toInstant().toEpochMilli();
+        long appTime = transaction.getCreatedAt().toInstant().toEpochMilli();
         String item = "[]";
-        String embedData = buildEmbedData(transaction.getId(), request.redirectUrl());
+        String embedData = buildEmbedData(transaction.getId());
         String description = request.description() == null || request.description().isBlank()
                 ? "Thanh toan Travel With Me #" + transaction.getId()
                 : request.description().trim();
@@ -108,7 +116,7 @@ public class TransactionsServiceImpl implements TransactionsService {
         form.add("app_user", appUser);
         form.add("app_trans_id", appTransId);
         form.add("app_time", String.valueOf(appTime));
-        form.add("expire_duration_seconds", String.valueOf(PAYMENT_LIFETIME_SECONDS));
+        form.add("expire_duration_seconds", String.valueOf(paymentLifetime[0]));
         form.add("amount", String.valueOf(amountInVnd));
         form.add("description", description);
         form.add("item", item);
@@ -129,13 +137,11 @@ public class TransactionsServiceImpl implements TransactionsService {
             throw new ResponseStatusException(BAD_GATEWAY, "Cannot connect to ZaloPay; query transaction " + transaction.getId() + " before retrying", exception);
         }
 
-        if (providerResponse == null || providerResponse.path("return_code").asInt() != 1) {
-            if (providerResponse != null) transaction = updatePaymentStatus(transaction.getId(), FAILED);
+        if (providerResponse != null && providerResponse.path("return_code").asInt() != 1) {
+            transaction = updatePaymentStatus(transaction.getId(), FAILED);
         }
 
-        return new ZaloPayPaymentResponse(
-                transaction.getId(), appTransId, transaction.getStatus(),
-                transaction.getOrderId(), transaction.getParticipantId(), providerResponse);
+        return paymentResponse(transaction, providerResponse);
     }
 
     @Override
@@ -143,6 +149,7 @@ public class TransactionsServiceImpl implements TransactionsService {
         Transaction transaction = paymentTransaction.execute(tx -> {
             Transaction found = findZaloPayTransaction(transactionId);
             if (found.getOrder() != null) requireOrderOwner(found.getOrder());
+            if (found.getParticipant() != null) participantPayments.requireOwner(found.getParticipant());
             return found;
         });
         return queryProvider(transaction);
@@ -163,15 +170,37 @@ public class TransactionsServiceImpl implements TransactionsService {
         });
         if (transaction == null) return null;
         if (transaction.getStatus() == PENDING) return queryProvider(transaction);
-        return new ZaloPayPaymentResponse(transaction.getId(), buildAppTransId(transaction),
-                transaction.getStatus(), orderId, transaction.getParticipantId(), null);
+        return paymentResponse(transaction, null);
+    }
+
+    @Override
+    public ZaloPayPaymentResponse queryParticipantPayment(Long participantId) {
+        Transaction transaction = paymentTransaction.execute(tx -> {
+            var ticket = participantPayments.lock(participantId);
+            participantPayments.requireOwner(ticket);
+            return transactionRepository.findFirstByParticipant_IdAndPaymentMethodAndTransactionTypeAndStatusOrderByIdDesc(
+                    participantId, PAYMENT_METHOD, PAYMENT, PENDING)
+                    .or(() -> transactionRepository.findFirstByParticipant_IdAndPaymentMethodAndTransactionTypeOrderByIdDesc(
+                            participantId, PAYMENT_METHOD, PAYMENT)).orElse(null);
+        });
+        if (transaction == null) return null;
+        if (transaction.getStatus() == PENDING) return queryProvider(transaction);
+        return paymentResponse(transaction, null);
     }
 
     @Override
     public ZaloPayPaymentResponse retryOrderPayment(CreateZaloPayPaymentRequest request) {
-        if (request.orderId() == null || request.participantId() != null)
-            throw new ResponseStatusException(BAD_REQUEST, "Thanh toán lại yêu cầu orderId và không nhận participantId");
+        if (!request.isTargetValid()) throw new ResponseStatusException(BAD_REQUEST, "Provide exactly one target");
         Transaction pending = paymentTransaction.execute(tx -> {
+            if (request.participantId() != null) {
+                var ticket = participantPayments.lock(request.participantId());
+                participantPayments.requireOwner(ticket);
+                if (ticket.getParticipantStatus() != com.coc.sba_treektour.modules.schedule.entity.ParticipantStatus.PENDING)
+                    throw new ResponseStatusException(BAD_REQUEST, "Ticket is not PENDING");
+                participantPayments.lifetimeSeconds(ticket);
+                return transactionRepository.findFirstByParticipant_IdAndPaymentMethodAndTransactionTypeAndStatusOrderByIdDesc(
+                        ticket.getId(), PAYMENT_METHOD, PAYMENT, PENDING).orElse(null);
+            }
             Order order = lockPendingOrder(request.orderId());
             return transactionRepository.findFirstByOrder_IdAndPaymentMethodAndTransactionTypeAndStatusOrderByIdDesc(
                     order.getId(), PAYMENT_METHOD, PAYMENT, PENDING).orElse(null);
@@ -188,9 +217,8 @@ public class TransactionsServiceImpl implements TransactionsService {
     public ZaloPayPaymentResponse cancelZaloPayPayment(Long transactionId) {
         Transaction transaction = paymentTransaction.execute(tx -> {
             Transaction found = findZaloPayTransaction(transactionId);
-            if (found.getOrder() == null)
-                throw new ResponseStatusException(BAD_REQUEST, "Hủy thanh toán tour chưa được tích hợp");
-            requireOrderOwner(found.getOrder());
+            if (found.getOrder() != null) requireOrderOwner(found.getOrder());
+            if (found.getParticipant() != null) participantPayments.requireOwner(found.getParticipant());
             return found;
         });
         if (transaction.getStatus() == SUCCEEDED)
@@ -234,13 +262,21 @@ public class TransactionsServiceImpl implements TransactionsService {
 
     private ZaloPayPaymentResponse paymentResponse(Transaction transaction, JsonNode providerResponse) {
         return new ZaloPayPaymentResponse(transaction.getId(), buildAppTransId(transaction),
-                transaction.getStatus(), transaction.getOrderId(), transaction.getParticipantId(), providerResponse);
+                transaction.getStatus(), transaction.getOrderId(), transaction.getParticipantId(), confirmParticipant(transaction), buildReturnUrl(transaction.getId()), providerResponse);
     }
 
     // Internal reconciliation has no browser/JWT dependency; it never accepts user-supplied outcomes.
     void reconcilePendingPayment(Long transactionId) {
         Transaction transaction = paymentTransaction.execute(tx -> findZaloPayTransaction(transactionId));
         if (transaction.getStatus() == PENDING) queryProvider(transaction);
+        else if (transaction.getStatus() == SUCCEEDED) confirmParticipant(transaction);
+    }
+
+    private String confirmParticipant(Transaction transaction) {
+        if (transaction.getParticipantId() == null || transaction.getStatus() != SUCCEEDED) return null;
+        // Module 5 reads the ticket and review records and makes repeated confirmation idempotent.
+        // SUCCEEDED is committed first; the worker finds missing confirmation from those records.
+        return participantPayments.confirm(transaction);
     }
 
     private ZaloPayPaymentResponse queryProvider(Transaction transaction) {
@@ -288,9 +324,7 @@ public class TransactionsServiceImpl implements TransactionsService {
             // Processing or incomplete responses stay PENDING; a browser redirect never changes status.
         }
 
-        return new ZaloPayPaymentResponse(
-                transaction.getId(), appTransId, transaction.getStatus(),
-                transaction.getOrderId(), transaction.getParticipantId(), providerResponse);
+        return paymentResponse(transaction, providerResponse);
     }
 
     @Override
@@ -355,6 +389,7 @@ public class TransactionsServiceImpl implements TransactionsService {
             transactionRepository.findOrderIdByTransactionId(transactionId).ifPresent(orderId ->
                     orderRepository.lockById(orderId)
                             .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Order not found")));
+            transactionRepository.findParticipantIdByTransactionId(transactionId).ifPresent(id -> participantPayments.lock(id));
             Transaction current = transactionRepository.findByIdForUpdate(transactionId)
                     .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Transaction not found"));
             // Refresh even with OpenEntityManagerInView: an earlier query may have cached this row.
@@ -374,14 +409,15 @@ public class TransactionsServiceImpl implements TransactionsService {
         return date + "_TWM_" + transaction.getId();
     }
 
-    private String buildEmbedData(Long transactionId, String redirectUrl) {
+    private String buildReturnUrl(Long transactionId) {
+        return UriComponentsBuilder.fromUriString(returnUrl)
+                .replaceQueryParam("transactionId", transactionId).build().toUriString();
+    }
+
+    private String buildEmbedData(Long transactionId) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("merchant_transaction_id", transactionId);
-        if (redirectUrl != null && !redirectUrl.isBlank()) {
-            // FE can recover the merchant ID after returning without relying on browser storage.
-            data.put("redirecturl", UriComponentsBuilder.fromUriString(redirectUrl.trim())
-                    .replaceQueryParam("transactionId", transactionId).build().toUriString());
-        }
+        data.put("redirecturl", buildReturnUrl(transactionId));
         try {
             return objectMapper.writeValueAsString(data);
         } catch (JacksonException exception) {

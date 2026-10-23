@@ -10,6 +10,7 @@ public record ZaloPayPaymentResponse(
         TransactionStatus status,
         Long orderId,
         Long participantId,
+        String participantConfirmation,
+        String redirectUrl,
         @JsonProperty("zalopay_response") JsonNode zaloPayResponse
-) {
-}
+) {}

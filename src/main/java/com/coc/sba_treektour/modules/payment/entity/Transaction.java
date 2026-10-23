@@ -35,8 +35,12 @@ public class Transaction {
         return order == null ? null : order.getId();
     }
 
-    @Column(name = "participant_id")
-    private Long participantId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "participant_id")
+    @ToString.Exclude
+    private com.coc.sba_treektour.modules.schedule.entity.EventParticipant participant;
+
+    public Long getParticipantId() { return participant == null ? null : participant.getId(); }
 
     @Size(max = 30)
     @NotNull
@@ -62,6 +66,5 @@ public class Transaction {
     @ColumnDefault("CURRENT_TIMESTAMP")
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
-
 
 }

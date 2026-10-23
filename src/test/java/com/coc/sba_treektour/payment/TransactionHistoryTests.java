@@ -24,7 +24,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class TransactionHistoryTests {
     private final TransactionRepository repository = mock(TransactionRepository.class);
     // Các cấu hình ZaloPay không được dùng khi đọc lịch sử.
-    private final TransactionsServiceImpl service = new TransactionsServiceImpl(repository, null, null, null, null, null, null);
+    private final TransactionsServiceImpl service = new TransactionsServiceImpl(repository, null, null, null, null, null, null, null);
     private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new TransactionController(service))
             .setControllerAdvice(new GlobalExceptionHandler()).build();
 

@@ -9,8 +9,29 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import jakarta.persistence.LockModeType;
 
-
 public interface TransactionRepository extends JpaRepository<Transaction, Long> {
+    Optional<Transaction> findFirstByParticipant_IdAndPaymentMethodAndTransactionTypeAndStatusOrderByIdDesc(
+            Long participantId, String method, String type, TransactionStatus status);
+
+    Optional<Transaction> findFirstByParticipant_IdAndPaymentMethodAndTransactionTypeOrderByIdDesc(
+            Long participantId, String method, String type);
+
+    boolean existsByParticipant_IdAndTransactionTypeAndStatusIn(Long participantId, String type,
+            java.util.Collection<TransactionStatus> statuses);
+
+    @Query("select t.participant.id from Transaction t where t.id = :id")
+    Optional<Long> findParticipantIdByTransactionId(Long id);
+
+    @Query("""
+            select t.id from Transaction t join t.participant p
+            where t.status = com.coc.sba_treektour.modules.payment.enums.TransactionStatus.SUCCEEDED
+              and t.paymentMethod = 'ZALOPAY' and t.transactionType = 'PAYMENT'
+              and (p.confirmationReference is null or p.confirmationReference <> concat('TRANSACTION:', cast(t.id as string)))
+              and not exists (select r.id from SchedulePaymentReview r where r.transactionId = t.id)
+              and t.id > :afterId order by t.id
+            """)
+    java.util.List<Long> findUnconfirmedParticipantPayments(Long afterId, org.springframework.data.domain.Pageable page);
+
     Optional<Transaction> findFirstByOrder_IdAndPaymentMethodAndTransactionTypeAndStatusOrderByIdDesc(
             Long orderId, String paymentMethod, String transactionType, TransactionStatus status);
 

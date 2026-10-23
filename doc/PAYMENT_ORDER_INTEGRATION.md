@@ -2,7 +2,7 @@
 
 Transaction map `order` → Order bằng `@ManyToOne(fetch = LAZY)` qua FK có sẵn
 `transactions.order_id` → `orders.order_id`, không cascade. DTO/request/response vẫn dùng
-`orderId: Long`; `participantId` trong entity giữ `Long` vì Schedule chưa READY_TO_MAP.
+`orderId: Long` và `participantId: Long`; entity đã map cả Order và EventParticipant bằng LAZY.
 Không đổi schema, migration hoặc code Order. Payment đã bỏ JdbcTemplate, dùng OrderRepository
 hiện có và JPQL trong TransactionRepository. TransactionTemplate vẫn giữ để transaction DB
 kết thúc trước khi gọi HTTP ZaloPay.
@@ -13,10 +13,14 @@ Order đọc giao dịch qua OrderPaymentReader theo contract trong ORDER_INTEGR
 `POST /api/payments/zalopay/`, JWT của chủ đơn ACTIVE:
 
 ```json
-{"orderId":5,"description":"Thanh toán đơn 5","redirectUrl":"http://localhost:3000/payment/result"}
+{"orderId":5,"description":"Thanh toán đơn 5"}
 ```
 
-Truyền `redirectUrl` là trang kết quả FE. Backend thêm `transactionId` vào query URL trả về (giữ các tham số khác); FE đọc ID này hoặc lưu ID từ response tạo thanh toán. `amount` và `appUser` không còn bắt buộc cho đơn;
+Return URL cố định do backend cấu hình qua `PAYMENT_RETURN_URL` trong `.env`, mặc định
+`http://localhost:3000/payment/result` (đúng route và cổng dev FE hiện tại). Request không nhận
+redirectUrl; field cũ nếu FE gửi sẽ bị bỏ qua. Response có `redirectUrl` là URL cấu hình kèm
+`transactionId`; cùng URL này được gửi vào embed_data.redirecturl của ZaloPay. FE đọc ID để query.
+`amount` và `appUser` không còn bắt buộc cho đơn;
 amount hợp lệ cũ nếu gửi vẫn bị bỏ qua, số tiền lấy từ orders.total_amount.
 app_user gửi provider là order_<orderId>. Đơn phải PENDING và có tổng nguyên VND > 0.
 Đơn tổng 0 không cần gọi ZaloPay; Order cho phép admin duyệt theo contract hiện có.
@@ -46,13 +50,12 @@ chưa triển khai lọc owner/chi nhánh. Không coi đây là API lịch sử 
 
 ## Phạm vi chưa tích hợp
 
-Participant giữ contract tạm: nhận amount/appUser từ request; chưa xác minh owner/giá tour
-hoặc xác nhận vé. Hoàn tiền, hủy đơn đã thu tiền và báo cáo chưa triển khai trong mốc này.
+Participant đã tích hợp giá/owner/hạn vé và xác nhận nội bộ; xem mục thanh toán tour bên dưới. Hoàn tiền, hủy đơn đã thu tiền và báo cáo chưa triển khai trong mốc này.
 Query chưa kiểm thử với ZaloPay live; khóa liên module chưa kiểm thử trên PostgreSQL thật.
 
 ## FE nhận kết quả local
 
-1. Gọi create với JWT chủ đơn và redirectUrl; nhận transaction_id và mở order_url trong zalopay_response.
+1. Gọi create với JWT chủ đơn; return URL do backend cấu hình; nhận transaction_id và mở order_url trong zalopay_response.
 2. ZaloPay chuyển về trang kết quả FE. FE đọc transactionId rồi gọi GET query/{transactionId} với JWT.
 3. Dựa vào data.status: SUCCEEDED → trang thành công, FAILED/CANCELLED → trang thất bại, PENDING → đang xử lý và query lại sau vài giây (giới hạn số lần, cho phép kiểm tra lại thủ công).
 4. Lỗi mạng/502 không phải thanh toán thất bại; hiện chưa xác nhận được và cho thử query lại.
@@ -100,7 +103,7 @@ Giao dịch provider còn PENDING vẫn chặn tạo lại; không tự chuyển
 
 ## Thanh toán lại cùng Order
 
-FE giữ nhãn nút “Thanh toán”, kể cả khi dùng luồng thanh toán lại cho giao dịch PENDING. POST /api/payments/zalopay/retry nhận cùng body create (orderId, redirectUrl), chỉ dành cho Order.
+FE giữ nhãn nút “Thanh toán”, kể cả khi dùng luồng thanh toán lại cho giao dịch PENDING. POST /api/payments/zalopay/retry nhận cùng body create, nhận đúng một orderId hoặc participantId; URL lấy từ cấu hình backend.
 Backend kiểm tra chủ đơn/Order PENDING; query lượt cũ trước. Nếu SUCCEEDED trả kết quả cũ, không thu lần nữa. Nếu còn PENDING, gọi /v2/cancel cùng môi trường provider và MAC key1; chỉ ghi CANCELLED khi provider return_code=1. Sau đó gọi luồng create có khóa Order và kiểm tra số dư/giao dịch PENDING một lần nữa. Đơn và tổng tiền không đổi, không tạo Order mới.
 Cancel bị từ chối thì query lại để nhận trường hợp thanh toán thắng cuộc đua; còn chưa rõ trả 409, timeout trả 502, không tạo mới. Không dựa vào status redirect để ghi CANCELLED.
 Build + 35 tests Payment/Order PASS với mock (gồm 5 ca retry); FE build PASS. Chưa thử API cancel với app sandbox thật hoặc concurrency PostgreSQL.
@@ -109,7 +112,7 @@ Contract provider: https://docs.zalopay.vn/docs/specs/order-cancel (API explorer
 ## API hủy riêng một lượt thanh toán
 
 POST `/api/payments/zalopay/{transactionId}/cancel`, không body, JWT chủ đơn.
-- Kiểm tra giao dịch ZALOPAY/PAYMENT thuộc chủ đơn ACTIVE; tour chưa tích hợp hủy trả 400.
+- Kiểm tra giao dịch ZALOPAY/PAYMENT thuộc chủ đơn ACTIVE; áp dụng cả Order và Participant, chỉ chủ đơn/chủ vé ACTIVE được gọi.
 - Đã SUCCEEDED trong DB trả 409 (cần hoàn tiền); FAILED/CANCELLED trả trạng thái hiện tại, không gọi provider lại.
 - PENDING query provider trước; nếu đã thành công trả SUCCEEDED để FE báo kết quả, không gọi cancel.
 - Chỉ khi provider cancel return_code=1 mới chuyển CANCELLED dưới khóa orders → transactions; không ghi đè SUCCEEDED đồng thời.
@@ -131,3 +134,56 @@ Kiểm tra compileJava + 40 tests Payment/Order PASS (mock), FE build PASS; chư
 - Hoàn tiền chưa triển khai theo yêu cầu tạm dừng của người dùng; không có API/nút hoàn tiền mới trong mốc này.
 
 Xác minh gần nhất: backend compileJava + 40 tests Payment/Order PASS với mock; FE production build PASS; helper hủy đơn chưa trả tiền có 4 kiểm tra mock PASS. Kiểm tra TypeScript toàn FE còn bốn lỗi đã có tại AdminStaffPage (successInfo/setCopied), không sửa trong phạm vi Payment. Chưa tự thực hiện hủy/thanh toán thật qua sandbox hoặc kiểm thử khóa đồng thời PostgreSQL.
+
+## Payment → Participant — 2026-10-23
+
+Schedule & participant đã READY_TO_MAP. Payment map Transaction.participant → EventParticipant bằng
+@ManyToOne LAZY, không cascade, FK transactions.participant_id giữ nguyên.
+Không sửa entity/repository/service/API/migration của Member 5.
+
+Tạo thanh toán tour qua POST /api/payments/zalopay/ với JWT chủ vé:
+
+```json
+{"participantId":7}
+```
+
+Không gửi orderId cùng participantId. amount/appUser nếu gửi vẫn không dùng làm giá/identity;
+backend lấy registeredPrice và owner từ vé. Request chỉ nhận ID, không nhận UUID xác nhận từ client.
+Khóa theo thứ tự schedule → participant → transaction. Tạo thanh toán yêu cầu vé PENDING,
+lịch OPEN/FULL/CLOSED, thời hạn giữ chỗ/cutoff còn ít nhất 300 giây (giới hạn minimum của ZaloPay).
+expire_duration_seconds tối đa 900, không vượt thời hạn còn lại lúc tạo. Nếu còn dưới 5 phút
+thì trả 409, không tạo giao dịch/link vượt hạn giữ chỗ. Không cho có PAYMENT PENDING/SUCCEEDED khác trên vé.
+
+Khi query xác nhận đúng số tiền, commit Transaction SUCCEEDED trước rồi gọi
+ParticipantPaymentService.confirm(participantId, registrationReference đọc từ vé đã khóa, transactionId)
+bằng service identity SCHEDULE_PAYMENT; khôi phục SecurityContext của người dùng sau lời gọi, không cấp quyền này cho JWT khách.
+Không gọi API xác nhận thủ công và không tự sửa trạng thái vé/sức chứa.
+
+Response query có participantConfirmation:
+- CONFIRMED: vé đã được Member 5 xác nhận.
+- REVIEW_REQUIRED: tiền đã thành công nhưng sai lần đăng ký, muộn hoặc vé không còn hợp lệ. Không báo vé đã xác nhận, không giữ chỗ lại.
+Trường này là kết quả trả về từ contract Member 5, không lưu cột riêng trong transactions. Nếu xác nhận bị lỗi, giữ SUCCEEDED và worker thử lại bằng cách đọc confirmation_reference trên vé và schedule_payment_reviews; không thu tiền lần hai.
+
+Payment không thêm bảng/cột/migration. Đọc registrationReference từ vé dưới khóa lịch → vé
+để gọi contract Member 5. Chỉ áp dụng khi Member 5 vẫn chặn tái đăng ký vé đã có giao dịch;
+contract Member 5 kiểm tra thêm thời điểm giao dịch so với lần đăng ký. Nếu mở tái đăng ký
+sau này phải thiết kế lại tham chiếu thanh toán trước khi sử dụng luồng đó.
+Hoàn tiền/consumer schedule_payment_reviews chưa triển khai.
+
+API bổ sung GET /api/payments/zalopay/participants/{participantId}/payment: kiểm tra chủ vé,
+ưu tiên giao dịch pending, trả data=null nếu chưa có. Query bằng transactionId, cancel và retry
+cũng kiểm tra owner vé. Hủy giao dịch không hủy vé/giải phóng chỗ; lifecycle vé vẫn thuộc Member 5.
+FE tour chưa được nối trong mốc backend này; trang kết quả FE hiện chủ yếu hiển thị chi tiết gear.
+
+### Giới hạn database sau merge
+
+Tài liệu Member 5 ghi migration V5 cho expires_at/registration_reference và các bảng audit/review,
+nhưng source nhánh hiện tại chỉ có V1/V3/V4/V2026100901; không thấy file V5.
+Cần Member 5 đưa migration gốc lên repository hoặc xác nhận DB thử đã áp dụng migration đó trước khi chạy luồng tour.
+Payment không tạo thay migration thuộc Schedule. Chưa chạy migration Payment trên database chung.
+
+Xác minh mốc Participant: compileJava + 52 tests Payment/Order PASS (mock), gồm giá vé server/participantId, quyền owner, hạn vé, thứ tự khóa, identity nội bộ và khôi phục context, CONFIRMED/REVIEW_REQUIRED, lỗi xác nhận giữ SUCCEEDED và worker retry. Chưa chạy DB/provider thật.
+
+Mốc bỏ cột xác nhận: compileJava + 52 tests Payment/Order PASS (mock). Xác nhận lặp dùng contract idempotent của Member 5; lỗi xác nhận vẫn giữ SUCCEEDED. Query worker mới đọc confirmation_reference và schedule_payment_reviews chưa kiểm chứng trên PostgreSQL thật. Migration Payment chưa chạy lên database chung.
+
+Return URL qua env: compileJava + 53 tests Payment/Order PASS (mock), gồm bỏ qua redirectUrl client và gửi/trả URL cấu hình kèm transactionId. Chưa thử redirect ZaloPay thực tế.

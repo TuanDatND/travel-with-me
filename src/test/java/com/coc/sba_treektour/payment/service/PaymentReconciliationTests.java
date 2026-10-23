@@ -22,6 +22,16 @@ class PaymentReconciliationTests {
         verify(payments,times(2)).reconcilePendingPayment(2L);
     }
 
+    @Test void confirmationRetryRunsEvenWithoutPendingProviderPayments() {
+        var repository = mock(TransactionRepository.class);
+        var payments = mock(TransactionsServiceImpl.class);
+        var job = new PaymentReconciliationJob(repository,payments);
+        when(repository.findUnconfirmedParticipantPayments(eq(0L),any())).thenReturn(List.of(11L));
+        when(repository.findReconciliationIds(any(),any(),anyLong(),any())).thenReturn(List.of());
+        job.reconcile();
+        verify(payments).reconcilePendingPayment(11L);
+    }
+
     @Test void emptyBatchDoesNotCallProvider() {
         var repository = mock(TransactionRepository.class);
         var payments = mock(TransactionsServiceImpl.class);

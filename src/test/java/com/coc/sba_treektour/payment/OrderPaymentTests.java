@@ -37,6 +37,7 @@ class OrderPaymentTests {
     User owner = User.builder().id(9L).email("owner@test.local").status("ACTIVE").build();
     TransactionTemplate template = mock(TransactionTemplate.class);
     EntityManager em = mock(EntityManager.class);
+    com.coc.sba_treektour.modules.payment.service.ParticipantPaymentBridge participantBridge = mock(com.coc.sba_treektour.modules.payment.service.ParticipantPaymentBridge.class);
     ZaloPayConfig config = new ZaloPayConfig();
     RestClient.Builder builder = RestClient.builder();
     MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
@@ -48,7 +49,8 @@ class OrderPaymentTests {
     void setup() throws Exception {
         config.setAppId(123); config.setKey1("test-key1"); config.setKey2("test-key2");
         config.setCreateUrl("https://provider.test/create"); config.setQueryUrl("https://provider.test/query");
-        service = new TransactionsServiceImpl(repository, config, builder.build(), new ObjectMapper(), orders, template, em);
+        service = new TransactionsServiceImpl(repository, config, builder.build(), new ObjectMapper(), orders, template, em, participantBridge);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "returnUrl", "http://localhost:3000/payment/result");
         when(template.execute(any())).thenAnswer(i -> ((TransactionCallback) i.getArgument(0)).doInTransaction(null));
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken("owner@test.local", "", List.of()));
         when(orders.lockById(5L)).thenReturn(Optional.of(order));
@@ -71,41 +73,56 @@ class OrderPaymentTests {
     @Test void usesServerAmountAndAllowsOmittingClientAmount() {
         server.expect(requestTo(config.getCreateUrl())).andExpect(content().string(org.hamcrest.Matchers.containsString("amount=200000")))
                 .andRespond(withSuccess("{\"return_code\":1}", MediaType.APPLICATION_JSON));
-        var result = service.createZaloPayPayment(new CreateZaloPayPaymentRequest(5L,null,null,null,null,null));
+        var result = service.createZaloPayPayment(new CreateZaloPayPaymentRequest(5L,null,null,null,null));
         assertEquals(PENDING,result.status());
         assertEquals(5L,result.orderId());
+        assertEquals("http://localhost:3000/payment/result?transactionId=11", result.redirectUrl());
         var captor = org.mockito.ArgumentCaptor.forClass(Transaction.class);
         verify(repository).saveAndFlush(captor.capture());
         assertEquals(new BigDecimal("200000"),captor.getValue().getAmount());
         server.verify();
     }
 
+    @Test void ignoresClientRedirectAndUsesConfiguredReturnUrl() {
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "returnUrl",
+                "https://frontend.test/payment/result?source=checkout");
+        var request = new ObjectMapper().readValue(
+                "{\"orderId\":5,\"redirectUrl\":\"https://untrusted.test\"}", CreateZaloPayPaymentRequest.class);
+        server.expect(requestTo(config.getCreateUrl()))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("frontend.test")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("untrusted.test"))))
+                .andRespond(withSuccess("{\"return_code\":1}", MediaType.APPLICATION_JSON));
+        var result = service.createZaloPayPayment(request);
+        assertEquals("https://frontend.test/payment/result?source=checkout&transactionId=11", result.redirectUrl());
+        server.verify();
+    }
+
     @Test void rejectsWrongOwnerBeforeCreatingPayment() {
         owner.setEmail("other@test.local");
         assertEquals(403, assertThrows(ResponseStatusException.class, () -> service.createZaloPayPayment(
-                new CreateZaloPayPaymentRequest(5L,null,null,null,null,null))).getStatusCode().value());
+                new CreateZaloPayPaymentRequest(5L,null,null,null,null))).getStatusCode().value());
         verify(repository,never()).saveAndFlush(any());
     }
 
     @Test void rejectsDuplicatePendingOrReceivedPayments() {
         when(repository.existsByOrder_IdAndTransactionTypeAndStatus(5L, "PAYMENT", PENDING)).thenReturn(true);
-        assertThrows(ResponseStatusException.class, () -> service.createZaloPayPayment(new CreateZaloPayPaymentRequest(5L,null,null,null,null,null)));
+        assertThrows(ResponseStatusException.class, () -> service.createZaloPayPayment(new CreateZaloPayPaymentRequest(5L,null,null,null,null)));
         when(repository.existsByOrder_IdAndTransactionTypeAndStatus(5L, "PAYMENT", PENDING)).thenReturn(false);
         when(repository.totalAmount(5L,"PAYMENT", SUCCEEDED)).thenReturn(BigDecimal.ONE);
-        assertThrows(ResponseStatusException.class, () -> service.createZaloPayPayment(new CreateZaloPayPaymentRequest(5L,null,null,null,null,null)));
+        assertThrows(ResponseStatusException.class, () -> service.createZaloPayPayment(new CreateZaloPayPaymentRequest(5L,null,null,null,null)));
         verify(repository,never()).saveAndFlush(any());
     }
 
     @Test void rejectsCancelledOrder() throws Exception {
         when(order.getStatus()).thenReturn(OrderStatus.CANCELLED);
-        assertThrows(ResponseStatusException.class, () -> service.createZaloPayPayment(new CreateZaloPayPaymentRequest(5L,null,null,null,null,null)));
+        assertThrows(ResponseStatusException.class, () -> service.createZaloPayPayment(new CreateZaloPayPaymentRequest(5L,null,null,null,null)));
         verify(repository,never()).saveAndFlush(any());
     }
 
     @Test void providerTimeoutKeepsPendingForReconciliation() {
         server.expect(requestTo(config.getCreateUrl())).andRespond(withException(new java.io.IOException("timeout")));
         var failure = assertThrows(ResponseStatusException.class, () -> service.createZaloPayPayment(
-                new CreateZaloPayPaymentRequest(5L,null,BigDecimal.ONE,"ignored",null,null)));
+                new CreateZaloPayPaymentRequest(5L,null,BigDecimal.ONE,"ignored",null)));
         assertEquals(502, failure.getStatusCode().value());
         assertTrue(failure.getReason().contains("11"));
         var captor = org.mockito.ArgumentCaptor.forClass(Transaction.class);
@@ -147,7 +164,7 @@ class OrderPaymentTests {
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("expire_duration_seconds=900")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("transactionId")))
                 .andRespond(withSuccess("{\"return_code\":1}",MediaType.APPLICATION_JSON));
-        service.createZaloPayPayment(new CreateZaloPayPaymentRequest(5L,null,null,null,null,"http://localhost:3000/payment/result?orderId=5"));
+        service.createZaloPayPayment(new CreateZaloPayPaymentRequest(5L,null,null,null,null));
         server.verify();
     }
 
@@ -198,7 +215,7 @@ class OrderPaymentTests {
     }
 
     private CreateZaloPayPaymentRequest retryRequest() {
-        return new CreateZaloPayPaymentRequest(5L,null,null,null,null,"http://localhost:3000/payment/result");
+        return new CreateZaloPayPaymentRequest(5L,null,null,null,null);
     }
 
     private void pendingAttempt() {
@@ -311,6 +328,78 @@ class OrderPaymentTests {
                 () -> service.cancelZaloPayPayment(11L)).getStatusCode().value());
         assertEquals(PENDING,transaction.getStatus());
         verify(repository,never()).saveAndFlush(any());
+    }
+
+    @Test void tourCreateUsesTicketPriceAndParticipantId() {
+        var ticket=mock(com.coc.sba_treektour.modules.schedule.entity.EventParticipant.class);
+        when(ticket.getId()).thenReturn(7L);
+        when(ticket.getRegisteredPrice()).thenReturn(new BigDecimal("450000"));
+        when(participantBridge.prepare(7L)).thenReturn(ticket);
+        when(participantBridge.lock(7L)).thenReturn(ticket);
+        when(participantBridge.lifetimeSeconds(ticket)).thenReturn(600);
+        server.expect(requestTo(config.getCreateUrl()))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("amount=450000")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("expire_duration_seconds=600")))
+                .andRespond(withSuccess("{\"return_code\":1}",MediaType.APPLICATION_JSON));
+        service.createZaloPayPayment(new CreateZaloPayPaymentRequest(null,7L,BigDecimal.ONE,"ignored",null));
+        var saved=org.mockito.ArgumentCaptor.forClass(Transaction.class);
+        verify(repository).saveAndFlush(saved.capture());
+        assertEquals(ticket,saved.getValue().getParticipant());
+    }
+
+    private void tourTransaction() {
+        var ticket=mock(com.coc.sba_treektour.modules.schedule.entity.EventParticipant.class);
+        when(ticket.getId()).thenReturn(7L);
+        transaction.setOrder(null); transaction.setParticipant(ticket);
+        when(repository.findOrderIdByTransactionId(11L)).thenReturn(Optional.empty());
+        when(repository.findParticipantIdByTransactionId(11L)).thenReturn(Optional.of(7L));
+    }
+
+    @Test void successfulQueryConfirmsTourAfterCommittingMoneyUsingIdempotentScheduleContract() {
+        tourTransaction();
+        when(participantBridge.confirm(transaction)).thenReturn("CONFIRMED");
+        doAnswer(i->{((java.util.function.Consumer<org.springframework.transaction.TransactionStatus>)i.getArgument(0)).accept(null);return null;})
+                .when(template).executeWithoutResult(any());
+        server.expect(requestTo(config.getQueryUrl())).andRespond(withSuccess("{\"return_code\":1,\"amount\":200000}",MediaType.APPLICATION_JSON));
+        server.expect(requestTo(config.getQueryUrl())).andRespond(withSuccess("{\"return_code\":1,\"amount\":200000}",MediaType.APPLICATION_JSON));
+        assertEquals("CONFIRMED",service.queryZaloPayPayment(11L).participantConfirmation());
+        service.queryZaloPayPayment(11L);
+        var sequence=inOrder(repository,participantBridge);
+        sequence.verify(repository).saveAndFlush(transaction);
+        sequence.verify(participantBridge).confirm(transaction);
+        verify(participantBridge,times(2)).confirm(transaction);
+    }
+
+    @Test void confirmationFailurePreservesMoneyForRetryFromTicketState() {
+        tourTransaction();
+        when(participantBridge.confirm(transaction)).thenThrow(new RuntimeException("temporary"));
+        server.expect(requestTo(config.getQueryUrl())).andRespond(withSuccess("{\"return_code\":1,\"amount\":200000}",MediaType.APPLICATION_JSON));
+        assertThrows(RuntimeException.class,()->service.queryZaloPayPayment(11L));
+        assertEquals(SUCCEEDED,transaction.getStatus());
+        verify(repository).saveAndFlush(transaction);
+    }
+
+    @Test void successfulLateTourPaymentReturnsReviewWithoutUndoingMoney() {
+        tourTransaction();
+        when(participantBridge.confirm(transaction)).thenReturn("REVIEW_REQUIRED");
+        doAnswer(i->{((java.util.function.Consumer<org.springframework.transaction.TransactionStatus>)i.getArgument(0)).accept(null);return null;})
+                .when(template).executeWithoutResult(any());
+        server.expect(requestTo(config.getQueryUrl())).andRespond(withSuccess("{\"return_code\":1,\"amount\":200000}",MediaType.APPLICATION_JSON));
+        var result=service.queryZaloPayPayment(11L);
+        assertEquals(SUCCEEDED,result.status());
+        assertEquals("REVIEW_REQUIRED",result.participantConfirmation());
+    }
+
+    @Test void participantQueryRecoversPaymentAndChecksOwner() {
+        tourTransaction();
+        var ticket=transaction.getParticipant();
+        when(participantBridge.lock(7L)).thenReturn(ticket);
+        when(repository.findFirstByParticipant_IdAndPaymentMethodAndTransactionTypeAndStatusOrderByIdDesc(
+                7L,"ZALOPAY","PAYMENT",PENDING)).thenReturn(Optional.of(transaction));
+        server.expect(requestTo(config.getQueryUrl())).andRespond(withSuccess("{\"return_code\":3,\"is_processing\":true}",MediaType.APPLICATION_JSON));
+        assertEquals(11L,service.queryParticipantPayment(7L).transactionId());
+        verify(participantBridge).requireOwner(ticket);
+        verify(participantBridge,never()).confirm(any());
     }
 
     @Test void queryCannotDowngradeSucceededPayment() {
