@@ -33,14 +33,16 @@ public class ScheduleServiceImpl implements ScheduleService {
     private final ScheduleIntegrationRepository integration;
     private final ScheduleSettings settings;
     private final ParticipantLifecycle lifecycle;
+    private final GuideScheduleRepository guideSchedules;
 
     public ScheduleServiceImpl(EventScheduleRepository schedules, EventScheduleHistoryRepository histories,
             EventParticipantRepository participants, EventService events, GuideService guides,
             ScheduleAccessPolicy access, ScheduleIntegrationRepository integration, ScheduleSettings settings,
-            ParticipantLifecycle lifecycle) {
+            ParticipantLifecycle lifecycle, GuideScheduleRepository guideSchedules) {
         this.schedules = schedules; this.histories = histories; this.participants = participants;
         this.events = events; this.guides = guides; this.access = access;
         this.integration = integration; this.settings = settings; this.lifecycle = lifecycle;
+        this.guideSchedules = guideSchedules;
     }
 
     @Override
@@ -80,6 +82,23 @@ public class ScheduleServiceImpl implements ScheduleService {
         Long staffId = access.hasRole("STAFF") ? access.userId() : -1L;
         return schedules.search(eventId, branchId, status == null ? null : status.name(),
                 access.hasRole("ADMIN"), staffId, SchedulePages.of(page, size)).stream().map(this::toResponse).toList();
+    }
+
+    @Override
+    @PreAuthorize("hasAuthority('GUIDE')")
+    @Transactional(readOnly = true)
+    public List<GuideScheduleResponse> findAssigned(ScheduleStatus status, int page, int size) {
+        return guideSchedules.findAssigned(access.userId(), null, status, SchedulePages.of(page, size));
+    }
+
+    @Override
+    @PreAuthorize("hasAuthority('GUIDE')")
+    @Transactional(readOnly = true)
+    public GuideScheduleResponse findAssignedById(Long id) {
+        var schedule = find(id);
+        access.requireAssignedGuideOrManager(schedule);
+        return guideSchedules.findAssigned(access.userId(), id, null, SchedulePages.of(0, 1)).stream()
+                .findFirst().orElseThrow(() -> new org.springframework.security.access.AccessDeniedException("Lịch không còn được phân công cho bạn"));
     }
 
     @Override

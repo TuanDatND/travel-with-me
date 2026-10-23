@@ -37,6 +37,19 @@ public class ScheduleController {
         return ApiResponse.success("Lấy danh sách lịch tour thành công", scheduleService.findAll(eventId, branchId, status, page, size));
     }
 
+    @GetMapping("/my-assignments")
+    public ApiResponse<List<GuideScheduleResponse>> myAssignments(
+            @RequestParam(required = false) ScheduleStatus status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        return ApiResponse.success("Lịch được phân công của bạn", scheduleService.findAssigned(status, page, size));
+    }
+
+    @GetMapping("/my-assignments/{id}")
+    public ApiResponse<GuideScheduleResponse> myAssignment(@PathVariable Long id) {
+        return ApiResponse.success("Chi tiết lịch được phân công", scheduleService.findAssignedById(id));
+    }
+
     @GetMapping("/{id}")
     public ApiResponse<ScheduleResponse> findById(@PathVariable Long id) {
         return ApiResponse.success("Lấy chi tiết lịch tour thành công", scheduleService.findById(id));
