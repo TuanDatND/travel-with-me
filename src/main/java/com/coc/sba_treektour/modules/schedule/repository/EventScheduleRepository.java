@@ -4,13 +4,15 @@ import com.coc.sba_treektour.modules.schedule.entity.EventSchedule;
 import com.coc.sba_treektour.modules.schedule.entity.ScheduleStatus;
 
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 
 public interface EventScheduleRepository extends JpaRepository<EventSchedule, Long> {
+
+    @Query("select s.id from EventSchedule s where s.registrationClosesAt <= :now and s.status in (com.coc.sba_treektour.modules.schedule.entity.ScheduleStatus.OPEN, com.coc.sba_treektour.modules.schedule.entity.ScheduleStatus.FULL) order by s.id")
+    List<Long> findDueToClose(@Param("now") java.time.OffsetDateTime now, org.springframework.data.domain.Pageable page);
 
     /** Khóa lịch để tuần tự hóa đăng ký, hủy, đổi lịch và phân công. */
     @org.springframework.data.jpa.repository.Lock(
@@ -26,7 +28,10 @@ public interface EventScheduleRepository extends JpaRepository<EventSchedule, Lo
                     WHERE (:eventId IS NULL OR s.event_id=:eventId)
                       AND (:branchId IS NULL OR s.branch_id=:branchId)
                       AND (:status IS NULL OR s.status=:status)
-                      AND (:manager OR e.status='PUBLISHED')
+                      AND (:admin OR e.status='PUBLISHED' OR EXISTS (
+                        SELECT 1 FROM staff st JOIN branches b ON b.branch_id=st.branch_id
+                        WHERE st.user_id=:staffUserId AND st.branch_id=s.branch_id
+                          AND st.status='ACTIVE' AND b.status='ACTIVE'))
                     ORDER BY s.start_datetime ASC, s.schedule_id ASC
                     """,
             nativeQuery = true)
@@ -34,7 +39,9 @@ public interface EventScheduleRepository extends JpaRepository<EventSchedule, Lo
             @Param("eventId") Long eventId,
             @Param("branchId") Long branchId,
             @Param("status") String status,
-            @Param("manager") boolean manager);
+            @Param("admin") boolean admin,
+            @Param("staffUserId") Long staffUserId,
+            org.springframework.data.domain.Pageable page);
 
     /** Kiểm tra trùng thời gian theo người, kể cả nhiều guideId của cùng userId. */
     @Query(
@@ -61,24 +68,4 @@ public interface EventScheduleRepository extends JpaRepository<EventSchedule, Lo
     /** Đọc lịch theo trạng thái. */
     List<EventSchedule> findByStatusOrderByStartDatetimeAsc(ScheduleStatus status);
 
-    /** Cập nhật sức chứa và OPEN/FULL trong một câu SQL; chỉ giữ chỗ khi còn chỗ. */
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query(
-            "UPDATE EventSchedule s SET s.currentParticipants = s.currentParticipants + 1,    "
-                    + " s.status = CASE WHEN s.currentParticipants + 1 >= s.maxParticipants THEN"
-                    + " com.coc.sba_treektour.modules.schedule.entity.ScheduleStatus.FULL ELSE s.status END"
-                    + " WHERE s.id = :scheduleId AND s.status ="
-                    + " com.coc.sba_treektour.modules.schedule.entity.ScheduleStatus.OPEN AND"
-                    + " s.currentParticipants < s.maxParticipants")
-    int incrementParticipantsIfAvailable(@Param("scheduleId") Long scheduleId);
-
-    /** Giải phóng một chỗ, chỉ mở lại lịch FULL và không để số chỗ âm. */
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
-    @Query(
-            "UPDATE EventSchedule s SET s.currentParticipants = s.currentParticipants - 1,    "
-                    + " s.status = CASE WHEN s.status ="
-                    + " com.coc.sba_treektour.modules.schedule.entity.ScheduleStatus.FULL THEN"
-                    + " com.coc.sba_treektour.modules.schedule.entity.ScheduleStatus.OPEN ELSE s.status END"
-                    + " WHERE s.id = :scheduleId AND s.currentParticipants > 0")
-    int decrementParticipants(@Param("scheduleId") Long scheduleId);
 }

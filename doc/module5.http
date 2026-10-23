@@ -1,0 +1,57 @@
+@baseUrl = http://localhost:8080
+@adminToken = replace-with-admin-jwt
+@customerToken = replace-with-customer-jwt
+@guideToken = replace-with-assigned-guide-jwt
+@scheduleId = 1
+@participantId = 1
+@registrationReference = replace-with-current-registration-uuid
+
+### Public schedule list (bounded pagination)
+GET {{baseUrl}}/api/schedules?status=OPEN&page=0&size=20
+
+### Create: use actual event/branch/guide IDs and future dates
+POST {{baseUrl}}/api/schedules
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{"eventId":1,"branchId":1,"guideId":1,"startDatetime":"2026-12-20T07:00:00+07:00","endDatetime":"2026-12-20T17:00:00+07:00","maxParticipants":20,"registrationClosesAt":"2026-12-19T17:00:00+07:00"}
+
+### Register for self; copy participant ID and registrationReference from response
+POST {{baseUrl}}/api/schedules/{{scheduleId}}/register
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{"note":"Ăn chay"}
+
+### Manual confirmation within hold expiry (not for tickets with Payment transactions)
+PATCH {{baseUrl}}/api/participants/{{participantId}}/confirm-payment
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{"registrationReference":"{{registrationReference}}","paymentReference":"BANK-RECEIPT-001"}
+
+### Close registration before attendance
+PATCH {{baseUrl}}/api/schedules/{{scheduleId}}/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{"status":"CLOSED","changeReason":"Chốt danh sách bảo hiểm"}
+
+### Only during the configured attendance window
+PATCH {{baseUrl}}/api/participants/{{participantId}}/check-in
+Authorization: Bearer {{guideToken}}
+
+### Cancel before departure, before check-in
+POST {{baseUrl}}/api/participants/{{participantId}}/cancel
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{"reason":"Không thể tham gia"}
+
+### Participant audit
+GET {{baseUrl}}/api/participants/{{participantId}}/histories?page=0&size=20
+Authorization: Bearer {{customerToken}}
+
+### Durable reconciliation requests, not completed refunds
+GET {{baseUrl}}/api/participants/payment-reviews?branchId=1&page=0&size=20
+Authorization: Bearer {{adminToken}}
