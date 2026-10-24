@@ -6,6 +6,8 @@ import java.time.LocalDate;
 public final class InventoryDtos {
     private InventoryDtos() {}
     public record ImportRequest(@Positive int quantity) {}
+    public record RentalBookingRequest(@NotNull @Positive Long branchId, @NotNull @Positive Long productId,
+            @Positive int quantity, @NotNull LocalDate startDate, @NotNull LocalDate endDate) {}
     // Không cho ghi đè rented: số đang thuê chỉ đổi qua service giao/trả.
     public record AdjustRequest(@NotNull @PositiveOrZero Integer quantityTotal, @NotNull @PositiveOrZero Integer quantityAvailable) {}
     public record InventoryResponse(Long id, Long branchId, Long productId, String productName,

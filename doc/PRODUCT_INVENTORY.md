@@ -83,3 +83,11 @@ $env:DB_URL='jdbc:postgresql://localhost:5432/treektour_catalog_test'
 Database thử phải được tạo trước; username/password lấy từ `.env` hoặc biến môi trường. Không chạy test tích hợp trên database dùng chung của nhóm.
 
 Request mẫu ở `doc/product-inventory.http`. Cần chi nhánh ACTIVE từ module Branch và tài khoản admin/nhân viên hiện có. Không thêm dữ liệu mẫu vào migration chung.
+
+## Đặt thuê trực tiếp (2026-10-24)
+
+`POST /api/inventory/rentals` nhận `{branchId,productId,quantity,startDate,endDate}`; yêu cầu JWT tài khoản ACTIVE. Trả ApiResponse chứa OrderResponse, HTTP 201, đơn PENDING. User ID lấy từ JWT, đơn giá lấy từ Product; tổng tiền = đơn giá/ngày × số lượng × (ngày trả - ngày nhận + 1). Không nhận giá hoặc trạng thái từ frontend.
+
+RentalBookingService khóa product, kiểm tra lại lượng có thể thuê theo ngày, rồi gọi OrderService.create trong cùng transaction. Đơn PENDING được availability tính là giữ chỗ theo ngày; không trừ kho vật lý trước khi giao thiết bị. Endpoint mới được kiểm tra tranh chấp bằng 2 request đặt món cuối. API tạo/sửa Order cũ không sử dụng khóa này, nhóm Order vẫn cần áp dụng cùng kiểm tra/khóa cho mọi đường ghi; chưa tích hợp thanh toán, giao/nhận trả hoặc timeout đơn PENDING.
+
+Frontend hiển thị số còn đủ, chọn số lượng, tạm tính và Đặt thuê ngay; nếu chưa đăng nhập thì giữ lựa chọn qua returnTo. Sau khi tạo đơn hiển thị mã đơn, trạng thái chờ xử lý/chưa thanh toán và tải lại lượng có thể thuê. Không dùng trang confirmation/giỏ hàng mock để báo thành công. Tests: compileJava + 50 tests PASS, FE lint/build PASS; UI tạo đơn #1, thuê 1 thiết bị × 2 ngày = 90000, số còn đủ 2 → 1.

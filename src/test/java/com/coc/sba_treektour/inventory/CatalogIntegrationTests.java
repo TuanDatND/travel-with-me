@@ -40,6 +40,7 @@ class CatalogIntegrationTests {
     @Autowired UserRepository users;
     @Autowired JwtService jwt;
     @Autowired jakarta.persistence.EntityManager entityManager;
+    @Autowired com.coc.sba_treektour.modules.inventory.service.RentalBookingService bookings;
     Long product, branch;
 
     @BeforeEach
@@ -51,6 +52,8 @@ class CatalogIntegrationTests {
     @AfterEach
     void cleanupCommittedConcurrencyFixtures() {
         if (!TransactionSynchronizationManager.isActualTransactionActive()) {
+            jdbc.update("DELETE FROM order_items WHERE order_id IN (SELECT order_id FROM orders WHERE branch_id=?)", branch);
+            jdbc.update("DELETE FROM orders WHERE branch_id=?", branch);
             jdbc.update("DELETE FROM inventory WHERE product_id = ?", product);
             jdbc.update("DELETE FROM products WHERE product_id = ?", product);
             jdbc.update("DELETE FROM branches WHERE branch_id = ?", branch);
@@ -182,6 +185,61 @@ class CatalogIntegrationTests {
         inventory.receiveRental(branch, product, 4);
         assertThat(row.getQuantityAvailable()).isEqualTo(8);
         assertThatThrownBy(() -> inventory.receiveRental(branch, product, 1)).isInstanceOf(CatalogException.class);
+    }
+
+    @Test
+    void rentalBookingRequiresLoginAndRejectsInvalidQuantity() throws Exception {
+        String body = """
+                {"branchId":%d,"productId":%d,"quantity":1,"startDate":"%s","endDate":"%s"}
+                """.formatted(branch, product, LocalDate.now(), LocalDate.now());
+        mvc.perform(post("/api/inventory/rentals").contentType("application/json").content(body))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/inventory/rentals").with(user(account("CUSTOMER")))
+                .contentType("application/json").content(body.replace("\"quantity\":1", "\"quantity\":0")))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void rentalBookingUsesBackendPriceAndJwtCustomerAndReservesDates() throws Exception {
+        jdbc.update("INSERT INTO inventory(branch_id,product_id,quantity_total,quantity_available) VALUES (?,?,3,3)", branch, product);
+        User customer = account("CUSTOMER");
+        LocalDate day = LocalDate.now().plusDays(1);
+        String body = """
+                {"branchId":%d,"productId":%d,"quantity":2,"startDate":"%s","endDate":"%s"}
+                """.formatted(branch, product, day, day.plusDays(2));
+        mvc.perform(post("/api/inventory/rentals").with(user(customer)).contentType("application/json").content(body))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.data.userId").value(customer.getId()))
+                .andExpect(jsonPath("$.data.totalAmount").value(720000))
+                .andExpect(jsonPath("$.data.status").value("PENDING"));
+        assertThat(inventory.availability(branch, product, day, day).quantityRentable()).isEqualTo(1);
+        assertThat(inventory.availability(branch, product, day.plusDays(3), day.plusDays(3)).quantityRentable()).isEqualTo(3);
+        mvc.perform(post("/api/inventory/rentals").with(user(customer)).contentType("application/json").content(body))
+                .andExpect(status().isConflict());
+    }
+
+    @Test @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    void simultaneousRentalBookingsCannotReserveLastUnitTwice() throws Exception {
+        jdbc.update("INSERT INTO inventory(branch_id,product_id,quantity_total,quantity_available) VALUES (?,?,1,1)", branch, product);
+        User customer = account("CUSTOMER");
+        AtomicInteger successes = new AtomicInteger();
+        try {
+            parallel(() -> {
+                var context = SecurityContextHolder.createEmptyContext();
+                context.setAuthentication(new UsernamePasswordAuthenticationToken(customer, null, customer.getAuthorities()));
+                SecurityContextHolder.setContext(context);
+                try {
+                    bookings.book(new com.coc.sba_treektour.modules.inventory.dto.InventoryDtos.RentalBookingRequest(
+                            branch, product, 1, LocalDate.now(), LocalDate.now()));
+                    successes.incrementAndGet();
+                } catch (CatalogException expected) { assertThat(expected.status().value()).isEqualTo(409); }
+                finally { SecurityContextHolder.clearContext(); }
+            });
+            assertThat(successes.get()).isEqualTo(1);
+        } finally {
+            jdbc.update("DELETE FROM order_items WHERE order_id IN (SELECT order_id FROM orders WHERE branch_id=?)", branch);
+            jdbc.update("DELETE FROM orders WHERE branch_id=?", branch);
+            jdbc.update("DELETE FROM users WHERE user_id=?", customer.getId());
+        }
     }
 
     @Test @WithMockUser(authorities = "ADMIN")

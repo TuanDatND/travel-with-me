@@ -25,6 +25,7 @@ public class CatalogSecurityConfig {
                 .authorizeHttpRequests(a -> a.requestMatchers(HttpMethod.GET,
                                 "/api/products", "/api/products/*", "/api/inventory/availability").permitAll()
                         .requestMatchers("/api/admin/products", "/api/admin/products/**").hasAuthority("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/inventory/rentals").authenticated()
                         .requestMatchers("/api/inventory/**").hasAnyAuthority("ADMIN", "STAFF").anyRequest().denyAll())
                 .addFilterBefore(new JwtAuthenticationFilter(jwt, email -> {
                     var account = accounts.loadUserByUsername(email);

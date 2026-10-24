@@ -12,6 +12,12 @@ import java.time.LocalDate;
 @RestController @RequestMapping("/api/inventory") @RequiredArgsConstructor
 public class InventoryController {
     private final InventoryService inventory;
+    private final com.coc.sba_treektour.modules.inventory.service.RentalBookingService bookings;
+    @PostMapping("/rentals")
+    @ResponseStatus(org.springframework.http.HttpStatus.CREATED)
+    public ApiResponse<com.coc.sba_treektour.modules.order.dto.OrderResponse> book(@Valid @RequestBody RentalBookingRequest request) {
+        return ApiResponse.success(bookings.book(request));
+    }
     @GetMapping("/availability")
     public ApiResponse<AvailabilityResponse> availability(@RequestParam Long branchId, @RequestParam Long productId,
             @RequestParam LocalDate startDate, @RequestParam LocalDate endDate) {
