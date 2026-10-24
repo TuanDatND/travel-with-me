@@ -11,6 +11,21 @@ public class OrderPaymentReader {
 
     public OrderPaymentReader(JdbcTemplate jdbc) { this.jdbc = jdbc; }
 
+    public java.util.Map<Long, Balance> readMany(java.util.List<Long> orderIds) {
+        if (orderIds.isEmpty()) return java.util.Map.of();
+        var balances = new java.util.HashMap<Long, Balance>();
+        new org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate(jdbc).query("""
+                SELECT order_id,
+                       COALESCE(SUM(CASE WHEN status = 'SUCCEEDED' AND transaction_type = 'PAYMENT' THEN amount ELSE 0 END), 0),
+                       COALESCE(SUM(CASE WHEN status = 'SUCCEEDED' AND transaction_type = 'REFUND' THEN amount ELSE 0 END), 0),
+                       COUNT(*) FILTER (WHERE status = 'PENDING' AND transaction_type = 'PAYMENT')
+                FROM transactions WHERE order_id IN (:ids) AND participant_id IS NULL
+                GROUP BY order_id
+                """, java.util.Map.of("ids", orderIds), (org.springframework.jdbc.core.RowCallbackHandler) rs ->
+                    balances.put(rs.getLong(1), new Balance(rs.getBigDecimal(2), rs.getBigDecimal(3), rs.getLong(4))));
+        return balances;
+    }
+
     public record Balance(BigDecimal received, BigDecimal refunded, long pendingPayments) {
         public BigDecimal net() { return received.subtract(refunded).max(BigDecimal.ZERO); }
         public boolean paid(BigDecimal total) { return net().compareTo(total) >= 0; }

@@ -73,7 +73,9 @@ public class OrderService {
     @Transactional(readOnly = true)
     public List<OrderResponse> findAll(Long userId) {
         List<Order> orders = userId == null ? orderRepository.findAll() : orderRepository.findByUser_IdOrderByOrderDateDesc(userId);
-        return orders.stream().map(this::toResponse).toList();
+        var balances = paymentReader.readMany(orders.stream().map(Order::getId).toList());
+        var unpaid = new OrderPaymentReader.Balance(java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO, 0);
+        return orders.stream().map(order -> toResponse(order, balances.getOrDefault(order.getId(), unpaid))).toList();
     }
 
     @Transactional
@@ -149,7 +151,10 @@ public class OrderService {
     }
 
     private OrderResponse toResponse(Order order) {
-        var balance = paymentReader.read(order.getId());
+        return toResponse(order, paymentReader.read(order.getId()));
+    }
+
+    private OrderResponse toResponse(Order order, OrderPaymentReader.Balance balance) {
         boolean pending = order.getStatus() == OrderStatus.PENDING;
         return new OrderResponse(order.getId(), order.getUserId(), order.getBranchId(), order.getStatus(),
                 order.getTotalAmount(), order.getOrderDate(), order.getItems().stream().map(item -> new OrderItemResponse(

@@ -1,5 +1,9 @@
 # Order integration — cập nhật 2026-10-22
 
+## Frontend payment entry — 2026-10-24
+
+Đặt trực tiếp ở gear hoặc checkout giỏ thành công có nút Continue to payment tới /payment/pending?orderId=ID. My Orders có Pay now dùng cùng URL. Router đã nối /payment và /payment/:result tới PaymentResultPage của member Payment, bảo vệ đăng nhập và giữ returnTo. Không tự tạo giao dịch khi đặt đơn; người dùng tiếp tục bấm thanh toán trên trang Payment. Không sửa code provider/callback. TypeScript/build PASS; chưa kiểm thử giao dịch thật. Phần Payment hiện có chịu trách nhiệm truy vấn backend và xác minh kết quả, query URL không tự đánh dấu đã trả tiền.
+
 Entity/ID và contract đọc của Order đã `READY_TO_MAP` cho member Payment. Luồng: tạo đơn PENDING → thanh toán đủ (đơn vẫn PENDING) → ADMIN duyệt CONFIRMED → bàn giao → nhận trả nếu thuê. Trạng thái thanh toán được tính riêng từ transactions, không thêm PAID vào OrderStatus.
 
 Frontend: `/gear/:id` chọn mua/thuê trực tiếp hoặc thêm giỏ; `/cart` gửi nhiều sản phẩm của một chi nhánh; `/orders` lịch sử thật và hủy pending; `/admin/orders` xác nhận thủ công, bàn giao, nhận trả. Dùng JWT hiện có của catalog; cần đăng nhập tại `/login`.

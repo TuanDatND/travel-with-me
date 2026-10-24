@@ -22,7 +22,7 @@ public class OrderController {
     @PostMapping
     public ResponseEntity<ApiResponse<OrderResponse>> create(Principal principal, @Valid @RequestBody CreateOrderRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.created("Tạo đơn hàng thành công", orderService.create(request, principal.getName())));
+                .body(ApiResponse.created("Order created successfully", orderService.create(request, principal.getName())));
     }
 
     @GetMapping
@@ -43,7 +43,7 @@ public class OrderController {
 
     @PutMapping("/{id}")
     public ApiResponse<OrderResponse> update(@PathVariable Long id, Principal principal, @Valid @RequestBody CreateOrderRequest request) {
-        return ApiResponse.success("Cập nhật đơn hàng thành công", orderService.update(id, request, principal.getName()));
+        return ApiResponse.success("Order updated successfully", orderService.update(id, request, principal.getName()));
     }
 
     @DeleteMapping("/{id}")
