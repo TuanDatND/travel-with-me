@@ -1,5 +1,13 @@
 # Module integration status
 
+- 2026-10-24 — Member 3 / Order FE: bổ sung route payment và payment/:result dùng PaymentResultPage hiện có, bọc ProtectedRoute giữ returnTo. Đặt trực tiếp và đặt từ giỏ thành công có Continue to payment theo orderId; My Orders Pay now mở được cùng trang. Không sửa module Payment/provider; frontend TypeScript/build PASS, chưa thử giao dịch ZaloPay thật.
+
+- 2026-10-24 — Frontend navigation: UserLayout có Suspense riêng ở Outlet để tải My Tours không thay thế header; bỏ key pathname/fade-in của vùng nội dung, bỏ transform hover/active menu, thêm scrollbar-gutter stable. TypeScript/build PASS; chưa xác minh chuyển trang bằng trình duyệt.
+
+- 2026-10-24 — Member 3 / Order: OrderCheckout và Equipment Cart & Checkout hiển thị cảnh báo sign-in cho khách; khóa gửi đơn trong lúc kiểm tra auth hoặc chưa đăng nhập, giữ Add to Cart. Link đăng nhập quay về trang thiết bị/giỏ tương ứng; handler kiểm tra phiên trước POST /orders. Không sửa module Payment hay cơ chế đăng nhập.
+
+- 2026-10-24 — Member 3 / Order: chuyển nhãn, trạng thái, tooltip, lỗi dự phòng và thông báo trên OrderCheckout, OrderCart, CartDrawer, MyOrdersPage, AdminOrdersPage sang tiếng Anh; ngày hiển thị en-GB. Dịch thông báo tạo/cập nhật Order API; giữ nguyên contract, schema, quyền và logic thanh toán. FE TypeScript/build PASS. Tên sản phẩm/chi nhánh lấy từ dữ liệu và thông báo của module khác giữ nguyên.
+
 ## Order integration — cập nhật 2026-10-22
 
 - 2026-10-22: OrderPaymentReader SELECT transactions (không sửa Payment); confirm/hand-over yêu cầu đủ PAYMENT SUCCEEDED trừ REFUND SUCCEEDED; giữ PENDING chờ admin. API bổ sung paymentStatus/paidAmount/remainingAmount/canApprove/canCancel, FE khóa nút duyệt/hủy. Hủy thường chặn khi đã thu hoặc có PAYMENT PENDING. Contract concurrency cho member Payment tại ORDER_INTEGRATION.md; không đổi schema.
