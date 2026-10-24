@@ -1,6 +1,7 @@
 package com.coc.sba_treektour.modules.event.service;
 
 import com.coc.sba_treektour.modules.tour.service.TourException;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.*;
@@ -8,6 +9,7 @@ import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.web.client.RestClient;
+
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -81,8 +83,20 @@ public class CloudinaryImageStorage {
 
     /** Tải ảnh với publicId riêng; chỉ nhận response có URL HTTPS và mã tài sản. */
     public StoredImage upload(byte[] content) {
+        return uploadTo(content, "terrapeak/events/");
+    }
+
+    /**
+     * Tải ảnh đại diện hướng dẫn viên vào thư mục riêng, dùng cùng cơ chế ký và kiểm tra response.
+     */
+    public StoredImage uploadGuideAvatar(byte[] content) {
+        return uploadTo(content, "terrapeak/guides/");
+    }
+
+    /** Sinh publicId duy nhất trong thư mục nội bộ rồi gửi multipart đã ký. */
+    private StoredImage uploadTo(byte[] content, String folder) {
         var params = new TreeMap<String, String>();
-        params.put("public_id", "terrapeak/events/" + UUID.randomUUID());
+        params.put("public_id", folder + UUID.randomUUID());
         var body = signed(params);
         body.add(
                 "file",
@@ -100,7 +114,9 @@ public class CloudinaryImageStorage {
         return new StoredImage(url, id);
     }
 
-    /** Xóa tài sản và yêu cầu xóa cache CDN; bỏ qua ảnh cũ không có publicId hoặc tài sản đã mất. */
+    /**
+     * Xóa tài sản và yêu cầu xóa cache CDN; bỏ qua ảnh cũ không có publicId hoặc tài sản đã mất.
+     */
     public void delete(String publicId) {
         if (publicId == null)
             return; // Ảnh cũ từ schema chung không có tài sản Cloudinary do module quản lý.
