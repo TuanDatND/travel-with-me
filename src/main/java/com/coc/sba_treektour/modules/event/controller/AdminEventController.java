@@ -1,25 +1,45 @@
 package com.coc.sba_treektour.modules.event.controller;
 
 import com.coc.sba_treektour.common.response.ApiResponse;
-import com.coc.sba_treektour.modules.event.dto.EventDtos.*;
-import com.coc.sba_treektour.modules.event.entity.*;
-import com.coc.sba_treektour.modules.event.service.*;
+import com.coc.sba_treektour.modules.event.dto.request.EventInput;
+import com.coc.sba_treektour.modules.event.dto.request.EventStatusInput;
+import com.coc.sba_treektour.modules.event.dto.request.ImageDescriptionInput;
+import com.coc.sba_treektour.modules.event.dto.response.EventResponse;
+import com.coc.sba_treektour.modules.event.dto.response.EventSummary;
+import com.coc.sba_treektour.modules.event.dto.response.ImageResponse;
+import com.coc.sba_treektour.modules.event.enums.DifficultyLevel;
+import com.coc.sba_treektour.modules.event.enums.EventStatus;
+import com.coc.sba_treektour.modules.event.enums.EventType;
+import com.coc.sba_treektour.modules.event.service.EventService;
+import com.coc.sba_treektour.modules.tour.dto.response.PageResponse;
+
 import jakarta.validation.Valid;
-import org.springframework.http.*;
-import org.springframework.web.bind.annotation.*;
+
+import lombok.RequiredArgsConstructor;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
-import com.coc.sba_treektour.modules.tour.dto.TourDtos.PageResponse;
+
 import java.math.BigDecimal;
 
 @RestController
 @RequestMapping("/api/admin")
+@RequiredArgsConstructor
 public class AdminEventController {
     private final EventService events;
-
-    /** Khởi tạo controller xử lý nội dung và ảnh tour/sự kiện. */
-    public AdminEventController(EventService events) {
-        this.events = events;
-    }
 
     /** Lấy danh sách tour quản trị với bộ lọc nội dung, giá và trạng thái. */
     @GetMapping("/events")
@@ -97,5 +117,4 @@ public class AdminEventController {
     public void deleteImage(@PathVariable Long eventId, @PathVariable Long imageId) {
         events.deleteImage(eventId, imageId);
     }
-
 }

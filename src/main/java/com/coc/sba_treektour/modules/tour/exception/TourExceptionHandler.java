@@ -1,23 +1,26 @@
-package com.coc.sba_treektour.modules.tour.controller;
+package com.coc.sba_treektour.modules.tour.exception;
 
 import com.coc.sba_treektour.common.response.ApiResponse;
-import com.coc.sba_treektour.modules.tour.service.TourException;
 
+import org.springframework.core.annotation.Order;
 import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.http.*;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 import java.time.OffsetDateTime;
-import java.util.*;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 // Ưu tiên handler của tour trước handler chung để giữ đúng HTTP status và fieldErrors.
-@org.springframework.core.annotation.Order(0)
+@Order(0)
 @RestControllerAdvice(
         basePackages = {
             "com.coc.sba_treektour.modules.tour.controller",

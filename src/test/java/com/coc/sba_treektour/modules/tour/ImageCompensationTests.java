@@ -1,26 +1,40 @@
 package com.coc.sba_treektour.modules.tour;
 
-import static org.assertj.core.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.*;
-import static org.springframework.test.web.client.response.MockRestResponseCreators.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
-import com.coc.sba_treektour.modules.event.entity.*;
-import com.coc.sba_treektour.modules.event.repository.*;
-import com.coc.sba_treektour.modules.event.service.*;
-import com.coc.sba_treektour.modules.tour.entity.*;
-import com.coc.sba_treektour.modules.tour.repository.*;
-import com.coc.sba_treektour.modules.tour.service.*;
+import com.coc.sba_treektour.modules.event.entity.TourEvent;
+import com.coc.sba_treektour.modules.event.enums.EventType;
+import com.coc.sba_treektour.modules.event.repository.EventRepository;
+import com.coc.sba_treektour.modules.event.repository.ImageRepository;
+import com.coc.sba_treektour.modules.event.service.EventService;
+import com.coc.sba_treektour.modules.event.service.impl.EventServiceImpl;
+import com.coc.sba_treektour.modules.event.storage.CloudinaryImageStorage;
+import com.coc.sba_treektour.modules.event.validator.ImageValidator;
+import com.coc.sba_treektour.modules.tour.exception.TourException;
 
+import org.hamcrest.Matchers;
 import org.junit.jupiter.api.Test;
-import org.springframework.http.*;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.client.MockRestServiceServer;
-import org.springframework.transaction.support.*;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.client.RestClient;
 
+import java.math.BigDecimal;
 import java.util.Optional;
 
 class ImageCompensationTests {
@@ -31,14 +45,15 @@ class ImageCompensationTests {
         ImageRepository images = mock(ImageRepository.class);
         CloudinaryImageStorage storage = mock(CloudinaryImageStorage.class);
         ImageValidator validator = mock(ImageValidator.class);
-        when(events.findForUpdate(1L)).thenReturn(Optional.of(new TourEvent()));
+        when(events.findForUpdate(1L))
+                .thenReturn(Optional.of(new TourEvent("Test", EventType.TREKKING, BigDecimal.TEN)));
         when(validator.validate(any())).thenReturn(new byte[] {1});
         when(storage.upload(any()))
                 .thenReturn(
                         new CloudinaryImageStorage.StoredImage(
                                 "https://example.test/image.png", "events/orphan"));
         when(images.saveAndFlush(any())).thenThrow(new IllegalStateException("DB write failed"));
-        EventService service = new EventService(events, images, storage, validator);
+        EventService service = new EventServiceImpl(events, images, storage, validator);
         TransactionSynchronizationManager.initSynchronization();
         try {
             assertThatThrownBy(
@@ -104,8 +119,7 @@ class ImageCompensationTests {
         ReflectionTestUtils.setField(storage, "client", builder.build());
         server.expect(requestTo("https://api.cloudinary.com/v1_1/demo/image/upload"))
                 .andExpect(method(HttpMethod.POST))
-                .andExpect(
-                        content().string(org.hamcrest.Matchers.containsString("terrapeak/guides/")))
+                .andExpect(content().string(Matchers.containsString("terrapeak/guides/")))
                 .andRespond(
                         withSuccess(
                                 "{\"secure_url\":\"https://example.test/guide.png\",\"public_id\":\"terrapeak/guides/a\"}",

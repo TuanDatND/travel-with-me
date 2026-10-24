@@ -1,6 +1,11 @@
-package com.coc.sba_treektour.modules.tour.service;
+package com.coc.sba_treektour.modules.tour.util;
 
-import org.springframework.data.domain.*;
+import com.coc.sba_treektour.modules.tour.exception.TourException;
+
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+
 import java.util.Locale;
 
 public final class TourQueries {

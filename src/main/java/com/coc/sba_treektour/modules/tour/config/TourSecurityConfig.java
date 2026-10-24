@@ -6,7 +6,10 @@ import com.coc.sba_treektour.common.response.ApiResponse;
 
 import jakarta.servlet.http.HttpServletResponse;
 
-import org.springframework.context.annotation.*;
+import lombok.RequiredArgsConstructor;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AnonymousAuthenticationToken;
@@ -21,17 +24,14 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 
 import tools.jackson.databind.ObjectMapper;
 
+import java.io.IOException;
 import java.time.OffsetDateTime;
 import java.util.Map;
 
 @Configuration
+@RequiredArgsConstructor
 public class TourSecurityConfig {
     private final ObjectMapper mapper;
-
-    /** Dùng bộ chuyển JSON của Spring để ghi lỗi bảo mật theo response chung. */
-    public TourSecurityConfig(ObjectMapper mapper) {
-        this.mapper = mapper;
-    }
 
     /** Phân quyền tour, lịch và vé; dùng JWT chung và kiểm tra tài khoản ACTIVE. */
     @Bean
@@ -150,7 +150,7 @@ public class TourSecurityConfig {
 
     /** Ghi lỗi xác thực hoặc phân quyền dưới dạng JSON thống nhất. */
     private void writeError(HttpServletResponse response, int status, String code, String message)
-            throws java.io.IOException {
+            throws IOException {
         response.setStatus(status);
         response.setContentType("application/json");
         response.getWriter()

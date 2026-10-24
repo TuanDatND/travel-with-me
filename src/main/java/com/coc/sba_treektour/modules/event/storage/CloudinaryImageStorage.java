@@ -1,10 +1,11 @@
-package com.coc.sba_treektour.modules.event.service;
+package com.coc.sba_treektour.modules.event.storage;
 
-import com.coc.sba_treektour.modules.tour.service.TourException;
+import com.coc.sba_treektour.modules.tour.exception.TourException;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
-import org.springframework.http.*;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
@@ -13,8 +14,13 @@ import org.springframework.web.client.RestClient;
 import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.time.*;
-import java.util.*;
+import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.HexFormat;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.UUID;
 
 @Component
 // ponytail: chỉ có một nơi lưu ảnh; thêm interface khi cần nhà cung cấp thứ hai.
@@ -71,7 +77,7 @@ public class CloudinaryImageStorage {
                                             .digest(
                                                     (data + apiSecret)
                                                             .getBytes(StandardCharsets.UTF_8)));
-        } catch (java.security.NoSuchAlgorithmException e) {
+        } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException(e);
         }
         var body = new LinkedMultiValueMap<String, Object>();

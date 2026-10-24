@@ -1,34 +1,55 @@
 package com.coc.sba_treektour.modules.tour;
 
-import static org.assertj.core.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.coc.sba_treektour.modules.event.entity.*;
-import com.coc.sba_treektour.modules.event.repository.*;
-import com.coc.sba_treektour.modules.event.service.*;
-import com.coc.sba_treektour.modules.tour.entity.*;
-import com.coc.sba_treektour.modules.tour.repository.*;
-import com.coc.sba_treektour.modules.tour.service.*;
+import com.coc.sba_treektour.modules.event.entity.TourEvent;
+import com.coc.sba_treektour.modules.event.enums.EventStatus;
+import com.coc.sba_treektour.modules.event.enums.EventType;
+import com.coc.sba_treektour.modules.event.repository.EventRepository;
+import com.coc.sba_treektour.modules.event.service.EventService;
+import com.coc.sba_treektour.modules.event.storage.CloudinaryImageStorage;
+import com.coc.sba_treektour.modules.tour.entity.TourGuide;
+import com.coc.sba_treektour.modules.tour.exception.TourException;
+import com.coc.sba_treektour.modules.tour.repository.GuideRepository;
+import com.coc.sba_treektour.modules.tour.service.GuideService;
 import com.jayway.jsonpath.JsonPath;
 
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import org.springframework.test.web.servlet.*;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.util.*;
+import java.util.Base64;
+import java.util.Collections;
+import java.util.List;
+import java.util.UUID;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -82,7 +103,7 @@ class TourApiIntegrationTests {
 
     /** Tạo tour tối giản theo trạng thái để kiểm tra hiển thị và quyền truy cập. */
     private TourEvent event(EventStatus status) {
-        TourEvent e = new TourEvent();
+        TourEvent e = new TourEvent("Test", EventType.TREKKING, BigDecimal.TEN);
         e.setEventName("Ta Nang");
         e.setEventType(EventType.TREKKING);
         e.setBasePrice(BigDecimal.TEN);
@@ -226,11 +247,7 @@ class TourApiIntegrationTests {
     void imageOwnershipAndStorageFailureAreHandled() throws Exception {
         TourEvent e = event(EventStatus.DRAFT);
         when(storage.upload(any()))
-                .thenThrow(
-                        new TourException(
-                                org.springframework.http.HttpStatus.BAD_GATEWAY,
-                                "STORAGE_ERROR",
-                                "Failed"));
+                .thenThrow(new TourException(HttpStatus.BAD_GATEWAY, "STORAGE_ERROR", "Failed"));
         mvc.perform(multipart("/api/admin/events/{id}/images", e.getId()).file(png()))
                 .andExpect(status().isBadGateway());
         assertThat(e.getImages()).isEmpty();
@@ -319,8 +336,7 @@ class TourApiIntegrationTests {
     @Test
     @WithMockUser(authorities = "ADMIN")
     void blockedAccountsCannotGetNewProfilesAndAreHidden() throws Exception {
-        TourGuide g = new TourGuide();
-        g.setUserId(userId);
+        TourGuide g = new TourGuide(userId, 0, "Test");
         g.setSpecialization("Trekking");
         g.setExperienceYears(1);
         guides.saveAndFlush(g);
@@ -385,11 +401,7 @@ class TourApiIntegrationTests {
                                                 .file(png()))
                                 .andReturn(),
                         "imageId");
-        doThrow(
-                        new TourException(
-                                org.springframework.http.HttpStatus.BAD_GATEWAY,
-                                "STORAGE_ERROR",
-                                "Failed"))
+        doThrow(new TourException(HttpStatus.BAD_GATEWAY, "STORAGE_ERROR", "Failed"))
                 .when(storage)
                 .delete("events/c");
         mvc.perform(delete("/api/admin/events/{id}/images/{image}", e.getId(), imageId))
@@ -524,7 +536,7 @@ class TourApiIntegrationTests {
                                     .contentType(MediaType.APPLICATION_JSON)
                                     .content(
                                             "{\"experienceYears\":3,\"specialization\":\"Profile"
-                                                + " test\","
+                                                    + " test\","
                                                     + extra
                                                     + "}"))
                     .andExpect(status().isBadRequest());
@@ -585,10 +597,7 @@ class TourApiIntegrationTests {
         verifyNoInteractions(storage);
         when(storage.uploadGuideAvatar(any()))
                 .thenThrow(
-                        new TourException(
-                                org.springframework.http.HttpStatus.BAD_GATEWAY,
-                                "STORAGE_ERROR",
-                                "Unavailable"));
+                        new TourException(HttpStatus.BAD_GATEWAY, "STORAGE_ERROR", "Unavailable"));
         mvc.perform(
                         multipart("/api/admin/guides/{id}/avatar", guideId)
                                 .file(png())
@@ -598,11 +607,7 @@ class TourApiIntegrationTests {
                                             return request;
                                         }))
                 .andExpect(status().isBadGateway());
-        doThrow(
-                        new TourException(
-                                org.springframework.http.HttpStatus.BAD_GATEWAY,
-                                "STORAGE_ERROR",
-                                "Unavailable"))
+        doThrow(new TourException(HttpStatus.BAD_GATEWAY, "STORAGE_ERROR", "Unavailable"))
                 .when(storage)
                 .delete("terrapeak/guides/old");
         mvc.perform(delete("/api/admin/guides/{id}/avatar", guideId))

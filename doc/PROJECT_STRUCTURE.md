@@ -206,7 +206,7 @@ Khảo sát source hiện có ngày 2026-10-24, không phải xác nhận các m
 | Order | Đã chuẩn hóa DTO, enums, exception, interface/impl và imports ở mốc này |
 | Payment | OrderPaymentQueryService đã có impl riêng; TransactionsServiceImpl còn ở service, cần owner chuyển vào service.impl và cập nhật test/import |
 | Product / Inventory | ProductService, InventoryService, RentalBookingService đang là concrete service; owner cần tách interface/impl |
-| Event / Tour | EventService, GuideService, GuideRegistrationService còn là concrete service; owner cần tách interface/impl |
+| Event / Tour | Đã chuẩn hóa trên feature/tour-guide-structure: EventService, GuideService, GuideRegistrationService là interface + service.impl; DTO request/response, enums/exception riêng; compile/test 147 PASS, API/schema giữ nguyên. |
 | Schedule | Có service interface/impl; owner rà các helper, DTO, enums và dependency liên module theo cùng checklist |
 
 Không suy ra code đúng chỉ vì đủ folder; phải kiểm tra trách nhiệm và dependency bên trong.

@@ -1,22 +1,28 @@
 package com.coc.sba_treektour.modules.event.controller;
 
 import com.coc.sba_treektour.common.response.ApiResponse;
-import com.coc.sba_treektour.modules.event.dto.EventDtos.*;
-import com.coc.sba_treektour.modules.event.entity.*;
-import com.coc.sba_treektour.modules.event.service.*;
-import org.springframework.web.bind.annotation.*;
-import com.coc.sba_treektour.modules.tour.dto.TourDtos.PageResponse;
+import com.coc.sba_treektour.modules.event.dto.response.EventResponse;
+import com.coc.sba_treektour.modules.event.dto.response.EventSummary;
+import com.coc.sba_treektour.modules.event.enums.DifficultyLevel;
+import com.coc.sba_treektour.modules.event.enums.EventType;
+import com.coc.sba_treektour.modules.event.service.EventService;
+import com.coc.sba_treektour.modules.tour.dto.response.PageResponse;
+
+import lombok.RequiredArgsConstructor;
+
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
 import java.math.BigDecimal;
 
 @RestController
 @RequestMapping("/api")
+@RequiredArgsConstructor
 public class PublicEventController {
     private final EventService events;
-
-    /** Khởi tạo controller xử lý nội dung và ảnh tour/sự kiện. */
-    public PublicEventController(EventService events) {
-        this.events = events;
-    }
 
     /** Nhận bộ lọc và phân trang danh sách tour công bố; không yêu cầu đăng nhập. */
     @GetMapping("/events")
@@ -46,5 +52,4 @@ public class PublicEventController {
     public ApiResponse<EventResponse> event(@PathVariable Long eventId) {
         return ApiResponse.success(events.get(eventId, false));
     }
-
 }

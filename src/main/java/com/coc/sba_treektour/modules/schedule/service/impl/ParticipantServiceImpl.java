@@ -13,7 +13,7 @@ import com.coc.sba_treektour.modules.schedule.exception.ScheduleConflictExceptio
 import com.coc.sba_treektour.modules.schedule.repository.*;
 import com.coc.sba_treektour.modules.schedule.security.ScheduleAccessPolicy;
 import com.coc.sba_treektour.modules.schedule.service.*;
-import com.coc.sba_treektour.modules.event.entity.EventStatus;
+import com.coc.sba_treektour.modules.event.enums.EventStatus;
 import com.coc.sba_treektour.modules.event.service.EventService;
 import java.time.OffsetDateTime;
 import java.util.List;

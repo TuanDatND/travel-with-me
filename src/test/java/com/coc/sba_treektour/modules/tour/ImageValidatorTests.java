@@ -1,11 +1,14 @@
 package com.coc.sba_treektour.modules.tour;
 
-import com.coc.sba_treektour.modules.tour.service.*;
-import com.coc.sba_treektour.modules.event.service.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import com.coc.sba_treektour.modules.event.validator.ImageValidator;
+import com.coc.sba_treektour.modules.tour.exception.TourException;
+
 import org.junit.jupiter.api.Test;
-import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.http.HttpStatus;
-import static org.assertj.core.api.Assertions.*;
+import org.springframework.mock.web.MockMultipartFile;
 
 class ImageValidatorTests {
     private final ImageValidator validator = new ImageValidator();

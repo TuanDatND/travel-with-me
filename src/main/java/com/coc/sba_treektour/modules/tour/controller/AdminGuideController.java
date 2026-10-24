@@ -1,27 +1,45 @@
 package com.coc.sba_treektour.modules.tour.controller;
 
 import com.coc.sba_treektour.common.response.ApiResponse;
-import com.coc.sba_treektour.modules.tour.dto.TourDtos.*;
-import com.coc.sba_treektour.modules.tour.entity.*;
-import com.coc.sba_treektour.modules.tour.service.*;
+import com.coc.sba_treektour.modules.tour.dto.request.GuideCreateInput;
+import com.coc.sba_treektour.modules.tour.dto.request.GuideRegistrationInput;
+import com.coc.sba_treektour.modules.tour.dto.request.GuideStatusInput;
+import com.coc.sba_treektour.modules.tour.dto.request.GuideUpdateInput;
+import com.coc.sba_treektour.modules.tour.dto.response.AdminGuideResponse;
+import com.coc.sba_treektour.modules.tour.dto.response.GuideRegistrationResponse;
+import com.coc.sba_treektour.modules.tour.dto.response.PageResponse;
+import com.coc.sba_treektour.modules.tour.enums.GuideStatus;
+import com.coc.sba_treektour.modules.tour.service.GuideRegistrationService;
+import com.coc.sba_treektour.modules.tour.service.GuideService;
 
 import jakarta.validation.Valid;
 
-import org.springframework.http.*;
-import org.springframework.web.bind.annotation.*;
+import lombok.RequiredArgsConstructor;
+
+import org.springframework.http.CacheControl;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/admin")
+@RequiredArgsConstructor
 public class AdminGuideController {
     private final GuideService guides;
     private final GuideRegistrationService registrations;
-
-    /** Khởi tạo controller xử lý hồ sơ hướng dẫn viên. */
-    public AdminGuideController(GuideService guides, GuideRegistrationService registrations) {
-        this.guides = guides;
-        this.registrations = registrations;
-    }
 
     /** Lấy hồ sơ quản trị theo chuyên môn, trạng thái hoặc tài khoản. */
     @GetMapping("/guides")

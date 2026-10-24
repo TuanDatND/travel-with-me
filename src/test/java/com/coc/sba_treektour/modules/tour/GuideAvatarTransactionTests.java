@@ -1,19 +1,33 @@
 package com.coc.sba_treektour.modules.tour;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
-import com.coc.sba_treektour.modules.event.service.CloudinaryImageStorage;
-import com.coc.sba_treektour.modules.event.service.ImageValidator;
+import com.coc.sba_treektour.modules.event.storage.CloudinaryImageStorage;
+import com.coc.sba_treektour.modules.event.validator.ImageValidator;
 import com.coc.sba_treektour.modules.tour.entity.TourGuide;
+import com.coc.sba_treektour.modules.tour.repository.AccountReadRepository;
 import com.coc.sba_treektour.modules.tour.repository.GuideRepository;
-import com.coc.sba_treektour.modules.tour.service.*;
+import com.coc.sba_treektour.modules.tour.service.GuideService;
+import com.coc.sba_treektour.modules.tour.service.impl.GuideServiceImpl;
 
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.transaction.support.*;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 class GuideAvatarTransactionTests {
@@ -27,21 +41,21 @@ class GuideAvatarTransactionTests {
     void setup() {
         guides = mock(GuideRepository.class);
         storage = mock(CloudinaryImageStorage.class);
-        var accounts = mock(AccountReader.class);
+        var accounts = mock(AccountReadRepository.class);
         var validator = mock(ImageValidator.class);
-        guide = new TourGuide();
-        guide.setId(1L);
-        guide.setUserId(2L);
+        guide = new TourGuide(2L, 0, "Test");
+        ReflectionTestUtils.setField(guide, "id", 1L);
         guide.setAvatarUrl("https://example.test/old.png");
         guide.setAvatarPublicId("guides/old");
         when(guides.findForUpdate(1L)).thenReturn(Optional.of(guide));
-        when(accounts.find(2L)).thenReturn(new AccountReader.Account(2L, "Guide", true));
+        when(accounts.findAll(List.of(2L)))
+                .thenReturn(Map.of(2L, new AccountReadRepository.Account(2L, "Guide", true)));
         when(validator.validate(any())).thenReturn(new byte[] {1});
         when(storage.uploadGuideAvatar(any()))
                 .thenReturn(
                         new CloudinaryImageStorage.StoredImage(
                                 "https://example.test/new.png", "guides/new"));
-        service = new GuideService(guides, accounts, storage, validator);
+        service = new GuideServiceImpl(guides, accounts, storage, validator);
         TransactionSynchronizationManager.initSynchronization();
     }
 

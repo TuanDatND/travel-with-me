@@ -1,9 +1,11 @@
-package com.coc.sba_treektour.modules.event.service;
+package com.coc.sba_treektour.modules.event.validator;
 
-import com.coc.sba_treektour.modules.tour.service.TourException;
+import com.coc.sba_treektour.modules.tour.exception.TourException;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.multipart.MultipartFile;
+
 import java.io.IOException;
 import java.util.Set;
 
@@ -11,7 +13,9 @@ import java.util.Set;
 public class ImageValidator {
     public static final long MAX_SIZE = 5L * 1024 * 1024;
 
-    /** Kiểm tra file không rỗng, tối đa 5 MiB và MIME khớp chữ ký JPEG/PNG/WebP trước khi upload. */
+    /**
+     * Kiểm tra file không rỗng, tối đa 5 MiB và MIME khớp chữ ký JPEG/PNG/WebP trước khi upload.
+     */
     public byte[] validate(MultipartFile file) {
         if (file.isEmpty()) throw TourException.invalid("Image must not be empty");
         if (file.getSize() > MAX_SIZE)

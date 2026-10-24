@@ -10,9 +10,9 @@ import com.coc.sba_treektour.modules.schedule.exception.ScheduleConflictExceptio
 import com.coc.sba_treektour.modules.schedule.repository.*;
 import com.coc.sba_treektour.modules.schedule.security.ScheduleAccessPolicy;
 import com.coc.sba_treektour.modules.schedule.service.*;
-import com.coc.sba_treektour.modules.event.entity.EventStatus;
+import com.coc.sba_treektour.modules.event.enums.EventStatus;
 import com.coc.sba_treektour.modules.event.service.EventService;
-import com.coc.sba_treektour.modules.tour.entity.GuideStatus;
+import com.coc.sba_treektour.modules.tour.enums.GuideStatus;
 import com.coc.sba_treektour.modules.tour.service.GuideService;
 import java.time.Duration;
 import java.time.OffsetDateTime;

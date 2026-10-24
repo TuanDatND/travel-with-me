@@ -1,20 +1,23 @@
 package com.coc.sba_treektour.modules.tour.controller;
 
 import com.coc.sba_treektour.common.response.ApiResponse;
-import com.coc.sba_treektour.modules.tour.dto.TourDtos.*;
-import com.coc.sba_treektour.modules.tour.entity.*;
-import com.coc.sba_treektour.modules.tour.service.*;
-import org.springframework.web.bind.annotation.*;
+import com.coc.sba_treektour.modules.tour.dto.response.PageResponse;
+import com.coc.sba_treektour.modules.tour.dto.response.PublicGuideResponse;
+import com.coc.sba_treektour.modules.tour.service.GuideService;
+
+import lombok.RequiredArgsConstructor;
+
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api")
+@RequiredArgsConstructor
 public class PublicGuideController {
     private final GuideService guides;
-
-    /** Khởi tạo controller xử lý hồ sơ hướng dẫn viên. */
-    public PublicGuideController(GuideService guides) {
-        this.guides = guides;
-    }
 
     /** Trả hồ sơ hướng dẫn viên công khai, có thể lọc theo chuyên môn. */
     @GetMapping("/guides")

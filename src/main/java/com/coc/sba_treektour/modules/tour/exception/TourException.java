@@ -1,4 +1,4 @@
-package com.coc.sba_treektour.modules.tour.service;
+package com.coc.sba_treektour.modules.tour.exception;
 
 import org.springframework.http.HttpStatus;
 
