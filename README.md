@@ -2,8 +2,7 @@
 
 ## Thiết bị và tồn kho
 
-Giao diện nằm ở repo riêng `travel-with-me-Frontend` cạnh backend.
-Chạy backend bằng IntelliJ ở cổng 8080; trong thư mục frontend chạy `npm ci` rồi `npm run dev`.
+ chạy `npm ci` rồi `npm run dev`.
 Mở `http://localhost:3000/shop` hoặc `/rent`; đăng nhập `/login`;
 quản lý `/admin/catalog`; thêm/sửa `/admin/catalog/new`, `/admin/catalog/:id/edit`;
 tồn kho `/admin/inventory` hoặc `/staff/inventory`; chi tiết `/gear/:id`.

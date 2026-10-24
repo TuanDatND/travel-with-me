@@ -30,9 +30,24 @@ public class ScheduleController {
     public ApiResponse<List<ScheduleResponse>> findAll(
             @RequestParam(required = false) Long eventId,
             @RequestParam(required = false) Long branchId,
-            @RequestParam(required = false) ScheduleStatus status
+            @RequestParam(required = false) ScheduleStatus status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size
     ) {
-        return ApiResponse.success("Lấy danh sách lịch tour thành công", scheduleService.findAll(eventId, branchId, status));
+        return ApiResponse.success("Lấy danh sách lịch tour thành công", scheduleService.findAll(eventId, branchId, status, page, size));
+    }
+
+    @GetMapping("/my-assignments")
+    public ApiResponse<List<GuideScheduleResponse>> myAssignments(
+            @RequestParam(required = false) ScheduleStatus status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
+        return ApiResponse.success("Lịch được phân công của bạn", scheduleService.findAssigned(status, page, size));
+    }
+
+    @GetMapping("/my-assignments/{id}")
+    public ApiResponse<GuideScheduleResponse> myAssignment(@PathVariable Long id) {
+        return ApiResponse.success("Chi tiết lịch được phân công", scheduleService.findAssignedById(id));
     }
 
     @GetMapping("/{id}")
@@ -65,7 +80,8 @@ public class ScheduleController {
     }
 
     @GetMapping("/{id}/histories")
-    public ApiResponse<List<ScheduleHistoryResponse>> getHistories(@PathVariable Long id) {
-        return ApiResponse.success("Lấy lịch sử thay đổi thành công", scheduleService.getHistories(id));
+    public ApiResponse<List<ScheduleHistoryResponse>> getHistories(@PathVariable Long id,
+            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size) {
+        return ApiResponse.success("Lấy lịch sử thay đổi thành công", scheduleService.getHistories(id, page, size));
     }
 }

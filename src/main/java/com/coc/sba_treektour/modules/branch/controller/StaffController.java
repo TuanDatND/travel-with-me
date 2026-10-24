@@ -19,6 +19,11 @@ public class StaffController {
 
     private final StaffService staffService;
 
+    @GetMapping
+    public ResponseEntity<ApiResponse<List<StaffResponse>>> getAllStaff() {
+        return ResponseEntity.ok(ApiResponse.success(staffService.getAllStaff()));
+    }
+
     @GetMapping("/branch/{branchId}")
     public ResponseEntity<ApiResponse<List<StaffResponse>>> getStaffByBranch(@PathVariable Long branchId) {
         return ResponseEntity.ok(ApiResponse.success(staffService.getStaffByBranch(branchId)));
@@ -42,5 +47,11 @@ public class StaffController {
             @PathVariable Long id, 
             @RequestParam String status) {
         return ResponseEntity.ok(ApiResponse.success("Cập nhật trạng thái nhân viên thành công", staffService.updateStaffStatus(id, status)));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<Void>> deleteStaff(@PathVariable Long id) {
+        staffService.deleteStaff(id);
+        return ResponseEntity.ok(ApiResponse.success("Xóa nhân viên khỏi chi nhánh thành công", null));
     }
 }

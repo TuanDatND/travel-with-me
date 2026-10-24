@@ -12,5 +12,7 @@ public record RescheduleRequest(
         OffsetDateTime newEndDatetime,
 
         @NotBlank(message = "changeReason must not be blank")
-        String changeReason
+        @jakarta.validation.constraints.Size(max = 2000) String changeReason,
+
+        OffsetDateTime registrationClosesAt
 ) {}

@@ -40,8 +40,8 @@ public class RentalBookingService {
         var total = product.getRentalPricePerDay().multiply(BigDecimal.valueOf(days)).multiply(BigDecimal.valueOf(request.quantity()));
         if (total.precision() - total.scale() > 16) throw CatalogException.invalid("Tổng tiền vượt giới hạn cho phép");
         // Giá và người đặt lấy từ backend/JWT. PENDING được truy vấn availability tính giữ chỗ.
-        return orders.create(new CreateOrderRequest(user.getId(), request.branchId(), null, OrderStatus.PENDING, total,
+        return orders.create(new CreateOrderRequest(request.branchId(), null, OrderStatus.PENDING, total,
                 List.of(new CreateOrderItemRequest(product.getId(), OrderItemType.RENTAL, request.quantity(),
-                        product.getRentalPricePerDay(), request.startDate(), request.endDate(), OrderItemStatus.PENDING))));
+                        product.getRentalPricePerDay(), request.startDate(), request.endDate(), OrderItemStatus.PENDING))), user.getEmail());
     }
 }

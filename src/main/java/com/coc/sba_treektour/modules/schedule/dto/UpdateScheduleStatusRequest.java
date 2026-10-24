@@ -7,5 +7,6 @@ public record UpdateScheduleStatusRequest(
         @NotNull(message = "status is required")
         ScheduleStatus status,
 
-        String changeReason
+        @jakarta.validation.constraints.NotBlank
+        @jakarta.validation.constraints.Size(max = 2000) String changeReason
 ) {}

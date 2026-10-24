@@ -12,5 +12,6 @@ public record ScheduleHistoryResponse(
         String oldStatus,
         String newStatus,
         String changeReason,
-        OffsetDateTime changedAt
+        OffsetDateTime changedAt,
+        Long changedBy
 ) {}

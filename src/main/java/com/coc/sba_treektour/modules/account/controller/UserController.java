@@ -33,11 +33,13 @@ public class UserController {
     }
 
     @GetMapping
+    @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<ApiResponse<List<UserResponse>>> getAllUsers() {
         return ResponseEntity.ok(ApiResponse.success(userService.getAllUsers()));
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<ApiResponse<UserResponse>> getUserById(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(userService.getUserById(id)));
     }
@@ -58,5 +60,39 @@ public class UserController {
             throw new RuntimeException("Chưa đăng nhập");
         }
         return ResponseEntity.ok(ApiResponse.success("Cập nhật hồ sơ thành công", userService.updateProfile(principal.getName(), request)));
+    }
+
+    @PutMapping("/change-password")
+    public ResponseEntity<ApiResponse<Void>> changePassword(
+            Principal principal,
+            @Valid @RequestBody com.coc.sba_treektour.modules.account.dto.ChangePasswordRequest request) {
+        if (principal == null) {
+            throw new RuntimeException("Chưa đăng nhập");
+        }
+        userService.changePassword(principal.getName(), request);
+        return ResponseEntity.ok(ApiResponse.success("Đổi mật khẩu thành công!", null));
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public ResponseEntity<ApiResponse<UserResponse>> updateUserByAdmin(
+            @PathVariable Long id,
+            @Valid @RequestBody com.coc.sba_treektour.modules.account.dto.AdminUpdateUserRequest request) {
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật thông tin người dùng thành công", userService.updateUserByAdmin(id, request)));
+    }
+
+    @PutMapping("/{id}/status")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public ResponseEntity<ApiResponse<UserResponse>> updateUserStatus(
+            @PathVariable Long id,
+            @RequestParam String status) {
+        return ResponseEntity.ok(ApiResponse.success("Cập nhật trạng thái người dùng thành công", userService.updateUserStatus(id, status)));
+    }
+
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public ResponseEntity<ApiResponse<Void>> deleteUser(@PathVariable Long id) {
+        userService.deleteUser(id);
+        return ResponseEntity.ok(ApiResponse.success("Xóa người dùng thành công", null));
     }
 }

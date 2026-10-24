@@ -9,10 +9,10 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 public record CreateOrderItemRequest(
-        @NotNull Long productId,
+        @NotNull @Positive Long productId,
         @NotNull OrderItemType itemType,
         @Positive int quantity,
-        @NotNull @DecimalMin(value = "0.0", inclusive = true) BigDecimal unitPrice,
+        BigDecimal unitPrice,
         LocalDate rentalStartDate,
         LocalDate rentalEndDate,
         OrderItemStatus status) {

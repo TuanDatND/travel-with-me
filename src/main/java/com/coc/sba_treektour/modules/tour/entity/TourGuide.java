@@ -1,8 +1,12 @@
 package com.coc.sba_treektour.modules.tour.entity;
 
 import jakarta.persistence.*;
+
 import lombok.Getter;
 import lombok.Setter;
+
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "tour_guides")
@@ -23,6 +27,19 @@ public class TourGuide {
 
     @Column(columnDefinition = "TEXT", nullable = false)
     private String specialization;
+
+    @Column(columnDefinition = "TEXT")
+    private String bio;
+
+    @JdbcTypeCode(SqlTypes.ARRAY)
+    @Column(columnDefinition = "text[]", nullable = false)
+    private String[] languages = new String[0];
+
+    @Column(name = "avatar_url", columnDefinition = "TEXT")
+    private String avatarUrl;
+
+    @Column(name = "avatar_public_id", columnDefinition = "TEXT")
+    private String avatarPublicId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
