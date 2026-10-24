@@ -5,15 +5,15 @@ import com.coc.sba_treektour.modules.account.entity.User;
 import com.coc.sba_treektour.modules.account.repository.UserRepository;
 import com.coc.sba_treektour.modules.branch.entity.Branch;
 import com.coc.sba_treektour.modules.branch.repository.BranchRepository;
-import com.coc.sba_treektour.modules.order.dto.CreateOrderItemRequest;
-import com.coc.sba_treektour.modules.order.dto.CreateOrderRequest;
-import com.coc.sba_treektour.modules.order.dto.OrderItemResponse;
-import com.coc.sba_treektour.modules.order.dto.OrderResponse;
+import com.coc.sba_treektour.modules.order.dto.requset.CreateOrderItemRequest;
+import com.coc.sba_treektour.modules.order.dto.requset.CreateOrderRequest;
+import com.coc.sba_treektour.modules.order.dto.respone.OrderItemResponse;
+import com.coc.sba_treektour.modules.order.dto.respone.OrderResponse;
 import com.coc.sba_treektour.modules.order.entity.*;
 import com.coc.sba_treektour.modules.order.repository.OrderRepository;
-import com.coc.sba_treektour.modules.order.service.InvalidOrderException;
-import com.coc.sba_treektour.modules.order.service.OrderNotFoundException;
-import com.coc.sba_treektour.modules.order.service.OrderPaymentReader;
+import com.coc.sba_treektour.modules.order.exception.InvalidOrderException;
+import com.coc.sba_treektour.modules.order.exception.OrderNotFoundException;
+import com.coc.sba_treektour.modules.order.repository.OrderPaymentRepository;
 import com.coc.sba_treektour.modules.order.service.OrderService;
 import org.springframework.stereotype.Service;
 import lombok.RequiredArgsConstructor;
@@ -34,7 +34,7 @@ public class OrderServiceImpl implements OrderService {
     private final ProductRepository products;
     private final InventoryService inventory;
     private final InventoryRepository stocks;
-    private final OrderPaymentReader paymentReader;
+    private final OrderPaymentRepository paymentReader;
 
     @Transactional
     public OrderResponse create(CreateOrderRequest request, String email) {

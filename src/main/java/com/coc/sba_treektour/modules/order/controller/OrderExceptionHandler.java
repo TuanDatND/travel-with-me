@@ -1,7 +1,7 @@
 package com.coc.sba_treektour.modules.order.controller;
 
-import com.coc.sba_treektour.modules.order.service.InvalidOrderException;
-import com.coc.sba_treektour.modules.order.service.OrderNotFoundException;
+import com.coc.sba_treektour.modules.order.exception.InvalidOrderException;
+import com.coc.sba_treektour.modules.order.exception.OrderNotFoundException;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

@@ -1,10 +1,14 @@
 package com.coc.sba_treektour.order;
 
+import com.coc.sba_treektour.modules.order.dto.requset.CreateOrderItemRequest;
+import com.coc.sba_treektour.modules.order.dto.requset.CreateOrderRequest;
+import com.coc.sba_treektour.modules.order.exception.InvalidOrderException;
 import com.coc.sba_treektour.modules.order.service.*;
 import com.coc.sba_treektour.modules.order.service.impl.OrderServiceImpl;
 import com.coc.sba_treektour.modules.order.dto.*;
 import com.coc.sba_treektour.modules.order.entity.*;
 import com.coc.sba_treektour.modules.order.repository.OrderRepository;
+import com.coc.sba_treektour.modules.order.repository.OrderPaymentRepository;
 import com.coc.sba_treektour.modules.account.entity.User;
 import com.coc.sba_treektour.modules.account.repository.UserRepository;
 import com.coc.sba_treektour.modules.branch.entity.Branch;
@@ -43,7 +47,7 @@ class OrderServiceTests {
     final ProductRepository products = mock(ProductRepository.class);
     final InventoryService inventory = mock(InventoryService.class);
     final InventoryRepository stocks = mock(InventoryRepository.class);
-    final OrderPaymentReader payments = mock(OrderPaymentReader.class);
+    final OrderPaymentRepository payments = mock(OrderPaymentRepository.class);
     final OrderService service = new OrderServiceImpl(orders, users, branches, products, inventory, stocks, payments);
 
     @org.junit.jupiter.api.BeforeEach void unpaidByDefault() {

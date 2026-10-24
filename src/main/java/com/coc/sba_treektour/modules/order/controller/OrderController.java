@@ -1,8 +1,8 @@
 package com.coc.sba_treektour.modules.order.controller;
 
 import com.coc.sba_treektour.common.response.ApiResponse;
-import com.coc.sba_treektour.modules.order.dto.CreateOrderRequest;
-import com.coc.sba_treektour.modules.order.dto.OrderResponse;
+import com.coc.sba_treektour.modules.order.dto.requset.CreateOrderRequest;
+import com.coc.sba_treektour.modules.order.dto.respone.OrderResponse;
 import com.coc.sba_treektour.modules.order.service.OrderService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

@@ -1,44 +1,54 @@
 package com.coc.sba_treektour.modules.order.repository;
 
 import com.coc.sba_treektour.modules.order.dto.OrderPaymentBalance;
-import java.util.HashMap;
+import com.coc.sba_treektour.modules.order.entity.Order;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.RowCallbackHandler;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-import org.springframework.stereotype.Repository;
-import lombok.RequiredArgsConstructor;
+import java.util.stream.Collectors;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.Repository;
+import org.springframework.data.repository.query.Param;
 
-/** Order-owned read queries only; payment writes remain in the Payment module. */
-@Repository
-@RequiredArgsConstructor
-public class OrderPaymentRepository {
-    private final JdbcTemplate jdbc;
-    private final NamedParameterJdbcTemplate namedJdbc;
+/** Read-only Spring Data repository. Payment writes remain in the Payment module. */
+public interface OrderPaymentRepository extends Repository<Order, Long> {
 
+    interface PaymentTotals {
+        Long getOrderId();
+        BigDecimal getReceived();
+        BigDecimal getRefunded();
+        long getPendingPayments();
 
-    public OrderPaymentBalance findBalance(Long orderId) {
-        return jdbc.queryForObject("""
-                SELECT COALESCE(SUM(CASE WHEN status = 'SUCCEEDED' AND transaction_type = 'PAYMENT' THEN amount ELSE 0 END), 0),
-                       COALESCE(SUM(CASE WHEN status = 'SUCCEEDED' AND transaction_type = 'REFUND' THEN amount ELSE 0 END), 0),
-                       COUNT(*) FILTER (WHERE status = 'PENDING' AND transaction_type = 'PAYMENT')
-                FROM transactions WHERE order_id = ? AND participant_id IS NULL
-                """, (rs, row) -> new OrderPaymentBalance(rs.getBigDecimal(1), rs.getBigDecimal(2), rs.getLong(3)), orderId);
+        default OrderPaymentBalance toBalance() {
+            return new OrderPaymentBalance(getReceived(), getRefunded(), getPendingPayments());
+        }
     }
 
-    public Map<Long, OrderPaymentBalance> findBalances(List<Long> orderIds) {
+    @Query(value = """
+            SELECT COALESCE(SUM(CASE WHEN status = 'SUCCEEDED' AND transaction_type = 'PAYMENT' THEN amount ELSE 0 END), 0) AS "received",
+                   COALESCE(SUM(CASE WHEN status = 'SUCCEEDED' AND transaction_type = 'REFUND' THEN amount ELSE 0 END), 0) AS "refunded",
+                   COUNT(*) FILTER (WHERE status = 'PENDING' AND transaction_type = 'PAYMENT') AS "pendingPayments"
+            FROM transactions WHERE order_id = :orderId AND participant_id IS NULL
+            """, nativeQuery = true)
+    PaymentTotals findTotals(@Param("orderId") Long orderId);
+
+    @Query(value = """
+            SELECT order_id AS "orderId",
+                   COALESCE(SUM(CASE WHEN status = 'SUCCEEDED' AND transaction_type = 'PAYMENT' THEN amount ELSE 0 END), 0) AS "received",
+                   COALESCE(SUM(CASE WHEN status = 'SUCCEEDED' AND transaction_type = 'REFUND' THEN amount ELSE 0 END), 0) AS "refunded",
+                   COUNT(*) FILTER (WHERE status = 'PENDING' AND transaction_type = 'PAYMENT') AS "pendingPayments"
+            FROM transactions WHERE order_id IN (:orderIds) AND participant_id IS NULL
+            GROUP BY order_id
+            """, nativeQuery = true)
+    List<PaymentTotals> findTotalsByOrderIds(@Param("orderIds") List<Long> orderIds);
+
+    default OrderPaymentBalance read(Long orderId) {
+        return orderId == null ? OrderPaymentBalance.EMPTY : findTotals(orderId).toBalance();
+    }
+
+    default Map<Long, OrderPaymentBalance> readMany(List<Long> orderIds) {
         if (orderIds.isEmpty()) return Map.of();
-        var balances = new HashMap<Long, OrderPaymentBalance>();
-        namedJdbc.query("""
-                SELECT order_id,
-                       COALESCE(SUM(CASE WHEN status = 'SUCCEEDED' AND transaction_type = 'PAYMENT' THEN amount ELSE 0 END), 0),
-                       COALESCE(SUM(CASE WHEN status = 'SUCCEEDED' AND transaction_type = 'REFUND' THEN amount ELSE 0 END), 0),
-                       COUNT(*) FILTER (WHERE status = 'PENDING' AND transaction_type = 'PAYMENT')
-                FROM transactions WHERE order_id IN (:ids) AND participant_id IS NULL
-                GROUP BY order_id
-                """, Map.of("ids", orderIds), (RowCallbackHandler) rs ->
-                balances.put(rs.getLong(1), new OrderPaymentBalance(rs.getBigDecimal(2), rs.getBigDecimal(3), rs.getLong(4))));
-        return balances;
+        return findTotalsByOrderIds(orderIds).stream()
+                .collect(Collectors.toMap(PaymentTotals::getOrderId, PaymentTotals::toBalance));
     }
 }

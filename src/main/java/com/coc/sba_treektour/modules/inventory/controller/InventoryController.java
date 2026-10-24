@@ -3,6 +3,7 @@ package com.coc.sba_treektour.modules.inventory.controller;
 import com.coc.sba_treektour.common.response.ApiResponse;
 import com.coc.sba_treektour.modules.inventory.dto.InventoryDtos.*;
 import com.coc.sba_treektour.modules.inventory.service.InventoryService;
+import com.coc.sba_treektour.modules.order.dto.respone.OrderResponse;
 import com.coc.sba_treektour.modules.product.dto.ProductDtos.*;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -15,7 +16,7 @@ public class InventoryController {
     private final com.coc.sba_treektour.modules.inventory.service.RentalBookingService bookings;
     @PostMapping("/rentals")
     @ResponseStatus(org.springframework.http.HttpStatus.CREATED)
-    public ApiResponse<com.coc.sba_treektour.modules.order.dto.OrderResponse> book(@Valid @RequestBody RentalBookingRequest request) {
+    public ApiResponse<OrderResponse> book(@Valid @RequestBody RentalBookingRequest request) {
         return ApiResponse.success(bookings.book(request));
     }
     @GetMapping("/availability")

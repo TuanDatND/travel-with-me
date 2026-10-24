@@ -1,5 +1,7 @@
 # Module integration status
 
+- 2026-10-24 — Member 3 / Order simplification: bỏ OrderPaymentReader. OrderServiceImpl gọi trực tiếp OrderPaymentRepository là interface Spring Data Repository<Order, Long> chỉ đọc với @Query native + PaymentTotals projection; bỏ JdbcTemplate/manual row mapper. Giữ gom lô và DTO OrderPaymentBalance; không sửa Payment/schema/API.
+
 - 2026-10-24 — Member 3 / Order: dùng Lombok @RequiredArgsConstructor cho OrderController/OrderServiceImpl/OrderPaymentReader/OrderPaymentRepository; entity dùng @Getter, @NoArgsConstructor(PROTECTED), @Setter riêng status. Giữ custom constructor nghiệp vụ, helper quan hệ, DTO record và exception. Không dùng @Data trên entity; API/schema không đổi.
 
 - 2026-10-24 — Member 3 / Order: chuyển toàn bộ SQL đọc transactions từ service/OrderPaymentReader sang repository/OrderPaymentRepository (@Repository); snapshot số dư tách thành dto/OrderPaymentBalance. Reader chỉ gọi repository trong transaction read-only; OrderServiceImpl và test dùng DTO mới. Không sửa module Payment, schema hay contract API; giữ query gom lô.

@@ -1,9 +1,8 @@
-package com.coc.sba_treektour.modules.order.dto;
+package com.coc.sba_treektour.modules.order.dto.requset;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.DecimalMin;
 import com.coc.sba_treektour.modules.order.entity.OrderStatus;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
