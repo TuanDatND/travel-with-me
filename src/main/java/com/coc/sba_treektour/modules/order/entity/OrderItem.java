@@ -1,10 +1,17 @@
 package com.coc.sba_treektour.modules.order.entity;
 
 import jakarta.persistence.*;
+import com.coc.sba_treektour.modules.product.entity.Product;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Entity
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "order_items")
 public class OrderItem {
 
@@ -23,7 +30,7 @@ public class OrderItem {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "product_id", insertable = false, updatable = false)
-    private com.coc.sba_treektour.modules.product.entity.Product product;
+    private Product product;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "item_type", nullable = false, length = 30)
@@ -43,9 +50,9 @@ public class OrderItem {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
+    @Setter
     private OrderItemStatus status = OrderItemStatus.PENDING;
 
-    protected OrderItem() {}
 
     public OrderItem(Long productId, OrderItemType itemType, int quantity, BigDecimal unitPrice,
                      LocalDate rentalStartDate, LocalDate rentalEndDate, OrderItemStatus status) {
@@ -60,13 +67,4 @@ public class OrderItem {
 
     void assignOrder(Order order) { this.order = order; }
 
-    public Long getId() { return id; }
-    public void setStatus(OrderItemStatus status) { this.status = status; }
-    public Long getProductId() { return productId; }
-    public OrderItemType getItemType() { return itemType; }
-    public int getQuantity() { return quantity; }
-    public BigDecimal getUnitPrice() { return unitPrice; }
-    public LocalDate getRentalStartDate() { return rentalStartDate; }
-    public LocalDate getRentalEndDate() { return rentalEndDate; }
-    public OrderItemStatus getStatus() { return status; }
 }

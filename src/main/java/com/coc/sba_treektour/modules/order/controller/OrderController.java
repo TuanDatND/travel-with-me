@@ -1,10 +1,11 @@
 package com.coc.sba_treektour.modules.order.controller;
 
 import com.coc.sba_treektour.common.response.ApiResponse;
-import com.coc.sba_treektour.modules.order.dto.CreateOrderRequest;
-import com.coc.sba_treektour.modules.order.dto.OrderResponse;
+import com.coc.sba_treektour.modules.order.dto.requset.CreateOrderRequest;
+import com.coc.sba_treektour.modules.order.dto.respone.OrderResponse;
 import com.coc.sba_treektour.modules.order.service.OrderService;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import java.util.List;
 import java.security.Principal;
 import org.springframework.http.HttpStatus;
@@ -13,11 +14,11 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
+@RequiredArgsConstructor
 @RequestMapping("/api/orders")
 public class OrderController {
     private final OrderService orderService;
 
-    public OrderController(OrderService orderService) { this.orderService = orderService; }
 
     @PostMapping
     public ResponseEntity<ApiResponse<OrderResponse>> create(Principal principal, @Valid @RequestBody CreateOrderRequest request) {

@@ -1,5 +1,13 @@
 # Module integration status
 
+- 2026-10-24 — Member 3 / Order simplification: bỏ OrderPaymentReader. OrderServiceImpl gọi trực tiếp OrderPaymentRepository là interface Spring Data Repository<Order, Long> chỉ đọc với @Query native + PaymentTotals projection; bỏ JdbcTemplate/manual row mapper. Giữ gom lô và DTO OrderPaymentBalance; không sửa Payment/schema/API.
+
+- 2026-10-24 — Member 3 / Order: dùng Lombok @RequiredArgsConstructor cho OrderController/OrderServiceImpl/OrderPaymentReader/OrderPaymentRepository; entity dùng @Getter, @NoArgsConstructor(PROTECTED), @Setter riêng status. Giữ custom constructor nghiệp vụ, helper quan hệ, DTO record và exception. Không dùng @Data trên entity; API/schema không đổi.
+
+- 2026-10-24 — Member 3 / Order: chuyển toàn bộ SQL đọc transactions từ service/OrderPaymentReader sang repository/OrderPaymentRepository (@Repository); snapshot số dư tách thành dto/OrderPaymentBalance. Reader chỉ gọi repository trong transaction read-only; OrderServiceImpl và test dùng DTO mới. Không sửa module Payment, schema hay contract API; giữ query gom lô.
+
+- 2026-10-24 — Member 3 / Order: tách service/OrderService thành interface, chuyển nghiệp vụ sang service/impl/OrderServiceImpl (@Service, implements OrderService). Controller tiếp tục inject interface; test khởi tạo implementation. Không đổi method signature, API, schema hay logic thanh toán/tồn kho.
+
 - 2026-10-24 — Member 3 / My Orders: FE hiển thị đơn ngay sau GET /orders/me, tách tải tên chi nhánh/sản phẩm khỏi loader, chỉ lấy sản phẩm trong đơn thay vì catalog size=200; có spinner initial/refresh và hiện lỗi Order thật. OrderRepository EntityGraph tải items/user/branch; OrderPaymentReader gom số dư cả danh sách bằng một query GROUP BY, không sửa Payment/schema. FE TypeScript/build PASS; test hồi quy kiểm tra danh sách không query số dư từng đơn. Chưa đo latency trên DB thật.
 
 - 2026-10-24 — Member 3 / Order FE: bổ sung route payment và payment/:result dùng PaymentResultPage hiện có, bọc ProtectedRoute giữ returnTo. Đặt trực tiếp và đặt từ giỏ thành công có Continue to payment theo orderId; My Orders Pay now mở được cùng trang. Không sửa module Payment/provider; frontend TypeScript/build PASS, chưa thử giao dịch ZaloPay thật.

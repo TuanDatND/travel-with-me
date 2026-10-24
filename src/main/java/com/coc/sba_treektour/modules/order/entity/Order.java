@@ -3,12 +3,18 @@ package com.coc.sba_treektour.modules.order.entity;
 import com.coc.sba_treektour.modules.account.entity.User;
 import com.coc.sba_treektour.modules.branch.entity.Branch;
 import jakarta.persistence.*;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
 @Entity
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "orders")
 public class Order {
 
@@ -29,6 +35,7 @@ public class Order {
     private OffsetDateTime orderDate;
 
     @Enumerated(EnumType.STRING)
+    @Setter
     @Column(name = "order_status", nullable = false, length = 30)
     private OrderStatus status = OrderStatus.PENDING;
 
@@ -38,7 +45,6 @@ public class Order {
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();
 
-    protected Order() {}
 
     public Order(User user, Branch branch, OffsetDateTime orderDate, OrderStatus status, BigDecimal totalAmount) {
         this.user = user;
@@ -65,13 +71,6 @@ public class Order {
         items.add(item);
     }
 
-    public Long getId() { return id; }
-    public void setStatus(OrderStatus status) { this.status = status; }
     public Long getUserId() { return user.getId(); }
     public Long getBranchId() { return branch.getId(); }
-    public User getUser() { return user; }
-    public OffsetDateTime getOrderDate() { return orderDate; }
-    public OrderStatus getStatus() { return status; }
-    public BigDecimal getTotalAmount() { return totalAmount; }
-    public List<OrderItem> getItems() { return items; }
 }

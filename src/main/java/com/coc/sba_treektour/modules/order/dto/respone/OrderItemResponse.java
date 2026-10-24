@@ -1,4 +1,4 @@
-package com.coc.sba_treektour.modules.order.dto;
+package com.coc.sba_treektour.modules.order.dto.respone;
 
 import com.coc.sba_treektour.modules.order.entity.OrderItemStatus;
 import com.coc.sba_treektour.modules.order.entity.OrderItemType;
