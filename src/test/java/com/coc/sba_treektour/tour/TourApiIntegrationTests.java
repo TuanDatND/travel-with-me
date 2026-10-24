@@ -7,12 +7,12 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-import com.coc.sba_treektour.modules.tour.entity.*;
 import com.coc.sba_treektour.modules.event.entity.*;
-import com.coc.sba_treektour.modules.tour.repository.*;
 import com.coc.sba_treektour.modules.event.repository.*;
-import com.coc.sba_treektour.modules.tour.service.*;
 import com.coc.sba_treektour.modules.event.service.*;
+import com.coc.sba_treektour.modules.tour.entity.*;
+import com.coc.sba_treektour.modules.tour.repository.*;
+import com.coc.sba_treektour.modules.tour.service.*;
 import com.jayway.jsonpath.JsonPath;
 
 import org.junit.jupiter.api.*;
@@ -448,5 +448,191 @@ class TourApiIntegrationTests {
                                 .content("{\"experienceYears\":2,\"specialization\":\" hiking \"}"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.data.code").value("CONFLICT"));
+    }
+
+    /**
+     * Kiểm tra lưu PostgreSQL array, chuẩn hóa hồ sơ và trả dữ liệu công khai không lộ publicId.
+     */
+    @Test
+    @WithMockUser(authorities = "ADMIN")
+    void guideProfilePersistsAndAppearsInPublicListAndDetails() throws Exception {
+        long guideId = createProfileGuide();
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT languages[1] FROM tour_guides WHERE guide_id=?",
+                                String.class,
+                                guideId))
+                .isEqualTo("Tiếng Việt");
+        mvc.perform(get("/api/guides/{id}", guideId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.bio").value("Hướng dẫn viên trekking"))
+                .andExpect(jsonPath("$.data.languages[0]").value("Tiếng Việt"))
+                .andExpect(jsonPath("$.data.languages.length()").value(2))
+                .andExpect(jsonPath("$.data.avatarPublicId").doesNotExist())
+                .andExpect(jsonPath("$.data.userId").doesNotExist());
+        mvc.perform(get("/api/guides").param("specialization", "Profile test"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].languages[1]").value("English"));
+        mvc.perform(
+                        put("/api/admin/guides/{id}", guideId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {"experienceYears":5,"specialization":"Profile test",
+                                         "bio":"Giới thiệu mới","languages":["English"]}
+                                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.bio").value("Giới thiệu mới"))
+                .andExpect(jsonPath("$.data.languages.length()").value(1));
+        assertThat(guideService.reference(guideId).userId()).isEqualTo(userId);
+    }
+
+    /** Tạo hồ sơ mẫu qua API với giới thiệu và các ngôn ngữ cần chuẩn hóa. */
+    private long createProfileGuide() throws Exception {
+        return id(
+                mvc.perform(
+                                post("/api/admin/guides")
+                                        .contentType(MediaType.APPLICATION_JSON)
+                                        .content(
+                                                """
+                                                {"userId":%d,"experienceYears":3,"specialization":"Profile test",
+                                                 "bio":" Hướng dẫn viên trekking ",
+                                                 "languages":[" Tiếng Việt ","English","English"]}
+                                                """
+                                                        .formatted(userId)))
+                        .andExpect(status().isCreated())
+                        .andReturn(),
+                "guideId");
+    }
+
+    /** Kiểm tra giới hạn giới thiệu và từng ngôn ngữ ở ranh giới request. */
+    @Test
+    @WithMockUser(authorities = "ADMIN")
+    void guideProfileRejectsInvalidFields() throws Exception {
+        long guideId = createProfileGuide();
+        for (String extra :
+                List.of(
+                        "\"bio\":\"" + "x".repeat(5001) + "\"",
+                        "\"languages\":[\" \"]",
+                        "\"languages\":[null]",
+                        "\"languages\":[\"" + "x".repeat(51) + "\"]",
+                        "\"languages\":["
+                                + String.join(",", Collections.nCopies(11, "\"English\""))
+                                + "]")) {
+            mvc.perform(
+                            put("/api/admin/guides/{id}", guideId)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(
+                                            "{\"experienceYears\":3,\"specialization\":\"Profile"
+                                                + " test\","
+                                                    + extra
+                                                    + "}"))
+                    .andExpect(status().isBadRequest());
+        }
+        verifyNoInteractions(storage);
+    }
+
+    /** Kiểm tra upload, đọc công khai và xóa ảnh; dữ liệu lưu trữ nội bộ không lộ ra response. */
+    @Test
+    @WithMockUser(authorities = "ADMIN")
+    void guideAvatarUploadAndDelete() throws Exception {
+        long guideId = createProfileGuide();
+        when(storage.uploadGuideAvatar(any()))
+                .thenReturn(
+                        new CloudinaryImageStorage.StoredImage(
+                                "https://example.test/guide.png", "terrapeak/guides/test"));
+        mvc.perform(
+                        multipart("/api/admin/guides/{id}/avatar", guideId)
+                                .file(png())
+                                .with(
+                                        request -> {
+                                            request.setMethod("PUT");
+                                            return request;
+                                        }))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.avatarUrl").value("https://example.test/guide.png"))
+                .andExpect(jsonPath("$.data.avatarPublicId").doesNotExist());
+        mvc.perform(get("/api/guides/{id}", guideId))
+                .andExpect(jsonPath("$.data.avatarUrl").value("https://example.test/guide.png"));
+        mvc.perform(delete("/api/admin/guides/{id}/avatar", guideId))
+                .andExpect(status().isNoContent());
+        verify(storage).delete("terrapeak/guides/test");
+        assertThat(guides.findById(guideId).orElseThrow().getAvatarUrl()).isNull();
+        mvc.perform(delete("/api/admin/guides/{id}/avatar", guideId))
+                .andExpect(status().isNoContent());
+    }
+
+    /** File sai bị chặn trước Cloudinary; lỗi upstream giữ nguyên ảnh đang dùng. */
+    @Test
+    @WithMockUser(authorities = "ADMIN")
+    void guideAvatarValidationAndStorageFailurePreserveExistingImage() throws Exception {
+        long guideId = createProfileGuide();
+        TourGuide guide = guides.findById(guideId).orElseThrow();
+        guide.setAvatarUrl("https://example.test/old.png");
+        guide.setAvatarPublicId("terrapeak/guides/old");
+        guides.flush();
+        mvc.perform(
+                        multipart("/api/admin/guides/{id}/avatar", guideId)
+                                .file(
+                                        new MockMultipartFile(
+                                                "file", "bad.png", "image/png", new byte[] {1}))
+                                .with(
+                                        request -> {
+                                            request.setMethod("PUT");
+                                            return request;
+                                        }))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(storage);
+        when(storage.uploadGuideAvatar(any()))
+                .thenThrow(
+                        new TourException(
+                                org.springframework.http.HttpStatus.BAD_GATEWAY,
+                                "STORAGE_ERROR",
+                                "Unavailable"));
+        mvc.perform(
+                        multipart("/api/admin/guides/{id}/avatar", guideId)
+                                .file(png())
+                                .with(
+                                        request -> {
+                                            request.setMethod("PUT");
+                                            return request;
+                                        }))
+                .andExpect(status().isBadGateway());
+        doThrow(
+                        new TourException(
+                                org.springframework.http.HttpStatus.BAD_GATEWAY,
+                                "STORAGE_ERROR",
+                                "Unavailable"))
+                .when(storage)
+                .delete("terrapeak/guides/old");
+        mvc.perform(delete("/api/admin/guides/{id}/avatar", guideId))
+                .andExpect(status().isBadGateway());
+        assertThat(guide.getAvatarPublicId()).isEqualTo("terrapeak/guides/old");
+        assertThat(guide.getAvatarUrl()).isEqualTo("https://example.test/old.png");
+    }
+
+    /** CUSTOMER không được sửa ảnh đại diện; ADMIN nhận 404 với hồ sơ không tồn tại. */
+    @Test
+    void guideAvatarRequiresAdmin() throws Exception {
+        mvc.perform(delete("/api/admin/guides/999999/avatar")).andExpect(status().isUnauthorized());
+        mvc.perform(
+                        delete("/api/admin/guides/999999/avatar")
+                                .with(
+                                        user("customer")
+                                                .authorities(
+                                                        new org.springframework.security.core
+                                                                .authority.SimpleGrantedAuthority(
+                                                                "CUSTOMER"))))
+                .andExpect(status().isForbidden());
+        mvc.perform(
+                        delete("/api/admin/guides/999999/avatar")
+                                .with(
+                                        user("admin")
+                                                .authorities(
+                                                        new org.springframework.security.core
+                                                                .authority.SimpleGrantedAuthority(
+                                                                "ADMIN"))))
+                .andExpect(status().isNotFound());
+        verifyNoInteractions(storage);
     }
 }

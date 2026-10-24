@@ -1,24 +1,27 @@
 package com.coc.sba_treektour.modules.tour;
 
-import com.coc.sba_treektour.modules.tour.entity.*;
-import com.coc.sba_treektour.modules.event.entity.*;
-import com.coc.sba_treektour.modules.tour.repository.*;
-import com.coc.sba_treektour.modules.event.repository.*;
-import com.coc.sba_treektour.modules.tour.service.*;
-import com.coc.sba_treektour.modules.event.service.*;
-import org.junit.jupiter.api.Test;
-import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.transaction.support.*;
-import java.util.Optional;
-import org.springframework.http.*;
-import org.springframework.test.web.client.MockRestServiceServer;
-import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.web.client.RestClient;
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.*;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.*;
-import static org.assertj.core.api.Assertions.*;
-import static org.mockito.Mockito.*;
-import static org.mockito.ArgumentMatchers.*;
+
+import com.coc.sba_treektour.modules.event.entity.*;
+import com.coc.sba_treektour.modules.event.repository.*;
+import com.coc.sba_treektour.modules.event.service.*;
+import com.coc.sba_treektour.modules.tour.entity.*;
+import com.coc.sba_treektour.modules.tour.repository.*;
+import com.coc.sba_treektour.modules.tour.service.*;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.http.*;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.transaction.support.*;
+import org.springframework.web.client.RestClient;
+
+import java.util.Optional;
 
 class ImageCompensationTests {
     /** Kiểm tra callback rollback xóa tài sản đã upload khi lưu metadata thất bại. */
@@ -86,6 +89,29 @@ class ImageCompensationTests {
                 .isInstanceOfSatisfying(
                         TourException.class,
                         e -> assertThat(e.status()).isEqualTo(HttpStatus.BAD_GATEWAY));
+        server.verify();
+    }
+
+    /**
+     * Ảnh guide dùng thư mục riêng nhưng giữ định dạng multipart và xử lý response Cloudinary
+     * chung.
+     */
+    @Test
+    void guideAvatarUsesItsOwnCloudinaryFolder() {
+        var storage = new CloudinaryImageStorage("demo", "key", "test-secret");
+        var builder = RestClient.builder().baseUrl("https://api.cloudinary.com/v1_1/demo/image");
+        var server = MockRestServiceServer.bindTo(builder).build();
+        ReflectionTestUtils.setField(storage, "client", builder.build());
+        server.expect(requestTo("https://api.cloudinary.com/v1_1/demo/image/upload"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(
+                        content().string(org.hamcrest.Matchers.containsString("terrapeak/guides/")))
+                .andRespond(
+                        withSuccess(
+                                "{\"secure_url\":\"https://example.test/guide.png\",\"public_id\":\"terrapeak/guides/a\"}",
+                                MediaType.APPLICATION_JSON));
+        assertThat(storage.uploadGuideAvatar(new byte[] {1}).publicId())
+                .isEqualTo("terrapeak/guides/a");
         server.verify();
     }
 }
