@@ -1,7 +1,7 @@
-package com.coc.sba_treektour.modules.order.dto.respone;
+package com.coc.sba_treektour.modules.order.dto.response;
 
-import com.coc.sba_treektour.modules.order.entity.OrderItemStatus;
-import com.coc.sba_treektour.modules.order.entity.OrderItemType;
+import com.coc.sba_treektour.modules.order.enums.OrderItemStatus;
+import com.coc.sba_treektour.modules.order.enums.OrderItemType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 

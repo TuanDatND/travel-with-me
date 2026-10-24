@@ -1,14 +1,17 @@
-package com.coc.sba_treektour.order;
+package com.coc.sba_treektour.modules.order.service.impl;
 
-import com.coc.sba_treektour.modules.order.dto.requset.CreateOrderItemRequest;
-import com.coc.sba_treektour.modules.order.dto.requset.CreateOrderRequest;
+import com.coc.sba_treektour.modules.order.dto.request.CreateOrderItemRequest;
+import com.coc.sba_treektour.modules.order.dto.request.CreateOrderRequest;
 import com.coc.sba_treektour.modules.order.exception.InvalidOrderException;
-import com.coc.sba_treektour.modules.order.service.*;
-import com.coc.sba_treektour.modules.order.service.impl.OrderServiceImpl;
-import com.coc.sba_treektour.modules.order.dto.*;
-import com.coc.sba_treektour.modules.order.entity.*;
+import com.coc.sba_treektour.modules.order.service.OrderService;
+import com.coc.sba_treektour.modules.payment.dto.OrderPaymentBalance;
+import com.coc.sba_treektour.modules.order.entity.Order;
+import com.coc.sba_treektour.modules.order.entity.OrderItem;
+import com.coc.sba_treektour.modules.order.enums.OrderStatus;
+import com.coc.sba_treektour.modules.order.enums.OrderItemStatus;
+import com.coc.sba_treektour.modules.order.enums.OrderItemType;
 import com.coc.sba_treektour.modules.order.repository.OrderRepository;
-import com.coc.sba_treektour.modules.order.repository.OrderPaymentRepository;
+import com.coc.sba_treektour.modules.payment.service.OrderPaymentQueryService;
 import com.coc.sba_treektour.modules.account.entity.User;
 import com.coc.sba_treektour.modules.account.repository.UserRepository;
 import com.coc.sba_treektour.modules.branch.entity.Branch;
@@ -19,13 +22,27 @@ import com.coc.sba_treektour.modules.inventory.repository.InventoryRepository;
 import com.coc.sba_treektour.modules.inventory.service.InventoryService;
 import com.coc.sba_treektour.modules.inventory.dto.InventoryDtos.AvailabilityResponse;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.springframework.security.access.AccessDeniedException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.*;
-import static org.mockito.Mockito.*;
-import static org.assertj.core.api.Assertions.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
+import java.time.OffsetDateTime;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-class OrderServiceTests {
+class OrderServiceImplTests {
     @Test void listUsesBatchedPaymentBalances() {
         Order order = mock(Order.class);
         when(order.getId()).thenReturn(9L);
@@ -47,10 +64,10 @@ class OrderServiceTests {
     final ProductRepository products = mock(ProductRepository.class);
     final InventoryService inventory = mock(InventoryService.class);
     final InventoryRepository stocks = mock(InventoryRepository.class);
-    final OrderPaymentRepository payments = mock(OrderPaymentRepository.class);
+    final OrderPaymentQueryService payments = mock(OrderPaymentQueryService.class);
     final OrderService service = new OrderServiceImpl(orders, users, branches, products, inventory, stocks, payments);
 
-    @org.junit.jupiter.api.BeforeEach void unpaidByDefault() {
+    @BeforeEach void unpaidByDefault() {
         when(payments.read(any())).thenReturn(new OrderPaymentBalance(BigDecimal.ZERO, BigDecimal.ZERO, 0));
     }
 
@@ -94,7 +111,7 @@ class OrderServiceTests {
         var request = rental(LocalDate.now());
         when(inventory.availability(any(), any(), any(), any())).thenReturn(
                 new AvailabilityResponse(2L, 3L, LocalDate.now(), LocalDate.now(), 10, 0, 10));
-        var captured = new java.util.concurrent.atomic.AtomicReference<Order>();
+        var captured = new AtomicReference<Order>();
         when(orders.save(any())).thenAnswer(call -> { Order order = call.getArgument(0); captured.set(order); return order; });
         service.create(request, "customer@test.local");
         when(orders.lockById(9L)).thenAnswer(call -> Optional.of(captured.get()));
@@ -103,6 +120,12 @@ class OrderServiceTests {
         service.operate(9L, "hand-over");
         assertThatThrownBy(() -> service.operate(9L, "hand-over")).isInstanceOf(InvalidOrderException.class);
         verify(inventory, times(1)).handOutRental(2L, 3L, 2);
+        assertThatThrownBy(() -> service.operate(9L, "return")).isInstanceOf(InvalidOrderException.class);
+        verify(inventory, never()).receiveRental(any(), any(), anyInt());
+        service.confirmReceipt(9L, "customer@test.local");
+        var receivedAt = captured.get().getCustomerReceivedAt();
+        service.confirmReceipt(9L, "customer@test.local");
+        assertThat(captured.get().getCustomerReceivedAt()).isEqualTo(receivedAt);
         service.operate(9L, "return");
         assertThatThrownBy(() -> service.operate(9L, "return")).isInstanceOf(InvalidOrderException.class);
         verify(inventory, times(1)).receiveRental(2L, 3L, 2);
@@ -111,7 +134,7 @@ class OrderServiceTests {
     Order pendingOrder() {
         var user = User.builder().id(1L).email("customer@test.local").status("ACTIVE").build();
         var branch = Branch.builder().id(2L).status("ACTIVE").build();
-        var order = new Order(user, branch, java.time.OffsetDateTime.now(), OrderStatus.PENDING, new BigDecimal("100000"));
+        var order = new Order(user, branch, OffsetDateTime.now(), OrderStatus.PENDING, new BigDecimal("100000"));
         when(orders.lockById(9L)).thenReturn(Optional.of(order));
         when(users.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
         return order;
@@ -124,6 +147,41 @@ class OrderServiceTests {
         assertThatThrownBy(() -> service.operate(9L, "confirm")).isInstanceOf(InvalidOrderException.class);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING);
         verifyNoInteractions(inventory);
+    }
+
+    @Test void customerCannotConfirmReceiptBeforeHandover() {
+        var order = pendingOrder();
+        assertThatThrownBy(() -> service.confirmReceipt(9L, "customer@test.local"))
+                .isInstanceOf(InvalidOrderException.class);
+        assertThat(order.getCustomerReceivedAt()).isNull();
+        verifyNoInteractions(inventory);
+    }
+
+    @Test void anotherCustomerCannotConfirmReceipt() {
+        var order = pendingOrder();
+        order.setStatus(OrderStatus.IN_PROGRESS);
+        when(users.findByEmail("other@test.local")).thenReturn(Optional.of(
+                User.builder().id(8L).email("other@test.local").status("ACTIVE").build()));
+        assertThatThrownBy(() -> service.confirmReceipt(9L, "other@test.local"))
+                .isInstanceOf(AccessDeniedException.class);
+        assertThat(order.getCustomerReceivedAt()).isNull();
+    }
+
+    @Test void saleCompletesOnlyAfterCustomerReceipt() {
+        var order = pendingOrder();
+        order.addItem(new OrderItem(3L, OrderItemType.SALE, 1, new BigDecimal("100000"), null, null, OrderItemStatus.CONFIRMED));
+        when(payments.read(9L)).thenReturn(new OrderPaymentBalance(new BigDecimal("100000"), BigDecimal.ZERO, 0));
+        service.operate(9L, "confirm");
+        var handedOver = service.operate(9L, "hand-over");
+        assertThat(handedOver.status()).isEqualTo(OrderStatus.IN_PROGRESS);
+        assertThat(handedOver.canConfirmReceipt()).isTrue();
+        assertThat(handedOver.canReturn()).isFalse();
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.IN_PROGRESS);
+        assertThat(order.getCustomerReceivedAt()).isNull();
+        service.confirmReceipt(9L, "customer@test.local");
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.COMPLETED);
+        verify(inventory, times(1)).fulfillSale(2L, 3L, 1);
+        verify(inventory, never()).receiveRental(any(), any(), anyInt());
     }
 
     @Test void paidOrderWaitsForExplicitAdminApproval() {

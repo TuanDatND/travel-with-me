@@ -1,11 +1,13 @@
 package com.coc.sba_treektour.modules.inventory.service;
+import com.coc.sba_treektour.modules.order.enums.OrderStatus;
+import com.coc.sba_treektour.modules.order.enums.OrderItemType;
+import com.coc.sba_treektour.modules.order.enums.OrderItemStatus;
 
 import com.coc.sba_treektour.modules.account.entity.User;
 import com.coc.sba_treektour.modules.inventory.dto.InventoryDtos.RentalBookingRequest;
-import com.coc.sba_treektour.modules.order.dto.requset.CreateOrderItemRequest;
-import com.coc.sba_treektour.modules.order.dto.requset.CreateOrderRequest;
-import com.coc.sba_treektour.modules.order.dto.respone.OrderResponse;
-import com.coc.sba_treektour.modules.order.entity.*;
+import com.coc.sba_treektour.modules.order.dto.request.CreateOrderItemRequest;
+import com.coc.sba_treektour.modules.order.dto.request.CreateOrderRequest;
+import com.coc.sba_treektour.modules.order.dto.response.OrderResponse;
 import com.coc.sba_treektour.modules.order.service.OrderService;
 import com.coc.sba_treektour.modules.product.repository.ProductRepository;
 import com.coc.sba_treektour.modules.product.service.CatalogException;

@@ -3,7 +3,7 @@ package com.coc.sba_treektour.modules.inventory.controller;
 import com.coc.sba_treektour.common.response.ApiResponse;
 import com.coc.sba_treektour.modules.inventory.dto.InventoryDtos.*;
 import com.coc.sba_treektour.modules.inventory.service.InventoryService;
-import com.coc.sba_treektour.modules.order.dto.respone.OrderResponse;
+import com.coc.sba_treektour.modules.order.dto.response.OrderResponse;
 import com.coc.sba_treektour.modules.product.dto.ProductDtos.*;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

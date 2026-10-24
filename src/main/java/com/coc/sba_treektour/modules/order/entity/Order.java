@@ -2,15 +2,28 @@ package com.coc.sba_treektour.modules.order.entity;
 
 import com.coc.sba_treektour.modules.account.entity.User;
 import com.coc.sba_treektour.modules.branch.entity.Branch;
-import jakarta.persistence.*;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import com.coc.sba_treektour.modules.order.enums.OrderStatus;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Getter
@@ -33,6 +46,13 @@ public class Order {
 
     @Column(name = "order_date", nullable = false)
     private OffsetDateTime orderDate;
+
+    @Column(name = "customer_received_at")
+    private OffsetDateTime customerReceivedAt;
+
+    public void confirmCustomerReceipt() {
+        if (customerReceivedAt == null) customerReceivedAt = OffsetDateTime.now();
+    }
 
     @Enumerated(EnumType.STRING)
     @Setter
@@ -71,6 +91,11 @@ public class Order {
         items.add(item);
     }
 
-    public Long getUserId() { return user.getId(); }
-    public Long getBranchId() { return branch.getId(); }
+    public Long getUserId() {
+        return user.getId();
+    }
+
+    public Long getBranchId() {
+        return branch.getId();
+    }
 }

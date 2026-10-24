@@ -8,7 +8,7 @@ import com.coc.sba_treektour.modules.payment.service.TransactionsServiceImpl;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.*;
 import com.coc.sba_treektour.modules.order.entity.Order;
-import com.coc.sba_treektour.modules.order.entity.OrderStatus;
+import com.coc.sba_treektour.modules.order.enums.OrderStatus;
 import com.coc.sba_treektour.modules.order.repository.OrderRepository;
 import com.coc.sba_treektour.modules.account.entity.User;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
