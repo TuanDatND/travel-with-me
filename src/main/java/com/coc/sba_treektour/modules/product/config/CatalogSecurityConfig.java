@@ -23,7 +23,7 @@ public class CatalogSecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(a -> a.requestMatchers(HttpMethod.GET,
-                                "/api/products", "/api/products/*", "/api/inventory/availability").permitAll()
+                                "/api/products", "/api/products/*", "/api/inventory/availability", "/api/inventory/sale-availability").permitAll()
                         .requestMatchers("/api/admin/products", "/api/admin/products/**").hasAuthority("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/inventory/rentals").authenticated()
                         .requestMatchers("/api/inventory/**").hasAnyAuthority("ADMIN", "STAFF").anyRequest().denyAll())

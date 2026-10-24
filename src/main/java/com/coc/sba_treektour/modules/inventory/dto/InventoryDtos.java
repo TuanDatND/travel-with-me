@@ -14,4 +14,5 @@ public final class InventoryDtos {
             int quantityTotal, int quantityAvailable, int quantityRented, String status) {}
     public record AvailabilityResponse(Long branchId, Long productId, LocalDate startDate,
             LocalDate endDate, int quantityAvailable, long peakReserved, int quantityRentable) {}
+    public record SaleAvailabilityResponse(Long branchId, Long productId, int quantityAvailable) {}
 }

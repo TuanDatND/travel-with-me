@@ -89,6 +89,31 @@ class CatalogIntegrationTests {
         mvc.perform(get("/api/inventory/branches/" + branch)).andExpect(status().isUnauthorized());
     }
 
+    @Test @WithMockUser(authorities = "ADMIN")
+    void publicSaleStockWorksForSaleOnlyProductsAndHidesInactiveStock() throws Exception {
+        products.update(product, new ProductRequest("Sale only", "Camping", BigDecimal.TEN, null));
+        inventory.importStock(branch, product, 4);
+        mvc.perform(get("/api/inventory/sale-availability").param("branchId", branch.toString())
+                .param("productId", product.toString()).with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.anonymous()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.quantityAvailable").value(4));
+        mvc.perform(patch(stockPath() + "/status").with(user("admin").authorities(new SimpleGrantedAuthority("ADMIN")))
+                .contentType("application/json").content("{\"status\":\"INACTIVE\"}")).andExpect(status().isOk());
+        mvc.perform(get("/api/inventory/sale-availability").param("branchId", branch.toString())
+                .param("productId", product.toString()).with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.anonymous()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.quantityAvailable").value(0));
+    }
+
+    @Test
+    void saleStockReturnsZeroWhenAbsentAndRejectsUnavailableProducts() throws Exception {
+        assertThat(inventory.saleAvailability(branch, product).quantityAvailable()).isZero();
+        products.update(product, new ProductRequest("Rental only", "Camping", null, BigDecimal.TEN));
+        mvc.perform(get("/api/inventory/sale-availability").param("branchId", branch.toString())
+                .param("productId", product.toString())).andExpect(status().isConflict());
+        products.status(product, Status.INACTIVE);
+        mvc.perform(get("/api/inventory/sale-availability").param("branchId", branch.toString())
+                .param("productId", product.toString())).andExpect(status().isNotFound());
+    }
+
     @Test
     void publicCatalogLoadsWithoutLoginWhileManagementDataStaysProtected() throws Exception {
         mvc.perform(get("/api/products")).andExpect(status().isOk());

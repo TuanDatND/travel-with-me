@@ -72,6 +72,16 @@ public class InventoryService {
         return response(row, product.getName());
     }
 
+    public SaleAvailabilityResponse saleAvailability(Long branchId, Long productId) {
+        activeBranch(branchId);
+        Product product = products.findById(productId).filter(p -> p.getStatus().equals("ACTIVE"))
+                .orElseThrow(() -> CatalogException.missing("Không tìm thấy thiết bị"));
+        if (product.getSalePrice() == null) throw CatalogException.conflict("Thiết bị không bán");
+        int available = inventory.findByBranchIdAndProductId(branchId, productId)
+                .filter(i -> i.getStatus().equals("ACTIVE")).map(Inventory::getQuantityAvailable).orElse(0);
+        return new SaleAvailabilityResponse(branchId, productId, available);
+    }
+
     public AvailabilityResponse availability(Long branchId, Long productId, LocalDate start, LocalDate end) {
         activeBranch(branchId);
         Product product = products.findById(productId).filter(p -> p.getStatus().equals("ACTIVE"))

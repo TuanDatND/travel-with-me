@@ -23,6 +23,10 @@ public class InventoryController {
             @RequestParam LocalDate startDate, @RequestParam LocalDate endDate) {
         return ApiResponse.success(inventory.availability(branchId, productId, startDate, endDate));
     }
+    @GetMapping("/sale-availability")
+    public ApiResponse<SaleAvailabilityResponse> saleAvailability(@RequestParam Long branchId, @RequestParam Long productId) {
+        return ApiResponse.success(inventory.saleAvailability(branchId, productId));
+    }
     @GetMapping("/branches/{branchId}")
     public ApiResponse<PageResponse<InventoryResponse>> list(@PathVariable Long branchId,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "20") int size) {
