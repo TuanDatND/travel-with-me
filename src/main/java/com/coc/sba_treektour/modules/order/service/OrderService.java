@@ -1,8 +1,7 @@
 package com.coc.sba_treektour.modules.order.service;
 
-import com.coc.sba_treektour.modules.order.dto.requset.CreateOrderRequest;
-import com.coc.sba_treektour.modules.order.dto.respone.OrderResponse;
-
+import com.coc.sba_treektour.modules.order.dto.request.CreateOrderRequest;
+import com.coc.sba_treektour.modules.order.dto.response.OrderResponse;
 import java.util.List;
 
 public interface OrderService {
@@ -23,4 +22,6 @@ public interface OrderService {
     OrderResponse cancel(Long id, String email);
 
     OrderResponse operate(Long id, String action);
+
+    OrderResponse confirmReceipt(Long id, String email);
 }

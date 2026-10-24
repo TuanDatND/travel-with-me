@@ -1,5 +1,31 @@
 # Order integration — cập nhật 2026-10-22
 
+## Package standard — 2026-10-24
+
+Theo doc/PROJECT_STRUCTURE.md: DTO chuyển từ dto.requset/dto.respone sang dto.request/dto.response; enum chuyển entity → enums; OrderExceptionHandler chuyển controller → exception. Service giữ interface OrderService và impl/OrderServiceImpl, dùng import ngắn và dependency productRepository/inventoryService/inventoryRepository/orderPaymentQueryService. Mọi implementation method có @Override; tests mirror package modules/order/service/impl. Inventory/Payment chỉ đổi import bắt buộc cho contract Order đã chuyển package. Endpoint, JSON, enum values, schema và hành vi duyệt/giao/nhận/nghiệm thu giữ nguyên.
+
+Lệnh kiểm tra: gradlew.bat compileJava compileTestJava; gradlew.bat test --tests com.coc.sba_treektour.modules.order.service.impl.OrderServiceImplTests --tests com.coc.sba_treektour.payment.OrderPaymentQueryServiceTests. Tên test OrderServiceTests trong các ghi chú lịch sử bên dưới đã đổi thành OrderServiceImplTests.
+
+Kết quả mốc chuẩn hóa: compileJava + compileTestJava toàn project PASS, 12 tests OrderServiceImplTests + 3 tests OrderPaymentQueryServiceTests PASS. Kiểm tra package/path Order không có sai lệch; không còn package requset/respone hoặc wildcard import trong production Order. Không cần migration cho việc đổi package này; migration receipt của mốc nghiệp vụ trước vẫn giữ nguyên.
+
+## Customer receipt & return inspection — 2026-10-24
+
+Luồng mới: PENDING (thanh toán đủ) → admin confirm → CONFIRMED → admin hand-over (xuất kho) → IN_PROGRESS → **chủ đơn xác nhận nhận hàng trên hệ thống**. Đơn mua chuyển COMPLETED tại đây; đơn thuê giữ IN_PROGRESS, sau đó admin nhận trả và nghiệm thu qua return mới chuyển COMPLETED. Xác nhận nhận hàng không tăng/giảm kho.
+
+- POST /api/orders/{id}/confirm-receipt: yêu cầu đăng nhập đúng chủ đơn; khóa hàng order, chỉ nhận sau hand-over; gọi lặp không thay timestamp hoặc cập nhật kho.
+- OrderResponse thêm customerReceivedAt (timestamp/null), canConfirmReceipt (IN_PROGRESS chưa có xác nhận), canReturn (IN_PROGRESS đã nhận và còn item RENTED). Endpoint return kiểm tra server trước khi hoàn kho; không thể bỏ qua bằng UI/API.
+- Migration V2026102402__order_customer_receipt.sql bổ sung cột nullable orders.customer_received_at. Cần chạy Flyway/restart backend trước khi dùng FE mới. Không tự xác nhận thay khách hay backfill các đơn cũ: IN_PROGRESS cũ cần khách xác nhận; COMPLETED cũ giữ nguyên.
+- My Orders có nút Confirm receipt và xác nhận trước khi gửi; admin thấy Awaiting customer receipt và chưa được nghiệm thu cho tới khi timestamp có giá trị. Timeline tách bước bàn giao và bước khách xác nhận.
+- Kiểm tra: compile + test unit Order/Payment query PASS; FE TypeScript/build PASS. Chưa chạy migration và luồng nhận hàng HTTP trên DB thật.
+
+## Kiến trúc hiện tại — Order dùng đầu nối Payment (2026-10-24)
+
+OrderServiceImpl → Payment OrderPaymentQueryService → TransactionRepository. Đã bỏ OrderPaymentRepository và OrderPaymentReader. OrderPaymentBalance chuyển sang payment/dto; Order chỉ quyết định đủ tiền để approve/hand-over và điều kiện hủy, dựa trên snapshot Payment trả về. Những phần mô tả reader/repository riêng của Order bên dưới là lịch sử, không còn dùng.
+
+Payment đã có totalAmount/exists cho giao dịch một đơn nhưng chưa có service đọc số dư cho Order. Đã bổ sung interface OrderPaymentQueryService + impl: read(orderId), readMany(orderIds), chỉ đọc DB trong transaction read-only, không gọi ZaloPay/không xác nhận đơn. TransactionRepository có thêm grouped query để tránh N+1 cho My Orders; không tạo repository Transaction thứ hai, không thay đổi provider/callback hoặc schema. Số dư = PAYMENT SUCCEEDED trừ REFUND SUCCEEDED; các điều kiện cũ và field OrderResponse giữ nguyên.
+
+Kiểm tra mốc này: compileJava + 12 tests chạy riêng PASS (9 Order, 3 Payment query), không gọi provider; chưa kiểm thử query trên DB thực tế. Cấu hình kiểm tra tạm đã dọn.
+
 ## Service structure — 2026-10-24
 
 **Cấu trúc hiện tại (thay cho reader/JDBC trước đó):** OrderServiceImpl → OrderPaymentRepository → database. Repository là interface Spring Data mở rộng Repository<Order, Long>, chỉ có @Query đọc aggregate và interface projection PaymentTotals; không cung cấp CRUD ghi transaction. Default methods chuyển projection thành OrderPaymentBalance và chặn IN rỗng. Đã bỏ OrderPaymentReader và JdbcTemplate, không thêm entity trùng của Payment. Giữ query gom lô và quy tắc số dư/API cũ. Các mô tả reader/JDBC bên dưới là lịch sử refactor.

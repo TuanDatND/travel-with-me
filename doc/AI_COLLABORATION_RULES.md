@@ -4,6 +4,8 @@ Mục tiêu là để các module có thể làm song song nhưng vẫn ghép en
 
 ## Quy tắc bắt buộc khi dùng AI
 
+Chuẩn package/service/import của nhóm: đọc và tuân thủ [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md). AI hỗ trợ AGENTS.md sẽ được dẫn tới các file này từ root project; với công cụ AI khác, người dùng phải gửi prompt yêu cầu đọc rõ ràng.
+
 1. Chỉ yêu cầu AI sửa module mình phụ trách. Không tự ý tạo/sửa entity, migration, repository hoặc API thuộc module khác.
 2. Trước khi code, đọc `doc/MODULE_INTEGRATION_STATUS.md` để biết entity nào đã sẵn sàng để map quan hệ.
 3. Sau **mỗi mốc có ý nghĩa** (tạo entity, đổi cột/schema, thêm DTO, repository, API, migration, test), cập nhật ngay file trạng thái. Không chờ làm xong toàn bộ tính năng.

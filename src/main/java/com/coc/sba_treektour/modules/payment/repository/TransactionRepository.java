@@ -10,6 +10,24 @@ import org.springframework.data.jpa.repository.Query;
 import jakarta.persistence.LockModeType;
 
 public interface TransactionRepository extends JpaRepository<Transaction, Long> {
+    interface OrderBalanceTotals {
+        Long getOrderId();
+        BigDecimal getReceived();
+        BigDecimal getRefunded();
+        long getPendingPayments();
+    }
+
+    @Query(value = """
+            SELECT order_id AS "orderId",
+                   COALESCE(SUM(CASE WHEN status = 'SUCCEEDED' AND transaction_type = 'PAYMENT' THEN amount ELSE 0 END), 0) AS "received",
+                   COALESCE(SUM(CASE WHEN status = 'SUCCEEDED' AND transaction_type = 'REFUND' THEN amount ELSE 0 END), 0) AS "refunded",
+                   COUNT(*) FILTER (WHERE status = 'PENDING' AND transaction_type = 'PAYMENT') AS "pendingPayments"
+            FROM transactions WHERE order_id IN (:orderIds) AND participant_id IS NULL
+            GROUP BY order_id
+            """, nativeQuery = true)
+    java.util.List<OrderBalanceTotals> findOrderBalances(
+            @org.springframework.data.repository.query.Param("orderIds") java.util.List<Long> orderIds);
+
     Optional<Transaction> findFirstByParticipant_IdAndPaymentMethodAndTransactionTypeAndStatusOrderByIdDesc(
             Long participantId, String method, String type, TransactionStatus status);
 

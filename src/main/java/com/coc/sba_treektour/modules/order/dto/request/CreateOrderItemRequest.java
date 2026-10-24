@@ -1,10 +1,9 @@
-package com.coc.sba_treektour.modules.order.dto.requset;
+package com.coc.sba_treektour.modules.order.dto.request;
 
-import com.coc.sba_treektour.modules.order.entity.OrderItemType;
-import com.coc.sba_treektour.modules.order.entity.OrderItemStatus;
+import com.coc.sba_treektour.modules.order.enums.OrderItemStatus;
+import com.coc.sba_treektour.modules.order.enums.OrderItemType;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 

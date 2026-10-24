@@ -1,5 +1,11 @@
 # Module integration status
 
+- 2026-10-24 — Member 3 / Structure standard: thêm doc/PROJECT_STRUCTURE.md và root AGENTS.md. Order chuẩn hóa dto.request/response (sửa requset/respone), enums riêng, exception/handler riêng, service interface + service.impl, import tường minh, tên dependency rõ vai trò và @Override. Test Order chuyển sang modules/order/service/impl/OrderServiceImplTests. Đổi import bắt buộc trong Inventory/Payment và test liên quan; không đổi nghiệp vụ/API/schema. compileJava + compileTestJava toàn project PASS; xem ORDER_INTEGRATION.md cho kết quả test cuối.
+
+- 2026-10-24 — Member 3 / Order customer receipt: admin hand-over xuất kho và chuyển IN_PROGRESS cho cả mua/thuê; chủ đơn gọi POST /orders/{id}/confirm-receipt, lưu customer_received_at. Đơn mua hoàn tất khi khách xác nhận; đơn thuê chờ admin return sau xác nhận. API thêm customerReceivedAt/canConfirmReceipt/canReturn; FE có nút khách xác nhận và khóa nghiệm thu trước đó. Migration V2026102402 bổ sung orders.customer_received_at nullable, không backfill dữ liệu cũ. Tests thứ tự/chủ đơn/idempotence/đơn mua PASS; chưa áp dụng migration DB thật.
+
+- 2026-10-24 — Ranh giới Order/Payment hiện tại: OrderServiceImpl dùng interface Payment OrderPaymentQueryService, không giữ OrderPaymentReader/OrderPaymentRepository hoặc DTO số dư riêng. Payment bổ sung service đọc DB một/nhiều đơn qua TransactionRepository.findOrderBalances; OrderPaymentBalance thuộc payment/dto. Không thay đổi TransactionsServiceImpl, callback hay provider. API Order và điều kiện duyệt/hủy giữ nguyên; mô tả kiến trúc cũ bên dưới là lịch sử.
+
 - 2026-10-24 — Member 3 / Order simplification: bỏ OrderPaymentReader. OrderServiceImpl gọi trực tiếp OrderPaymentRepository là interface Spring Data Repository<Order, Long> chỉ đọc với @Query native + PaymentTotals projection; bỏ JdbcTemplate/manual row mapper. Giữ gom lô và DTO OrderPaymentBalance; không sửa Payment/schema/API.
 
 - 2026-10-24 — Member 3 / Order: dùng Lombok @RequiredArgsConstructor cho OrderController/OrderServiceImpl/OrderPaymentReader/OrderPaymentRepository; entity dùng @Getter, @NoArgsConstructor(PROTECTED), @Setter riêng status. Giữ custom constructor nghiệp vụ, helper quan hệ, DTO record và exception. Không dùng @Data trên entity; API/schema không đổi.
