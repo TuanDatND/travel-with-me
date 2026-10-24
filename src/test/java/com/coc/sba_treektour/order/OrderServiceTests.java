@@ -1,6 +1,7 @@
 package com.coc.sba_treektour.order;
 
 import com.coc.sba_treektour.modules.order.service.*;
+import com.coc.sba_treektour.modules.order.service.impl.OrderServiceImpl;
 import com.coc.sba_treektour.modules.order.dto.*;
 import com.coc.sba_treektour.modules.order.entity.*;
 import com.coc.sba_treektour.modules.order.repository.OrderRepository;
@@ -29,7 +30,7 @@ class OrderServiceTests {
         when(order.getItems()).thenReturn(List.of());
         when(orders.findByUser_IdOrderByOrderDateDesc(1L)).thenReturn(List.of(order));
         when(payments.readMany(List.of(9L))).thenReturn(Map.of(9L,
-                new OrderPaymentReader.Balance(new BigDecimal("100000"), BigDecimal.ZERO, 0)));
+                new OrderPaymentBalance(new BigDecimal("100000"), BigDecimal.ZERO, 0)));
         var result = service.findAll(1L);
         assertThat(result.getFirst().paymentStatus()).isEqualTo("PAID");
         assertThat(result.getFirst().canApprove()).isTrue();
@@ -43,10 +44,10 @@ class OrderServiceTests {
     final InventoryService inventory = mock(InventoryService.class);
     final InventoryRepository stocks = mock(InventoryRepository.class);
     final OrderPaymentReader payments = mock(OrderPaymentReader.class);
-    final OrderService service = new OrderService(orders, users, branches, products, inventory, stocks, payments);
+    final OrderService service = new OrderServiceImpl(orders, users, branches, products, inventory, stocks, payments);
 
     @org.junit.jupiter.api.BeforeEach void unpaidByDefault() {
-        when(payments.read(any())).thenReturn(new OrderPaymentReader.Balance(BigDecimal.ZERO, BigDecimal.ZERO, 0));
+        when(payments.read(any())).thenReturn(new OrderPaymentBalance(BigDecimal.ZERO, BigDecimal.ZERO, 0));
     }
 
     CreateOrderRequest rental(LocalDate end) {
@@ -93,7 +94,7 @@ class OrderServiceTests {
         when(orders.save(any())).thenAnswer(call -> { Order order = call.getArgument(0); captured.set(order); return order; });
         service.create(request, "customer@test.local");
         when(orders.lockById(9L)).thenAnswer(call -> Optional.of(captured.get()));
-        when(payments.read(9L)).thenReturn(new OrderPaymentReader.Balance(new BigDecimal("200000"), BigDecimal.ZERO, 0));
+        when(payments.read(9L)).thenReturn(new OrderPaymentBalance(new BigDecimal("200000"), BigDecimal.ZERO, 0));
         service.operate(9L, "confirm");
         service.operate(9L, "hand-over");
         assertThatThrownBy(() -> service.operate(9L, "hand-over")).isInstanceOf(InvalidOrderException.class);
@@ -115,7 +116,7 @@ class OrderServiceTests {
     @Test void unpaidAndUnderpaidOrdersCannotBeApproved() {
         var order = pendingOrder();
         assertThatThrownBy(() -> service.operate(9L, "confirm")).isInstanceOf(InvalidOrderException.class);
-        when(payments.read(9L)).thenReturn(new OrderPaymentReader.Balance(new BigDecimal("99999"), BigDecimal.ZERO, 0));
+        when(payments.read(9L)).thenReturn(new OrderPaymentBalance(new BigDecimal("99999"), BigDecimal.ZERO, 0));
         assertThatThrownBy(() -> service.operate(9L, "confirm")).isInstanceOf(InvalidOrderException.class);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING);
         verifyNoInteractions(inventory);
@@ -123,7 +124,7 @@ class OrderServiceTests {
 
     @Test void paidOrderWaitsForExplicitAdminApproval() {
         var order = pendingOrder();
-        when(payments.read(9L)).thenReturn(new OrderPaymentReader.Balance(new BigDecimal("100000"), BigDecimal.ZERO, 0));
+        when(payments.read(9L)).thenReturn(new OrderPaymentBalance(new BigDecimal("100000"), BigDecimal.ZERO, 0));
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING);
         service.operate(9L, "confirm");
         assertThat(order.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
@@ -132,16 +133,16 @@ class OrderServiceTests {
 
     @Test void refundedAndProcessingPaymentsBlockOrdinaryCancellation() {
         var order = pendingOrder();
-        when(payments.read(9L)).thenReturn(new OrderPaymentReader.Balance(BigDecimal.ONE, BigDecimal.ONE, 0));
+        when(payments.read(9L)).thenReturn(new OrderPaymentBalance(BigDecimal.ONE, BigDecimal.ONE, 0));
         assertThatThrownBy(() -> service.cancel(9L, "customer@test.local")).isInstanceOf(InvalidOrderException.class);
-        when(payments.read(9L)).thenReturn(new OrderPaymentReader.Balance(BigDecimal.ZERO, BigDecimal.ZERO, 1));
+        when(payments.read(9L)).thenReturn(new OrderPaymentBalance(BigDecimal.ZERO, BigDecimal.ZERO, 1));
         assertThatThrownBy(() -> service.cancel(9L, "customer@test.local")).isInstanceOf(InvalidOrderException.class);
         assertThat(order.getStatus()).isEqualTo(OrderStatus.PENDING);
     }
 
     @Test void refundReducesBalanceAndBlocksApproval() {
         pendingOrder();
-        var balance = new OrderPaymentReader.Balance(new BigDecimal("100000"), BigDecimal.ONE, 0);
+        var balance = new OrderPaymentBalance(new BigDecimal("100000"), BigDecimal.ONE, 0);
         when(payments.read(9L)).thenReturn(balance);
         assertThat(balance.status(new BigDecimal("100000"))).isEqualTo("PARTIALLY_PAID");
         assertThatThrownBy(() -> service.operate(9L, "confirm")).isInstanceOf(InvalidOrderException.class);

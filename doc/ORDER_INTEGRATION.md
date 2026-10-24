@@ -1,5 +1,17 @@
 # Order integration — cập nhật 2026-10-22
 
+## Service structure — 2026-10-24
+
+Lombok: controller/service/reader/repository dùng @RequiredArgsConstructor cho dependency final. Entity dùng @Getter, @NoArgsConstructor(PROTECTED) và @Setter riêng status; giữ constructor nghiệp vụ và helper hai chiều. DTO record giữ nguyên, không sinh equals/hashCode/toString kiểu @Data trên entity JPA. compileJava và 9 tests Order riêng PASS sau thay đổi; cấu hình test tạm đã dọn.
+
+Luồng đọc thanh toán: OrderServiceImpl → OrderPaymentReader → OrderPaymentRepository → database. SQL và JdbcTemplate chỉ nằm trong repository; OrderPaymentBalance là snapshot trong dto, chứa các phép tính số dư/status giữ nguyên. Reader không giữ SQL hoặc truy cập database trực tiếp. Không sửa module Payment và không thay đổi API/schema.
+
+Refactor reader/repository: compileJava và 9 tests Order riêng PASS; cấu hình test tạm đã dọn. Lỗi compile test Inventory thiếu RentalBookingService vẫn nằm ngoài phạm vi thay đổi.
+
+`modules/order/service/OrderService.java` là interface công khai; `modules/order/service/impl/OrderServiceImpl.java` chứa implementation và @Transactional. Controller và module tích hợp inject OrderService; không phụ thuộc trực tiếp implementation. OrderPaymentReader vẫn là component đọc dữ liệu, không tách interface riêng. Method signature, endpoint và nghiệp vụ giữ nguyên.
+
+Kiểm tra refactor: compileJava PASS; 9 tests Order PASS khi compile riêng test Order bằng Gradle init tạm (đã xóa). Compile toàn bộ test hiện bị lỗi tại Inventory/CatalogIntegrationTests do thiếu RentalBookingService; chưa chỉnh module Inventory.
+
 ## Frontend payment entry — 2026-10-24
 
 Đặt trực tiếp ở gear hoặc checkout giỏ thành công có nút Continue to payment tới /payment/pending?orderId=ID. My Orders có Pay now dùng cùng URL. Router đã nối /payment và /payment/:result tới PaymentResultPage của member Payment, bảo vệ đăng nhập và giữ returnTo. Không tự tạo giao dịch khi đặt đơn; người dùng tiếp tục bấm thanh toán trên trang Payment. Không sửa code provider/callback. TypeScript/build PASS; chưa kiểm thử giao dịch thật. Phần Payment hiện có chịu trách nhiệm truy vấn backend và xác minh kết quả, query URL không tự đánh dấu đã trả tiền.
