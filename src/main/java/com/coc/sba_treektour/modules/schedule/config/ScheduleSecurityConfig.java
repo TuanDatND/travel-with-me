@@ -26,6 +26,8 @@ public class ScheduleSecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .formLogin(AbstractHttpConfigurer::disable).httpBasic(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(a -> a
+                        .requestMatchers(HttpMethod.GET, "/api/schedules/my-assignments", "/api/schedules/my-assignments/*")
+                            .hasAuthority("GUIDE")
                         .requestMatchers(HttpMethod.GET, "/api/schedules", "/api/schedules/*").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/schedules/*/register").hasAuthority("CUSTOMER")
                         .requestMatchers(HttpMethod.GET, "/api/schedules/*/participants", "/api/schedules/*/histories")

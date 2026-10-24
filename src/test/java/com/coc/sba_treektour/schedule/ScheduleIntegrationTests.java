@@ -119,6 +119,60 @@ class ScheduleIntegrationTests {
         return id(call(post("/api/schedules"), admin, scheduleBody(guideId, start, capacity), 201));
     }
 
+    @Test
+    void guideAssignmentsAreScopedEnrichedAndPaginated() throws Exception {
+        long first = schedule(4);
+        long second = id(call(post("/api/schedules"), admin,
+                scheduleBody(secondGuideId, start.plusDays(1), 4), 201));
+        id(call(post("/api/schedules"), admin, scheduleBody(null, start.plusDays(2), 4), 201));
+        jdbc.update("UPDATE tour_events SET status='ARCHIVED' WHERE event_id=?", eventId);
+        var list = call(get("/api/schedules/my-assignments").param("size", "1"), guide, null, 200);
+        assertThat(JsonPath.<List<Integer>>read(list.getResponse().getContentAsString(), "$.data[*].id"))
+                .containsExactly((int) first);
+        var next = call(get("/api/schedules/my-assignments").param("size", "1").param("page", "1"),
+                guide, null, 200);
+        assertThat(JsonPath.<List<Integer>>read(next.getResponse().getContentAsString(), "$.data[*].id"))
+                .containsExactly((int) second);
+        var detail = call(get("/api/schedules/my-assignments/" + first), guide, null, 200);
+        assertThat(JsonPath.<String>read(detail.getResponse().getContentAsString(), "$.data.eventName"))
+                .isEqualTo("Integration test");
+        assertThat(JsonPath.<String>read(detail.getResponse().getContentAsString(), "$.data.branchName"))
+                .isEqualTo("Integration test");
+        var filtered = call(get("/api/schedules/my-assignments").param("status", "COMPLETED"),
+                guide, null, 200);
+        assertThat(JsonPath.<List<?>>read(filtered.getResponse().getContentAsString(), "$.data")).isEmpty();
+        call(get("/api/schedules/my-assignments").param("size", "101"), guide, null, 400);
+        call(get("/api/schedules/my-assignments").param("page", "-1"), guide, null, 400);
+    }
+
+    @Test
+    void guideAssignmentsRejectOtherRolesAndRevokeImmediately() throws Exception {
+        long assigned = schedule(4);
+        String anotherGuide = account("GUIDE");
+        var empty = call(get("/api/schedules/my-assignments"), anotherGuide, null, 200);
+        assertThat(JsonPath.<List<?>>read(empty.getResponse().getContentAsString(), "$.data")).isEmpty();
+        call(get("/api/schedules/my-assignments/" + assigned), anotherGuide, null, 403);
+        call(get("/api/schedules/my-assignments"), null, null, 401);
+        call(get("/api/schedules/my-assignments"), customer, null, 403);
+        call(get("/api/schedules/my-assignments"), admin, null, 403);
+        call(get("/api/schedules/my-assignments/" + assigned), customer, null, 403);
+        call(put("/api/schedules/" + assigned), admin,
+                "{\"guideId\":null,\"maxParticipants\":4}", 200);
+        call(get("/api/schedules/my-assignments/" + assigned), guide, null, 403);
+        call(get("/api/schedules/" + assigned + "/participants"), guide, null, 403);
+        var revoked = call(get("/api/schedules/my-assignments"), guide, null, 200);
+        assertThat(JsonPath.<List<?>>read(revoked.getResponse().getContentAsString(), "$.data")).isEmpty();
+    }
+
+    @Test
+    void inactiveGuideProfileIsNotAnAssignment() throws Exception {
+        long assigned = schedule(4);
+        jdbc.update("UPDATE tour_guides SET status='INACTIVE' WHERE guide_id=?", guideId);
+        var list = call(get("/api/schedules/my-assignments"), guide, null, 200);
+        assertThat(JsonPath.<List<?>>read(list.getResponse().getContentAsString(), "$.data")).isEmpty();
+        call(get("/api/schedules/my-assignments/" + assigned), guide, null, 403);
+    }
+
     /** Kiểm tra xem công khai, đăng ký JWT, giá server, quyền chủ vé, hủy và đăng ký lại. */
     @Test
     void browseRegisterCancelAndRegisterAgain() throws Exception {
