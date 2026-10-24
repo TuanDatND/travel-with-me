@@ -1,5 +1,7 @@
 # Module integration status
 
+- 2026-10-24 — Member 3 / My Orders: FE hiển thị đơn ngay sau GET /orders/me, tách tải tên chi nhánh/sản phẩm khỏi loader, chỉ lấy sản phẩm trong đơn thay vì catalog size=200; có spinner initial/refresh và hiện lỗi Order thật. OrderRepository EntityGraph tải items/user/branch; OrderPaymentReader gom số dư cả danh sách bằng một query GROUP BY, không sửa Payment/schema. FE TypeScript/build PASS; test hồi quy kiểm tra danh sách không query số dư từng đơn. Chưa đo latency trên DB thật.
+
 - 2026-10-24 — Member 3 / Order FE: bổ sung route payment và payment/:result dùng PaymentResultPage hiện có, bọc ProtectedRoute giữ returnTo. Đặt trực tiếp và đặt từ giỏ thành công có Continue to payment theo orderId; My Orders Pay now mở được cùng trang. Không sửa module Payment/provider; frontend TypeScript/build PASS, chưa thử giao dịch ZaloPay thật.
 
 - 2026-10-24 — Frontend navigation: UserLayout có Suspense riêng ở Outlet để tải My Tours không thay thế header; bỏ key pathname/fade-in của vùng nội dung, bỏ transform hover/active menu, thêm scrollbar-gutter stable. TypeScript/build PASS; chưa xác minh chuyển trang bằng trình duyệt.

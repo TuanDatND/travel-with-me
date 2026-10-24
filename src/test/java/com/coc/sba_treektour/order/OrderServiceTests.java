@@ -21,6 +21,21 @@ import static org.mockito.Mockito.*;
 import static org.assertj.core.api.Assertions.*;
 
 class OrderServiceTests {
+    @Test void listUsesBatchedPaymentBalances() {
+        Order order = mock(Order.class);
+        when(order.getId()).thenReturn(9L);
+        when(order.getStatus()).thenReturn(OrderStatus.PENDING);
+        when(order.getTotalAmount()).thenReturn(new BigDecimal("100000"));
+        when(order.getItems()).thenReturn(List.of());
+        when(orders.findByUser_IdOrderByOrderDateDesc(1L)).thenReturn(List.of(order));
+        when(payments.readMany(List.of(9L))).thenReturn(Map.of(9L,
+                new OrderPaymentReader.Balance(new BigDecimal("100000"), BigDecimal.ZERO, 0)));
+        var result = service.findAll(1L);
+        assertThat(result.getFirst().paymentStatus()).isEqualTo("PAID");
+        assertThat(result.getFirst().canApprove()).isTrue();
+        verify(payments).readMany(List.of(9L));
+        verify(payments, never()).read(any());
+    }
     final OrderRepository orders = mock(OrderRepository.class);
     final UserRepository users = mock(UserRepository.class);
     final BranchRepository branches = mock(BranchRepository.class);
