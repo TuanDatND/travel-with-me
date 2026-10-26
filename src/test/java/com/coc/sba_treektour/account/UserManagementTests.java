@@ -1,8 +1,8 @@
 package com.coc.sba_treektour.account;
 
-import com.coc.sba_treektour.modules.account.dto.AdminUpdateUserRequest;
-import com.coc.sba_treektour.modules.account.dto.ChangePasswordRequest;
-import com.coc.sba_treektour.modules.account.dto.UserResponse;
+import com.coc.sba_treektour.modules.account.dto.request.AdminUpdateUserRequest;
+import com.coc.sba_treektour.modules.account.dto.request.ChangePasswordRequest;
+import com.coc.sba_treektour.modules.account.dto.response.UserResponse;
 import com.coc.sba_treektour.modules.account.entity.Role;
 import com.coc.sba_treektour.modules.account.entity.User;
 import com.coc.sba_treektour.modules.account.repository.RoleRepository;

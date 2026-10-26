@@ -1,4 +1,4 @@
-package com.coc.sba_treektour.modules.account.dto;
+package com.coc.sba_treektour.modules.account.dto.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -9,11 +9,14 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class UserResponse {
+public class InternalUserResponse {
     private Long id;
     private String fullName;
     private String email;
     private String phone;
     private String role;
     private String status;
+    private String temporaryPassword;
+    private boolean emailSent;
+    private String message;
 }

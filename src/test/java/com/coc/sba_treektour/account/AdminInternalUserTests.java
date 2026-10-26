@@ -1,7 +1,7 @@
 package com.coc.sba_treektour.modules.account;
 
-import com.coc.sba_treektour.modules.account.dto.CreateInternalUserRequest;
-import com.coc.sba_treektour.modules.account.dto.InternalUserResponse;
+import com.coc.sba_treektour.modules.account.dto.request.CreateInternalUserRequest;
+import com.coc.sba_treektour.modules.account.dto.response.InternalUserResponse;
 import com.coc.sba_treektour.modules.account.entity.Role;
 import com.coc.sba_treektour.modules.account.entity.User;
 import com.coc.sba_treektour.modules.account.repository.RoleRepository;

@@ -7,7 +7,7 @@
 POST {{host}}/api/auth/login
 Content-Type: application/json
 
-{"email":"admin@treektour.com","password":"Admin@123"}
+{"email":"admin@gmail.com","password":"admin123"}
 
 ### Tạo thiết bị; thay productId bằng data.id trả về
 POST {{host}}/api/admin/products

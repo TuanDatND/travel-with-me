@@ -1,4 +1,4 @@
-package com.coc.sba_treektour.modules.branch.dto;
+package com.coc.sba_treektour.modules.branch.dto.response;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;

@@ -1,4 +1,4 @@
-package com.coc.sba_treektour.modules.account.dto;
+package com.coc.sba_treektour.modules.account.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
@@ -11,9 +11,9 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class UserProfileRequest {
-    
+
     @NotBlank(message = "Full name is required")
     private String fullName;
-    
+
     private String phone;
 }

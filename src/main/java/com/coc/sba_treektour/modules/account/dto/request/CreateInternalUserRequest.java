@@ -1,4 +1,4 @@
-package com.coc.sba_treektour.modules.account.dto;
+package com.coc.sba_treektour.modules.account.dto.request;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;

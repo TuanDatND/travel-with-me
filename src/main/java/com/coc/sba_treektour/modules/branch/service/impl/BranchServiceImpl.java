@@ -1,11 +1,14 @@
 package com.coc.sba_treektour.modules.branch.service.impl;
 
-import com.coc.sba_treektour.modules.branch.dto.BranchRequest;
-import com.coc.sba_treektour.modules.branch.dto.BranchResponse;
+import com.coc.sba_treektour.modules.branch.dto.request.BranchRequest;
+import com.coc.sba_treektour.modules.branch.dto.response.BranchResponse;
 import com.coc.sba_treektour.modules.branch.entity.Branch;
+import com.coc.sba_treektour.modules.branch.enums.BranchStatus;
+import com.coc.sba_treektour.modules.branch.exception.BranchNotFoundException;
+import com.coc.sba_treektour.modules.branch.exception.InvalidBranchOperationException;
 import com.coc.sba_treektour.modules.branch.repository.BranchRepository;
-import com.coc.sba_treektour.modules.branch.service.BranchService;
 import com.coc.sba_treektour.modules.branch.repository.StaffRepository;
+import com.coc.sba_treektour.modules.branch.service.BranchService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,6 +25,7 @@ public class BranchServiceImpl implements BranchService {
     private final StaffRepository staffRepository;
 
     @Override
+    @Transactional(readOnly = true)
     public List<BranchResponse> getAllBranches() {
         return branchRepository.findAll().stream()
                 .map(this::mapToBranchResponse)
@@ -29,9 +33,10 @@ public class BranchServiceImpl implements BranchService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public BranchResponse getBranchById(Long id) {
         Branch branch = branchRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Branch not found with id: " + id));
+                .orElseThrow(() -> new BranchNotFoundException("Branch not found with id: " + id));
         return mapToBranchResponse(branch);
     }
 
@@ -41,7 +46,7 @@ public class BranchServiceImpl implements BranchService {
                 .name(request.getName())
                 .phone(request.getPhone())
                 .address(request.getAddress())
-                .status("ACTIVE")
+                .status(BranchStatus.ACTIVE.name())
                 .build();
         
         Branch savedBranch = branchRepository.save(branch);
@@ -51,7 +56,7 @@ public class BranchServiceImpl implements BranchService {
     @Override
     public BranchResponse updateBranch(Long id, BranchRequest request) {
         Branch branch = branchRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Branch not found with id: " + id));
+                .orElseThrow(() -> new BranchNotFoundException("Branch not found with id: " + id));
 
         branch.setName(request.getName());
         branch.setPhone(request.getPhone());
@@ -64,13 +69,16 @@ public class BranchServiceImpl implements BranchService {
     @Override
     public BranchResponse updateBranchStatus(Long id, String status) {
         Branch branch = branchRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Branch not found with id: " + id));
+                .orElseThrow(() -> new BranchNotFoundException("Branch not found with id: " + id));
         
-        if (!"ACTIVE".equals(status) && !"INACTIVE".equals(status)) {
-            throw new RuntimeException("Invalid status. Must be ACTIVE or INACTIVE");
+        String upperStatus = status.toUpperCase();
+        try {
+            BranchStatus.valueOf(upperStatus);
+        } catch (IllegalArgumentException e) {
+            throw new InvalidBranchOperationException("Invalid status. Must be ACTIVE or INACTIVE");
         }
 
-        branch.setStatus(status);
+        branch.setStatus(upperStatus);
         Branch updatedBranch = branchRepository.save(branch);
         return mapToBranchResponse(updatedBranch);
     }
@@ -78,16 +86,16 @@ public class BranchServiceImpl implements BranchService {
     @Override
     public void deleteBranch(Long id) {
         Branch branch = branchRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Branch not found with id: " + id));
+                .orElseThrow(() -> new BranchNotFoundException("Branch not found with id: " + id));
 
         if (staffRepository.existsByBranchId(id)) {
-            throw new RuntimeException("Không thể xóa chi nhánh vì vẫn còn nhân viên đang trực thuộc!");
+            throw new InvalidBranchOperationException("Không thể xóa chi nhánh vì vẫn còn nhân viên đang trực thuộc!");
         }
 
         try {
             branchRepository.delete(branch);
         } catch (Exception ex) {
-            branch.setStatus("INACTIVE");
+            branch.setStatus(BranchStatus.INACTIVE.name());
             branchRepository.save(branch);
         }
     }
