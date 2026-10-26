@@ -1,10 +1,10 @@
 package com.coc.sba_treektour.modules.account.controller;
 
-import com.coc.sba_treektour.modules.account.dto.AuthResponse;
-import com.coc.sba_treektour.modules.account.dto.LoginRequest;
-import com.coc.sba_treektour.modules.account.dto.RegisterRequest;
-import com.coc.sba_treektour.modules.account.service.AuthService;
 import com.coc.sba_treektour.common.response.ApiResponse;
+import com.coc.sba_treektour.modules.account.dto.request.LoginRequest;
+import com.coc.sba_treektour.modules.account.dto.request.RegisterRequest;
+import com.coc.sba_treektour.modules.account.dto.response.AuthResponse;
+import com.coc.sba_treektour.modules.account.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;

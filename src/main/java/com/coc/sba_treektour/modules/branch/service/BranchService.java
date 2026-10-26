@@ -1,7 +1,7 @@
 package com.coc.sba_treektour.modules.branch.service;
 
-import com.coc.sba_treektour.modules.branch.dto.BranchRequest;
-import com.coc.sba_treektour.modules.branch.dto.BranchResponse;
+import com.coc.sba_treektour.modules.branch.dto.request.BranchRequest;
+import com.coc.sba_treektour.modules.branch.dto.response.BranchResponse;
 import com.coc.sba_treektour.modules.branch.entity.Branch;
 
 import java.util.List;

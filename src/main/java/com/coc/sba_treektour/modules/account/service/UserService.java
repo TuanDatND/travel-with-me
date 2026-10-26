@@ -1,11 +1,11 @@
 package com.coc.sba_treektour.modules.account.service;
 
-import com.coc.sba_treektour.modules.account.dto.AdminUpdateUserRequest;
-import com.coc.sba_treektour.modules.account.dto.ChangePasswordRequest;
-import com.coc.sba_treektour.modules.account.dto.CreateInternalUserRequest;
-import com.coc.sba_treektour.modules.account.dto.InternalUserResponse;
-import com.coc.sba_treektour.modules.account.dto.UserProfileRequest;
-import com.coc.sba_treektour.modules.account.dto.UserResponse;
+import com.coc.sba_treektour.modules.account.dto.request.AdminUpdateUserRequest;
+import com.coc.sba_treektour.modules.account.dto.request.ChangePasswordRequest;
+import com.coc.sba_treektour.modules.account.dto.request.CreateInternalUserRequest;
+import com.coc.sba_treektour.modules.account.dto.request.UserProfileRequest;
+import com.coc.sba_treektour.modules.account.dto.response.InternalUserResponse;
+import com.coc.sba_treektour.modules.account.dto.response.UserResponse;
 import com.coc.sba_treektour.modules.account.entity.User;
 
 import java.util.List;
