@@ -1,37 +1,23 @@
-package com.coc.sba_treektour.modules.payment.service;
+package com.coc.sba_treektour.modules.payment.service.impl;
 
 import com.coc.sba_treektour.common.config.ZaloPayConfig;
-import com.coc.sba_treektour.modules.payment.dto.CreateZaloPayPaymentRequest;
-import com.coc.sba_treektour.modules.payment.dto.ZaloPayPaymentResponse;
-import com.coc.sba_treektour.modules.payment.dto.TransactionHistoryResponse;
-import com.coc.sba_treektour.modules.payment.entity.Transaction;
-import com.coc.sba_treektour.modules.payment.repository.TransactionRepository;
-import lombok.RequiredArgsConstructor;
-import org.springframework.http.MediaType;
 import com.coc.sba_treektour.modules.order.entity.Order;
 import com.coc.sba_treektour.modules.order.enums.OrderStatus;
 import com.coc.sba_treektour.modules.order.repository.OrderRepository;
+import com.coc.sba_treektour.modules.payment.dto.request.CreateZaloPayPaymentRequest;
+import com.coc.sba_treektour.modules.payment.dto.response.TransactionHistoryPageResponse;
+import com.coc.sba_treektour.modules.payment.dto.response.TransactionHistoryResponse;
+import com.coc.sba_treektour.modules.payment.dto.response.ZaloPayPaymentResponse;
+import com.coc.sba_treektour.modules.payment.entity.Transaction;
+import com.coc.sba_treektour.modules.payment.enums.TransactionStatus;
+import com.coc.sba_treektour.modules.payment.repository.TransactionRepository;
+import com.coc.sba_treektour.modules.payment.service.ParticipantPaymentBridge;
+import com.coc.sba_treektour.modules.payment.service.PaymentReconciliationService;
+import com.coc.sba_treektour.modules.payment.service.TransactionsService;
+import com.coc.sba_treektour.modules.schedule.entity.EventParticipant;
+import com.coc.sba_treektour.modules.schedule.entity.ParticipantStatus;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
-import com.coc.sba_treektour.modules.payment.enums.TransactionStatus;
-import com.coc.sba_treektour.modules.payment.dto.TransactionHistoryPageResponse;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
-import org.springframework.transaction.support.TransactionTemplate;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
-import org.springframework.web.client.RestClient;
-import org.springframework.web.server.ResponseStatusException;
-import org.springframework.web.util.UriComponentsBuilder;
-import tools.jackson.core.JacksonException;
-import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.ObjectMapper;
-
-import javax.crypto.Mac;
-import javax.crypto.spec.SecretKeySpec;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
@@ -42,23 +28,42 @@ import java.time.format.DateTimeFormatter;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.Map;
-
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.util.UriComponentsBuilder;
 import static com.coc.sba_treektour.modules.payment.enums.TransactionStatus.FAILED;
 import static com.coc.sba_treektour.modules.payment.enums.TransactionStatus.PENDING;
 import static com.coc.sba_treektour.modules.payment.enums.TransactionStatus.SUCCEEDED;
 import static org.springframework.http.HttpStatus.BAD_GATEWAY;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 @RequiredArgsConstructor
-public class TransactionsServiceImpl implements TransactionsService {
+public class TransactionsServiceImpl implements TransactionsService, PaymentReconciliationService {
     private static final ZoneId VIETNAM_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
     private static final DateTimeFormatter APP_TRANS_DATE = DateTimeFormatter.ofPattern("yyMMdd");
     private static final String PAYMENT_METHOD = "ZALOPAY";
     private static final String PAYMENT = "PAYMENT";
     private static final int PAYMENT_LIFETIME_SECONDS = 900;
-    @org.springframework.beans.factory.annotation.Value("${payment.return-url}")
+    @Value("${payment.return-url}")
     private String returnUrl;
 
     private final TransactionRepository transactionRepository;
@@ -77,15 +82,15 @@ public class TransactionsServiceImpl implements TransactionsService {
         Transaction transaction = paymentTransaction.execute(tx -> {
             BigDecimal amount;
             Order order = null;
-            com.coc.sba_treektour.modules.schedule.entity.EventParticipant participant = null;
+            EventParticipant participant = null;
             if (request.orderId() != null) {
                 order = lockPendingOrder(request.orderId());
                 amount = order.getTotalAmount();
                 boolean pending = transactionRepository.existsByOrder_IdAndTransactionTypeAndStatus(order.getId(), PAYMENT, PENDING);
                 BigDecimal paid = transactionRepository.totalAmount(order.getId(), PAYMENT, SUCCEEDED)
                         .subtract(transactionRepository.totalAmount(order.getId(), "REFUND", SUCCEEDED));
-                if (pending) throw new ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT, "Order already has a pending payment; query it first");
-                if (paid.signum() > 0) throw new ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT, "Order already has received payment; reconcile before retrying");
+                if (pending) throw new ResponseStatusException(HttpStatus.CONFLICT, "Order already has a pending payment; query it first");
+                if (paid.signum() > 0) throw new ResponseStatusException(HttpStatus.CONFLICT, "Order already has received payment; reconcile before retrying");
             }
             else {
                 participant = participantPayments.prepare(request.participantId());
@@ -195,7 +200,7 @@ public class TransactionsServiceImpl implements TransactionsService {
             if (request.participantId() != null) {
                 var ticket = participantPayments.lock(request.participantId());
                 participantPayments.requireOwner(ticket);
-                if (ticket.getParticipantStatus() != com.coc.sba_treektour.modules.schedule.entity.ParticipantStatus.PENDING)
+                if (ticket.getParticipantStatus() != ParticipantStatus.PENDING)
                     throw new ResponseStatusException(BAD_REQUEST, "Ticket is not PENDING");
                 participantPayments.lifetimeSeconds(ticket);
                 return transactionRepository.findFirstByParticipant_IdAndPaymentMethodAndTransactionTypeAndStatusOrderByIdDesc(
@@ -222,7 +227,7 @@ public class TransactionsServiceImpl implements TransactionsService {
             return found;
         });
         if (transaction.getStatus() == SUCCEEDED)
-            throw new ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Giao dịch đã thanh toán thành công, không thể hủy. Cần sử dụng hoàn tiền.");
         return cancelUnpaidAttempt(transaction);
     }
@@ -253,7 +258,7 @@ public class TransactionsServiceImpl implements TransactionsService {
         if (cancelled == null || cancelled.path("return_code").asInt() != 1) {
             result = queryProvider(transaction);
             if (result.status() != PENDING) return result;
-            throw new ResponseStatusException(org.springframework.http.HttpStatus.CONFLICT,
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "ZaloPay chưa xác nhận hủy giao dịch. Vui lòng kiểm tra lại sau.");
         }
         // Same locked transition as query/retry; concurrent success must not be overwritten.
@@ -266,7 +271,8 @@ public class TransactionsServiceImpl implements TransactionsService {
     }
 
     // Internal reconciliation has no browser/JWT dependency; it never accepts user-supplied outcomes.
-    void reconcilePendingPayment(Long transactionId) {
+    @Override
+    public void reconcilePendingPayment(Long transactionId) {
         Transaction transaction = paymentTransaction.execute(tx -> findZaloPayTransaction(transactionId));
         if (transaction.getStatus() == PENDING) queryProvider(transaction);
         else if (transaction.getStatus() == SUCCEEDED) confirmParticipant(transaction);
@@ -363,14 +369,14 @@ public class TransactionsServiceImpl implements TransactionsService {
     private String authenticatedEmail() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getName()))
-            throw new ResponseStatusException(org.springframework.http.HttpStatus.UNAUTHORIZED, "Authentication required");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication required");
         return authentication.getName();
     }
 
     private void requireOrderOwner(Order order) {
         var owner = order.getUser();
         if (!authenticatedEmail().equals(owner.getEmail()) || !"ACTIVE".equals(owner.getStatus()))
-            throw new ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "You do not own this order");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "You do not own this order");
     }
 
     private Order lockPendingOrder(Long orderId) {

@@ -1,7 +1,6 @@
-package com.coc.sba_treektour.modules.payment.dto;
+package com.coc.sba_treektour.modules.payment.dto.response;
 
 import com.coc.sba_treektour.modules.payment.enums.TransactionStatus;
-
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 

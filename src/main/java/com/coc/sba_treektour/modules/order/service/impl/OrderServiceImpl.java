@@ -19,7 +19,7 @@ import com.coc.sba_treektour.modules.order.exception.InvalidOrderException;
 import com.coc.sba_treektour.modules.order.exception.OrderNotFoundException;
 import com.coc.sba_treektour.modules.order.repository.OrderRepository;
 import com.coc.sba_treektour.modules.order.service.OrderService;
-import com.coc.sba_treektour.modules.payment.dto.OrderPaymentBalance;
+import com.coc.sba_treektour.modules.payment.dto.response.OrderPaymentBalance;
 import com.coc.sba_treektour.modules.payment.service.OrderPaymentQueryService;
 import com.coc.sba_treektour.modules.product.repository.ProductRepository;
 import java.math.BigDecimal;

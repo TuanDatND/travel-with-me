@@ -1,10 +1,10 @@
-package com.coc.sba_treektour.payment;
+package com.coc.sba_treektour.modules.payment.service.impl;
 
 import com.coc.sba_treektour.modules.account.entity.User;
 import com.coc.sba_treektour.modules.account.repository.UserRepository;
 import com.coc.sba_treektour.modules.payment.entity.Transaction;
 import com.coc.sba_treektour.modules.payment.repository.TransactionRepository;
-import com.coc.sba_treektour.modules.payment.service.ParticipantPaymentBridge;
+import com.coc.sba_treektour.modules.payment.service.impl.ParticipantPaymentBridgeImpl;
 import com.coc.sba_treektour.modules.schedule.entity.*;
 import com.coc.sba_treektour.modules.schedule.repository.*;
 import com.coc.sba_treektour.modules.schedule.service.ParticipantPaymentService;
@@ -26,7 +26,7 @@ class ParticipantPaymentBridgeTests {
     TransactionRepository transactions=mock(TransactionRepository.class);
     ParticipantPaymentService confirmations=mock(ParticipantPaymentService.class);
     EntityManager em=mock(EntityManager.class);
-    ParticipantPaymentBridge bridge=new ParticipantPaymentBridge(participants,schedules,users,transactions,confirmations,em);
+    ParticipantPaymentBridgeImpl bridge=new ParticipantPaymentBridgeImpl(participants,schedules,users,transactions,confirmations,em);
     EventParticipant ticket=mock(EventParticipant.class);
     EventSchedule schedule=mock(EventSchedule.class);
     UUID reference=UUID.randomUUID();

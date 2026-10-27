@@ -1,6 +1,6 @@
 package com.coc.sba_treektour.modules.payment.service.impl;
 
-import com.coc.sba_treektour.modules.payment.dto.OrderPaymentBalance;
+import com.coc.sba_treektour.modules.payment.dto.response.OrderPaymentBalance;
 import com.coc.sba_treektour.modules.payment.repository.TransactionRepository;
 import com.coc.sba_treektour.modules.payment.service.OrderPaymentQueryService;
 import java.util.List;
