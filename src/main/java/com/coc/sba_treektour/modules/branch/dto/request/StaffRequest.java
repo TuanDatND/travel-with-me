@@ -1,4 +1,4 @@
-package com.coc.sba_treektour.modules.branch.dto;
+package com.coc.sba_treektour.modules.branch.dto.request;
 
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;

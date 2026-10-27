@@ -24,7 +24,7 @@ PostgreSQL 17.11 portable nằm trong `.local/pgsql`, dữ liệu trong `.local/
 Database `treektour` chạy ở `127.0.0.1:5432`; thông tin kết nối nằm trong `.env`.
 Các file cấu hình máy và dữ liệu local được bỏ qua bởi Git.
 
-Tài khoản admin được migration tạo sẵn: `admin@treektour.com` / `Admin@123`.
+Tài khoản admin được migration tạo sẵn: `admin@gmail.com` / `admin123`.
 Google OAuth, email và upload Cloudinary cần thông tin dịch vụ thật trong `.env` để sử dụng.
 
 ## Thiết lập trên máy khác

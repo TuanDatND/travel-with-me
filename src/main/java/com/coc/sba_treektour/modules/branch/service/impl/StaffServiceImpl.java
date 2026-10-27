@@ -1,11 +1,16 @@
 package com.coc.sba_treektour.modules.branch.service.impl;
 
 import com.coc.sba_treektour.modules.account.entity.User;
+import com.coc.sba_treektour.modules.account.exception.UserNotFoundException;
 import com.coc.sba_treektour.modules.account.repository.UserRepository;
-import com.coc.sba_treektour.modules.branch.dto.StaffRequest;
-import com.coc.sba_treektour.modules.branch.dto.StaffResponse;
+import com.coc.sba_treektour.modules.branch.dto.request.StaffRequest;
+import com.coc.sba_treektour.modules.branch.dto.response.StaffResponse;
 import com.coc.sba_treektour.modules.branch.entity.Branch;
 import com.coc.sba_treektour.modules.branch.entity.Staff;
+import com.coc.sba_treektour.modules.branch.enums.StaffStatus;
+import com.coc.sba_treektour.modules.branch.exception.BranchNotFoundException;
+import com.coc.sba_treektour.modules.branch.exception.InvalidBranchOperationException;
+import com.coc.sba_treektour.modules.branch.exception.StaffNotFoundException;
 import com.coc.sba_treektour.modules.branch.repository.BranchRepository;
 import com.coc.sba_treektour.modules.branch.repository.StaffRepository;
 import com.coc.sba_treektour.modules.branch.service.StaffService;
@@ -26,6 +31,7 @@ public class StaffServiceImpl implements StaffService {
     private final UserRepository userRepository;
 
     @Override
+    @Transactional(readOnly = true)
     public List<StaffResponse> getAllStaff() {
         return staffRepository.findAll().stream()
                 .map(this::mapToStaffResponse)
@@ -33,6 +39,7 @@ public class StaffServiceImpl implements StaffService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<StaffResponse> getStaffByBranch(Long branchId) {
         return staffRepository.findByBranchId(branchId).stream()
                 .map(this::mapToStaffResponse)
@@ -42,24 +49,24 @@ public class StaffServiceImpl implements StaffService {
     @Override
     public StaffResponse assignStaff(StaffRequest request) {
         if (staffRepository.existsByUserId(request.getUserId())) {
-            throw new RuntimeException("User is already assigned as a staff member");
+            throw new InvalidBranchOperationException("User is already assigned as a staff member");
         }
 
         Branch branch = branchRepository.findById(request.getBranchId())
-                .orElseThrow(() -> new RuntimeException("Branch not found with id: " + request.getBranchId()));
+                .orElseThrow(() -> new BranchNotFoundException("Branch not found with id: " + request.getBranchId()));
         
         User user = userRepository.findById(request.getUserId())
-                .orElseThrow(() -> new RuntimeException("User not found with id: " + request.getUserId()));
+                .orElseThrow(() -> new UserNotFoundException("User not found with id: " + request.getUserId()));
 
         if (user.getRole() == null || !"STAFF".equals(user.getRole().getName())) {
-            throw new RuntimeException("Chỉ được gán người dùng có vai trò STAFF vào chi nhánh!");
+            throw new InvalidBranchOperationException("Chỉ được gán người dùng có vai trò STAFF vào chi nhánh!");
         }
 
         Staff staff = Staff.builder()
                 .branch(branch)
                 .user(user)
                 .position(request.getPosition())
-                .status("ACTIVE")
+                .status(StaffStatus.ACTIVE.name())
                 .build();
         
         Staff savedStaff = staffRepository.save(staff);
@@ -69,11 +76,11 @@ public class StaffServiceImpl implements StaffService {
     @Override
     public StaffResponse updateStaff(Long id, StaffRequest request) {
         Staff staff = staffRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Staff not found with id: " + id));
+                .orElseThrow(() -> new StaffNotFoundException("Staff not found with id: " + id));
 
         if (!staff.getBranch().getId().equals(request.getBranchId())) {
             Branch branch = branchRepository.findById(request.getBranchId())
-                    .orElseThrow(() -> new RuntimeException("Branch not found with id: " + request.getBranchId()));
+                    .orElseThrow(() -> new BranchNotFoundException("Branch not found with id: " + request.getBranchId()));
             staff.setBranch(branch);
         }
 
@@ -86,13 +93,16 @@ public class StaffServiceImpl implements StaffService {
     @Override
     public StaffResponse updateStaffStatus(Long id, String status) {
         Staff staff = staffRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Staff not found with id: " + id));
+                .orElseThrow(() -> new StaffNotFoundException("Staff not found with id: " + id));
         
-        if (!"ACTIVE".equals(status) && !"INACTIVE".equals(status)) {
-            throw new RuntimeException("Invalid status. Must be ACTIVE or INACTIVE");
+        String upperStatus = status.toUpperCase();
+        try {
+            StaffStatus.valueOf(upperStatus);
+        } catch (IllegalArgumentException e) {
+            throw new InvalidBranchOperationException("Invalid status. Must be ACTIVE or INACTIVE");
         }
 
-        staff.setStatus(status);
+        staff.setStatus(upperStatus);
         Staff updatedStaff = staffRepository.save(staff);
         return mapToStaffResponse(updatedStaff);
     }
@@ -100,7 +110,7 @@ public class StaffServiceImpl implements StaffService {
     @Override
     public void deleteStaff(Long id) {
         Staff staff = staffRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Staff not found with id: " + id));
+                .orElseThrow(() -> new StaffNotFoundException("Staff not found with id: " + id));
         staffRepository.delete(staff);
     }
 

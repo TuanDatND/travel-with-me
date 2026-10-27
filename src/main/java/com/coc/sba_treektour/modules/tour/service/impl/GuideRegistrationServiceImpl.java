@@ -1,6 +1,6 @@
 package com.coc.sba_treektour.modules.tour.service.impl;
 
-import com.coc.sba_treektour.modules.account.dto.CreateInternalUserRequest;
+import com.coc.sba_treektour.modules.account.dto.request.CreateInternalUserRequest;
 import com.coc.sba_treektour.modules.account.service.UserService;
 import com.coc.sba_treektour.modules.tour.dto.request.GuideCreateInput;
 import com.coc.sba_treektour.modules.tour.dto.request.GuideRegistrationInput;

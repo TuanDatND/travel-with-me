@@ -1,15 +1,17 @@
 package com.coc.sba_treektour.modules.account.service.impl;
 
-import com.coc.sba_treektour.modules.account.dto.AuthResponse;
-import com.coc.sba_treektour.modules.account.dto.LoginRequest;
-import com.coc.sba_treektour.modules.account.dto.RegisterRequest;
+import com.coc.sba_treektour.common.config.JwtService;
+import com.coc.sba_treektour.modules.account.dto.request.LoginRequest;
+import com.coc.sba_treektour.modules.account.dto.request.RegisterRequest;
+import com.coc.sba_treektour.modules.account.dto.response.AuthResponse;
 import com.coc.sba_treektour.modules.account.entity.Role;
 import com.coc.sba_treektour.modules.account.entity.User;
+import com.coc.sba_treektour.modules.account.exception.InvalidAccountException;
+import com.coc.sba_treektour.modules.account.exception.UserNotFoundException;
 import com.coc.sba_treektour.modules.account.repository.RoleRepository;
 import com.coc.sba_treektour.modules.account.repository.UserRepository;
 import com.coc.sba_treektour.modules.account.service.AuthService;
 import com.coc.sba_treektour.modules.account.service.UserService;
-import com.coc.sba_treektour.common.config.JwtService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -32,11 +34,11 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public AuthResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email is already taken!");
+            throw new InvalidAccountException("Email is already taken!");
         }
 
         Role userRole = roleRepository.findByName("CUSTOMER")
-                .orElseThrow(() -> new RuntimeException("Default role not found"));
+                .orElseThrow(() -> new InvalidAccountException("Default role not found"));
 
         User user = User.builder()
                 .fullName(request.getFullName())
@@ -66,10 +68,10 @@ public class AuthServiceImpl implements AuthService {
         );
 
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
 
         if (!"ACTIVE".equals(user.getStatus())) {
-            throw new RuntimeException("Account is not active");
+            throw new InvalidAccountException("Account is not active");
         }
 
         String jwtToken = jwtService.generateToken(user);

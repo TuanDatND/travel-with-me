@@ -1,7 +1,7 @@
 package com.coc.sba_treektour.modules.branch.service;
 
-import com.coc.sba_treektour.modules.branch.dto.StaffRequest;
-import com.coc.sba_treektour.modules.branch.dto.StaffResponse;
+import com.coc.sba_treektour.modules.branch.dto.request.StaffRequest;
+import com.coc.sba_treektour.modules.branch.dto.response.StaffResponse;
 import com.coc.sba_treektour.modules.branch.entity.Staff;
 
 import java.util.List;
