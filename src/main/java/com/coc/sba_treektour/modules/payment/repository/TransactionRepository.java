@@ -15,6 +15,21 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface TransactionRepository extends JpaRepository<Transaction, Long> {
+    @Query("select coalesce(sum(t.amount), 0) from Transaction t where t.participant.id = :participantId and t.transactionType = :type and t.status = :status")
+    BigDecimal participantTotal(@Param("participantId") Long participantId, @Param("type") String type,
+            @Param("status") TransactionStatus status);
+
+    @Query("""
+            select t from Transaction t left join t.order o left join o.user u left join t.participant p
+            where t.transactionType = 'REFUND' and t.paymentMethod = 'MANUAL'
+              and (u.id = :userId or p.userId = :userId)
+            order by t.id desc
+            """)
+    List<Transaction> findMyManualRefunds(@Param("userId") Long userId, Pageable page);
+
+    List<Transaction> findByTransactionTypeAndPaymentMethodAndStatusOrderByIdDesc(
+            String type, String method, TransactionStatus status, Pageable page);
+
     interface OrderBalanceTotals {
         Long getOrderId();
         BigDecimal getReceived();
