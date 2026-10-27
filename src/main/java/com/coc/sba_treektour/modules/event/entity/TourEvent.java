@@ -1,8 +1,29 @@
 package com.coc.sba_treektour.modules.event.entity;
 
-import jakarta.persistence.*;
+import com.coc.sba_treektour.modules.event.enums.EventStatus;
+import com.coc.sba_treektour.modules.event.enums.EventType;
+
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
+import jakarta.persistence.OrderBy;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
+
+import lombok.AccessLevel;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
+
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -11,7 +32,7 @@ import java.util.List;
 @Entity
 @Table(name = "tour_events")
 @Getter
-@Setter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class TourEvent {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -19,23 +40,29 @@ public class TourEvent {
     private Long id;
 
     @Column(name = "event_name", nullable = false, length = 200)
+    @Setter
     private String eventName;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "event_type", nullable = false, length = 50)
+    @Setter
     private EventType eventType;
 
     @Column(columnDefinition = "TEXT")
+    @Setter
     private String description;
 
     @Column(columnDefinition = "TEXT")
+    @Setter
     private String location;
 
     @Column(name = "base_price", nullable = false, precision = 18, scale = 2)
+    @Setter
     private BigDecimal basePrice;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
+    @Setter
     private EventStatus status = EventStatus.DRAFT;
 
     @Column(name = "created_at", nullable = false, updatable = false)
@@ -54,6 +81,13 @@ public class TourEvent {
     @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("id ASC")
     private List<EventImage> images = new ArrayList<>();
+
+    /** Khởi tạo nội dung nháp với tên, loại và giá; ID và timestamp do DB/JPA sinh. */
+    public TourEvent(String eventName, EventType eventType, BigDecimal basePrice) {
+        this.eventName = eventName;
+        this.eventType = eventType;
+        this.basePrice = basePrice;
+    }
 
     /** Gán thời điểm tạo và cập nhật khi tour được lưu lần đầu. */
     @PrePersist

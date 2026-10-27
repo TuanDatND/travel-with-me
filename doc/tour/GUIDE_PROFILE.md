@@ -91,3 +91,19 @@ Frontend: nhánh `feature/guide-account-registration` trong repo `travel-with-me
 Kiểm chứng sau nối tài khoản: compileJava + **135 tests PASS**; 5 test mới kiểm tra tạo role GUIDE, mật khẩu hash, email trùng, validation/quyền và rollback user khi ghi guide lỗi. Frontend `npm run build` và `npm run lint` PASS. Chưa gọi API tạo tài khoản trên DB chung, chưa gửi email thật, chưa áp dụng migration Supabase hoặc restart backend đang chạy.
 
 Cập nhật main ngày 2026-10-24: BE `2fa8f62`, FE `a4a6a02`, giữ các thay đổi local; không conflict. compileJava + 136 tests PASS; FE build/lint PASS. Backup thay đổi trước pull được giữ trong stash ở mỗi repo. Backend đang chạy chưa restart theo main mới.
+
+
+## Chuẩn hóa cấu trúc 2026-10-24
+
+Nhánh hiện tại: `feature/tour-guide-structure`, từ main `3df868f`. Các endpoint, dữ liệu hồ sơ, migration và luồng cấp tài khoản/ảnh giữ nguyên.
+
+- `GuideService`, `GuideRegistrationService` là interface tại `tour/service`; implementation tại `tour/service/impl` dùng Lombok constructor injection.
+- DTO tách từng record trong `tour/dto/request` và `tour/dto/response`; không còn lớp gom `TourDtos`.
+- `GuideStatus` chuyển `tour/enums`; lỗi/handler chuyển `tour/exception`; query tài khoản ở `tour/repository/AccountReadRepository`.
+- `CloudinaryImageStorage` chuyển `event/storage`, `ImageValidator` ở `event/validator`; không thêm interface/impl cho helper không chứa nghiệp vụ công khai.
+- Guide cũ giữ nguyên ID/userId/status và dữ liệu profile. Không chạy/sửa migration Supabase trong bước chuẩn hóa.
+- `GuideRegistrationResponse.temporaryPassword` là contract đã có cho ADMIN cấp tài khoản một lần; giữ nguyên để không phá FE, không dùng trong public GET. Đây là ngoại lệ có chủ đích cho quy tắc DTO không chứa mật khẩu tài khoản.
+
+Kết quả: compileJava + compileTestJava + 147 tests PASS trên PostgreSQL local riêng. Frontend không sửa source trong bước này; chỉ giữ thay đổi có sẵn và kiểm tra tương thích. Backend đang chạy không restart tự động theo refactor.
+
+Frontend `npm run lint` và `npm run build` đều PASS sau khi kiểm tra tương thích. Khi chạy backend mới sau đổi package, rebuild output IDE/Gradle để loại class cũ; không bật bean overriding.

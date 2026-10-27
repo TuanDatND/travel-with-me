@@ -4,7 +4,7 @@ import com.coc.sba_treektour.modules.account.entity.User;
 import com.coc.sba_treektour.modules.schedule.entity.EventParticipant;
 import com.coc.sba_treektour.modules.schedule.entity.EventSchedule;
 import com.coc.sba_treektour.modules.schedule.repository.ScheduleIntegrationRepository;
-import com.coc.sba_treektour.modules.tour.entity.GuideStatus;
+import com.coc.sba_treektour.modules.tour.enums.GuideStatus;
 import com.coc.sba_treektour.modules.tour.service.GuideService;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;

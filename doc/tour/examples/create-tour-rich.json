@@ -1,0 +1,54 @@
+{
+  "eventName": "Tà Năng – Đồi cỏ và cắm trại",
+  "eventType": "TREKKING",
+  "description": "Đi bộ qua đồi cỏ và cắm trại; lịch trình minh họa để kiểm thử, cần xác nhận nội dung thực địa trước khi công bố.",
+  "location": "Lâm Đồng",
+  "basePrice": 1500000,
+  "details": {
+    "durationMinutes": 2880,
+    "difficultyLevel": "MODERATE",
+    "meetingPoint": "Điểm tập trung Đà Lạt",
+    "requirements": "Sức khỏe phù hợp, mang giày trekking và đồ cá nhân.",
+    "itinerary": [
+      {
+        "day": 1,
+        "title": "Vượt đồi cỏ",
+        "summary": "Di chuyển đến điểm cắm trại.",
+        "distanceKm": "8–10 km",
+        "elevation": "Lên khoảng 450 m",
+        "highlights": [
+          "Đồi cỏ",
+          "Ngắm hoàng hôn"
+        ],
+        "activities": [
+          {
+            "time": "07:00 – 08:00",
+            "title": "Tập trung và kiểm tra trang bị",
+            "location": "Đà Lạt",
+            "description": "Hướng dẫn viên phổ biến nội quy.",
+            "icon": "meet"
+          }
+        ]
+      },
+      {
+        "day": 2,
+        "title": "Trở về điểm đón",
+        "summary": "Thu dọn trại và trở về.",
+        "distanceKm": "5 km",
+        "elevation": "Xuống khoảng 450 m",
+        "highlights": [],
+        "activities": []
+      }
+    ],
+    "packingItems": [
+      {
+        "text": "Giày trekking",
+        "required": true
+      },
+      {
+        "text": "Kính râm",
+        "required": false
+      }
+    ]
+  }
+}

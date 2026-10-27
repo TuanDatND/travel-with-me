@@ -1,6 +1,6 @@
 # TerraPeak Outpost — Tour & guide API
 
-Module 4, integration test branch `feature/tour-auth-integration` (tour + member 1 JWT). Backend only; controllers use `/api`.
+Module 4, nhánh chuẩn hóa `feature/tour-guide-structure` từ main `3df868f` (2026-10-24). Backend cung cấp `/api`; frontend nằm trong repo riêng. Chuẩn cấu trúc: [PROJECT_STRUCTURE.md](../PROJECT_STRUCTURE.md).
 
 ## Shared response format
 
@@ -28,7 +28,7 @@ An event is reusable content, not one departure. Public guide profiles do not im
 
 Requires Java 25, PostgreSQL and the shared Account/Branch/Order tables expected by existing JPA entities.
 
-- For a new local development database, the team's `doc/erd_postgresql.sql` creates the shared baseline. Run it only on an empty database, then enable `FLYWAY_BASELINE_ON_MIGRATE=true` for initial onboarding. Do not run the full SQL as this module's migration.
+- Database PostgreSQL trống dùng Flyway với `FLYWAY_ENABLED=true`; V1/V3/V4/V5 và các migration phiên bản ngày được chạy theo lịch sử. Không import lại ERD hoặc sửa migration đã chạy trên DB nhóm.
 - Flyway `V2026100901__tour_and_guide.sql` owns only `tour_events`, `event_details`, `event_images`, `tour_guides`. On a fresh schema, Account must create `users` first. On a schema created from the shared ERD, it adds the Cloudinary field, constraints and indexes without replacing existing tables/data.
 - PKs: `event_id`, `event_detail_id`, `image_id`, `guide_id` (`BIGINT` identity). Internal FKs: details/images → event; details is one-to-one. External FK: guides → users, exposed as scalar `Long userId` until Account is READY_TO_MAP.
 - `event_images.cloudinary_public_id` is nullable to support legacy ERD images. New uploads always save the asset identifier; it is never returned to clients.
@@ -41,7 +41,7 @@ Run `bash gradlew bootRun`. The Gradle wrapper currently has no executable bit, 
 
 ## Authentication — JWT integration test branch
 
-This branch is based on `main` at `eabe66f`, including member 1's latest JWT and EAGER role loading unchanged. Tour reuses the JWT service/filter with an account-status guard that rejects inactive/blocked accounts. It does not change Account code or schema. The temporary fallback security chain is removed; member 1 owns authentication for other modules.
+Nhánh chuẩn hóa dựa trên main `3df868f`; giữ nguyên JWT và cách tải role của member 1. Tour reuses the JWT service/filter with an account-status guard that rejects inactive/blocked accounts. It does not change Account code or schema. The temporary fallback security chain is removed; member 1 owns authentication for other modules.
 
 1. POST `/api/auth/login` with `email` and `password`.
 2. Read `data.token`.
@@ -72,10 +72,13 @@ See [JWT_TEST.md](JWT_TEST.md) for local commands. The integration is for local 
 | GET | `/api/admin/guides` | All professional profiles |
 | GET | `/api/admin/guides/{guideId}` | Administrative profile |
 | POST | `/api/admin/guides` | Add specialization for an existing active account |
-| PUT | `/api/admin/guides/{guideId}` | Replace years of experience/specialization |
+| POST | `/api/admin/guides/with-account` | Create a GUIDE account and profile together |
+| PUT | `/api/admin/guides/{guideId}` | Replace experience/specialization/bio/languages |
+| PUT | `/api/admin/guides/{guideId}/avatar` | Upload/replace avatar (multipart file) |
+| DELETE | `/api/admin/guides/{guideId}/avatar` | Delete avatar |
 | PATCH | `/api/admin/guides/{guideId}/status` | Activate/deactivate profile |
 
-Create/upload returns 201; delete image returns 204; other successes return 200. Tour and guide deletion is intentionally replaced by archive/deactivation to preserve schedule references.
+Tạo event/guide/tài khoản kèm guide và upload ảnh event trả 201; upload/thay avatar trả 200; xóa ảnh event/avatar trả 204; các thao tác thành công khác trả 200. Tour and guide deletion is intentionally replaced by archive/deactivation to preserve schedule references.
 
 ### Filters and pagination
 
@@ -96,7 +99,7 @@ Guides: case-insensitive `specialization` substring; admin also accepts `status`
   "eventName": "Trekking Ta Nang — Phan Dung",
   "eventType": "TREKKING",
   "description": "Two days trekking with an overnight camp.",
-  "location": "Lam Dong — Binh Thuan",
+  "location": "Lâm Đồng",
   "basePrice": 1500000.00,
   "details": {
     "durationMinutes": 2880,
@@ -145,17 +148,17 @@ Create:
 {"userId":123,"experienceYears":3,"specialization":"Mountain trekking"}
 ```
 
-Use an existing active userId; 123 is only a placeholder. Each profile has one nonblank specialization (≤1,000 characters) and integer experienceYears ≥0. Distinct specializations may reference the same account; case-insensitive duplicates after trimming are rejected by the existing DB unique index (409), without an extra preflight query. New profiles are ACTIVE. PUT accepts only experienceYears/specialization; userId is immutable.
+Use an existing active userId; 123 is only a placeholder. Each profile has one nonblank specialization (≤1,000 characters) and integer experienceYears ≥0. Distinct specializations may reference the same account; case-insensitive duplicates after trimming are rejected by the existing DB unique index (409), without an extra preflight query. New profiles are ACTIVE. PUT nhận experienceYears/specialization/bio/languages; userId không thay đổi. Bio tùy chọn ≤5.000 ký tự; languages tùy chọn, tối đa 10 tên không trống, mỗi tên ≤50 ký tự. Bỏ hai trường mới trong PUT sẽ đưa chúng về null/[], không tác động avatar.
 
 Status PATCH accepts `ACTIVE`/`INACTIVE`. Activation requires an active account. Inactive guide/account profiles are hidden publicly.
 
 Public response data:
 
 ```json
-{"guideId":12,"displayName":"Nguyen An","experienceYears":3,"specialization":"Mountain trekking"}
+{"guideId":12,"displayName":"Nguyen An","experienceYears":3,"specialization":"Mountain trekking","bio":null,"languages":[],"avatarUrl":null}
 ```
 
-Admin response additionally includes userId and status. Neither response exposes email, phone, password or role. Names/account status are read through a read-only adapter selecting only user_id, full_name, status. Replace that adapter with Account's published read contract when ready.
+Admin response additionally includes userId and status. GET guide không lộ email, phone, password, role hoặc avatarPublicId. Tên/trạng thái tài khoản được đọc theo lô qua `tour.repository.AccountReadRepository`, chỉ SELECT user_id/full_name/status; kiểm tra active thuộc GuideServiceImpl. Luồng ADMIN tạo tài khoản mới là ngoại lệ: POST `/api/admin/guides/with-account` trả email/mật khẩu tạm một lần theo contract đã chốt, Cache-Control no-store; chi tiết tại [GUIDE_PROFILE.md](GUIDE_PROFILE.md).
 
 ## Errors and integration contracts
 
@@ -180,19 +183,99 @@ These are lookups, not reservations or schedule validators. Module 5 must requir
 
 Tests cover anonymous browsing, admin/customer/anonymous permissions, JWT stateless writes, draft/publish/archive, validation/filters/pagination, image IDs and ownership, storage errors, rollback compensation, guide privacy/active accounts and duplicate specialization at both service and DB level.
 
-Live Cloudinary calls still require a manual smoke test with configured credentials. The implementation does not supply a UI, login/account API, schedules, registrations or payments.
+Live Cloudinary calls still require a manual smoke test with configured credentials. Frontend tour/guide được triển khai ở repo riêng. Module 4 tái sử dụng dịch vụ Account để tạo guide kèm tài khoản; lịch/đăng ký và thanh toán do module 5/6 sở hữu.
 
 JWT integration adds real login checks for ADMIN, CUSTOMER, STAFF and GUIDE, rejection of disabled/blocked accounts and invalid tokens. 19 tests pass on a separate PostgreSQL database.
 
 
-## Cấu trúc package sau khi tách event / tour (2026-10-10)
+## Cấu trúc chuẩn hóa theo docs nhóm (2026-10-24)
 
-- `event/controller`: `AdminEventController`, `PublicEventController` quản lý `/api/admin/events` và `/api/events`.
-- `event/dto`, `event/entity`, `event/repository`, `event/service`: nội dung tour/sự kiện, chi tiết, ảnh, enum loại/trạng thái/độ khó và Cloudinary.
-- `tour/controller`: `AdminGuideController`, `PublicGuideController` quản lý `/api/admin/guides` và `/api/guides`.
-- `tour/dto`, `tour/entity`, `tour/repository`, `tour/service`: hồ sơ hướng dẫn viên và đọc tài khoản. `TourDtos.PageResponse`, `TourQueries`, `TourException` được dùng chung trong phạm vi member 4.
-- `tour/config/TourSecurityConfig` và `tour/controller/TourExceptionHandler` tiếp tục áp dụng chung cho event, guide và các điểm nối schedule/participant; không nhân đôi cấu hình bảo mật.
+```text
+modules/event/
+  controller/                 AdminEventController, PublicEventController
+  dto/request/                EventInput, DetailsInput, EventStatusInput, ImageDescriptionInput
+  dto/response/               EventResponse, DetailsResponse, EventSummary, ImageResponse, EventReference
+  entity/                     TourEvent, EventDetail, EventImage
+  enums/                      EventType, EventStatus, DifficultyLevel
+  repository/                 EventRepository, ImageRepository
+  service/EventService.java   interface
+  service/impl/               EventServiceImpl
+  storage/                    CloudinaryImageStorage
+  validator/                  ImageValidator
+modules/tour/
+  controller/                 AdminGuideController, PublicGuideController
+  dto/request/                GuideCreateInput, GuideUpdateInput, GuideStatusInput, GuideRegistrationInput
+  dto/response/               AdminGuideResponse, PublicGuideResponse, GuideReference,
+                              GuideRegistrationResponse, PageResponse
+  entity/                     TourGuide
+  enums/                      GuideStatus
+  repository/                 GuideRepository, AccountReadRepository
+  service/                    GuideService, GuideRegistrationService (interfaces)
+  service/impl/               GuideServiceImpl, GuideRegistrationServiceImpl
+  exception/                  TourException, TourExceptionHandler
+  config/                     TourSecurityConfig
+  util/                       TourQueries
+```
 
-`event` chứa cả TREKKING và CAMPING, phân biệt bằng `eventType`; đây là tách package code, không tách dữ liệu thành hai nghiệp vụ độc lập. Endpoint, HTTP method, JSON, quyền, cấu hình `tour.cloudinary.*`, bảng/cột/PK/FK và migration giữ nguyên. Swagger đổi nhóm controller sang event/guide; bookmark dựa trên tên controller cũ cần mở lại.
+Controller/module khác inject interface, implementation dùng `@RequiredArgsConstructor` và `@Override`. Transaction đọc/ghi được giữ trong implementation. Criteria và JDBC query nằm trong repository sở hữu đầu đọc. Không tạo interface giả cho storage/validator/util. Entity dùng `@Getter`, constructor JPA protected, constructor nghiệp vụ và setter cần thiết; ID/timestamp không cho sửa qua setter.
 
-Module 5 dùng `event.service.EventService` và `event.entity.EventStatus`; chỉ cập nhật import trong `ScheduleService` và `ParticipantService`, không sửa nghiệp vụ lịch/đăng ký.
+Test thuộc `src/test/java/com/coc/sba_treektour/modules/tour`, package khớp đường dẫn; unit test được khởi tạo Impl với mock, controller/service thực tế không phụ thuộc Impl.
+
+Refactor không đổi endpoint, JSON, HTTP status, field, validation, enum values, bảng/cột/PK/FK hoặc migration. `DetailsResponse` tách khỏi request nhưng giữ các field JSON cũ. Java caller cập nhật import DTO/enum/exception theo package mới. Schedule chỉ đổi import EventStatus/GuideStatus; không sửa nghiệp vụ module 5. Event/GuideReference vẫn giữ cùng field và cùng ý nghĩa.
+
+`event` vẫn chứa TREKKING/CAMPING, phân biệt bằng eventType; `tour` chứa hồ sơ hướng dẫn viên và cấu hình/tiện ích dùng chung trong phạm vi member 4. TourExceptionHandler vẫn xử lý các controller event/tour/schedule; phân quyền JWT giữ nguyên.
+
+Kết quả chuẩn hóa: compileJava + compileTestJava + **147 tests PASS** trên PostgreSQL local riêng; frontend `npm run lint` và `npm run build` PASS. Kiểm tra tự động xác nhận mapping endpoint/method và header DTO (field/validation) giữ nguyên, migrations không đổi; ngoài module 4 chỉ sửa import.
+
+Sau khi di chuyển package, cần rebuild sạch output biên dịch của IDE/Gradle trước khi chạy lại để tránh Spring quét class cũ gây trùng bean. Không bật bean overriding để che lỗi. Lần refactor này dùng build output riêng `build/tour-structure-verification`, không restart backend đang chạy hoặc chạy migration DB nhóm.
+
+
+## Nội dung chi tiết theo FE mới — 2026-10-24
+
+Nhánh `feature/tour-detailed-content`. POST `/api/admin/events` và PUT
+`/api/admin/events/{eventId}` giữ các trường cũ, bổ sung trong `details`:
+
+| Trường | Nội dung và giới hạn |
+| --- | --- |
+| `itinerary` | Danh sách tối đa 30 ngày; thứ tự `day` bắt đầu từ 1, liên tục, không trùng |
+| `itinerary[].title` | Tên chặng bắt buộc, tối đa 200 ký tự |
+| `itinerary[].summary` | Tóm tắt ngày, tối đa 2.000 ký tự |
+| `itinerary[].distanceKm`, `elevation` | Chuỗi hiển thị có đơn vị, tối đa 100 ký tự, ví dụ `8–10 km`, `Lên 450 m`; không dùng tính giá hay kiểm tra sức khỏe |
+| `itinerary[].highlights` | Tối đa 20 ý, mỗi ý không rỗng và tối đa 300 ký tự |
+| `itinerary[].activities` | Tối đa 50 hoạt động, giữ thứ tự nhập |
+| `activities[].time`, `title` | Bắt buộc; tối đa 100/200 ký tự. `time` là mốc tương đối trong ngày như `07:00 – 08:00`, không phải ngày khởi hành |
+| `activities[].location`, `description` | Địa điểm cụ thể/mô tả; tối đa 1.000/2.000 ký tự |
+| `activities[].icon` | `meet`, `hike`, `food`, `summit`, `camp`, `rest`, `flag`; không gửi/null mặc định `hike` |
+| `packingItems` | Tối đa 100 mục; `text` bắt buộc, tối đa 1.000 ký tự; `required` bắt buộc là boolean |
+
+Mẫu JSON đầy đủ: [examples/create-tour-rich.json](examples/create-tour-rich.json).
+Sau khi tạo vẫn là DRAFT; thêm ảnh rồi đổi trạng thái PUBLISHED như trước.
+GET admin/public chi tiết trả cùng nội dung mới; khách chỉ đọc tour PUBLISHED.
+Response lỗi lồng nhau vẫn là HTTP 400 `INVALID_INPUT`, kèm `data.fieldErrors`
+(ví dụ `details.itinerary[0].activities[0].title`). Ngày không liên tục trả 400
+với thông báo nghiệp vụ. Không thay đổi `EventReference` của member 5.
+
+**PUT thay toàn bộ nội dung:** FE phải tải và gửi đủ các trường muốn giữ.
+Danh sách bị bỏ qua/null được chuẩn hóa thành `[]`; gửi `[]` để xóa nội dung.
+Request cũ vẫn hợp lệ nhưng không giữ nội dung mới nếu client không gửi lại.
+`details: null` tiếp tục xóa toàn bộ chi tiết như contract cũ.
+
+Migration mới `V6__event_rich_content.sql` thêm đúng hai cột JSONB
+`event_details.itinerary`, `event_details.packing_items`, NOT NULL, mặc định `[]`.
+Tour cũ tự có danh sách rỗng. Không thay PK `event_detail_id`, FK unique `event_id`,
+bảng `tour_events`, `event_images`, enum hay schema Schedule/Account/Payment.
+Không sửa migration đã áp dụng. Cần migration này trước khi chạy backend mới.
+Đã kiểm thử với Flyway bật trên PostgreSQL local riêng; chưa áp dụng DB Supabase chung.
+
+FE có editor dùng chung cho tạo/sửa, tự đánh lại ngày sau khi xóa. Trang chi tiết
+đọc nội dung API, hiển thị đang cập nhật khi chưa có; không tự sinh lịch trình,
+cự ly, độ cao hay checklist. Số chỗ và hướng dẫn viên vẫn theo từng lịch khởi hành
+của member 5. Các cam kết dịch vụ chung đang là nội dung tĩnh của FE, không phải
+trường mới trong API tạo tour.
+
+Kiểm tra: compileJava + compileTestJava và **150 tests PASS** (0 skipped), gồm
+lưu/đọc JSONB sau khi clear persistence context, sửa rồi đọc lại, công bố/đọc công khai,
+ẩn nháp, giữ request cũ, xóa danh sách và từ chối dữ liệu lồng nhau sai/giới hạn.
+FE lint/build PASS. Đã thử tạo và sửa qua browser → API → DB local, rồi xem cả
+hai ngày và checklist trên trang khách. Ảnh cho bước công bố là fixture legacy local;
+không gọi Cloudinary hay gửi email thật trong lượt kiểm thử này.
