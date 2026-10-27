@@ -1,7 +1,7 @@
 package com.coc.sba_treektour.modules.payment.controller;
 
 import com.coc.sba_treektour.common.response.ApiResponse;
-import com.coc.sba_treektour.modules.payment.dto.TransactionHistoryPageResponse;
+import com.coc.sba_treektour.modules.payment.dto.response.TransactionHistoryPageResponse;
 import com.coc.sba_treektour.modules.payment.service.TransactionsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;

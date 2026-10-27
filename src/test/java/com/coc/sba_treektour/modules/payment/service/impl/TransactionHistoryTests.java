@@ -1,11 +1,11 @@
-package com.coc.sba_treektour.payment;
+package com.coc.sba_treektour.modules.payment.service.impl;
 
 import com.coc.sba_treektour.common.exception.GlobalExceptionHandler;
 import com.coc.sba_treektour.modules.payment.controller.TransactionController;
 import com.coc.sba_treektour.modules.payment.entity.Transaction;
 import com.coc.sba_treektour.modules.payment.enums.TransactionStatus;
 import com.coc.sba_treektour.modules.payment.repository.TransactionRepository;
-import com.coc.sba_treektour.modules.payment.service.TransactionsServiceImpl;
+import com.coc.sba_treektour.modules.payment.service.impl.TransactionsServiceImpl;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;

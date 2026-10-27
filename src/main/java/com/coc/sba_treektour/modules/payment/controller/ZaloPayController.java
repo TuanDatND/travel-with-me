@@ -1,8 +1,8 @@
 package com.coc.sba_treektour.modules.payment.controller;
 
 import com.coc.sba_treektour.common.response.ApiResponse;
-import com.coc.sba_treektour.modules.payment.dto.CreateZaloPayPaymentRequest;
-import com.coc.sba_treektour.modules.payment.dto.ZaloPayPaymentResponse;
+import com.coc.sba_treektour.modules.payment.dto.request.CreateZaloPayPaymentRequest;
+import com.coc.sba_treektour.modules.payment.dto.response.ZaloPayPaymentResponse;
 import com.coc.sba_treektour.modules.payment.service.TransactionsService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;

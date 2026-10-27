@@ -1,7 +1,7 @@
-package com.coc.sba_treektour.modules.payment.dto;
+package com.coc.sba_treektour.modules.payment.dto.response;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.coc.sba_treektour.modules.payment.enums.TransactionStatus;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import tools.jackson.databind.JsonNode;
 
 public record ZaloPayPaymentResponse(

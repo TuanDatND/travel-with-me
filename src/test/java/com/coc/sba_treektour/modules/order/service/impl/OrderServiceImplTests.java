@@ -4,7 +4,7 @@ import com.coc.sba_treektour.modules.order.dto.request.CreateOrderItemRequest;
 import com.coc.sba_treektour.modules.order.dto.request.CreateOrderRequest;
 import com.coc.sba_treektour.modules.order.exception.InvalidOrderException;
 import com.coc.sba_treektour.modules.order.service.OrderService;
-import com.coc.sba_treektour.modules.payment.dto.OrderPaymentBalance;
+import com.coc.sba_treektour.modules.payment.dto.response.OrderPaymentBalance;
 import com.coc.sba_treektour.modules.order.entity.Order;
 import com.coc.sba_treektour.modules.order.entity.OrderItem;
 import com.coc.sba_treektour.modules.order.enums.OrderStatus;

@@ -1,4 +1,4 @@
-package com.coc.sba_treektour.modules.payment.dto;
+package com.coc.sba_treektour.modules.payment.dto.response;
 
 import java.math.BigDecimal;
 

@@ -1,19 +1,35 @@
 package com.coc.sba_treektour.modules.payment.entity;
 
-import com.coc.sba_treektour.modules.payment.enums.TransactionStatus;
 import com.coc.sba_treektour.modules.order.entity.Order;
-import jakarta.persistence.*;
+import com.coc.sba_treektour.modules.payment.enums.TransactionStatus;
+import com.coc.sba_treektour.modules.schedule.entity.EventParticipant;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
-import lombok.*;
-import org.hibernate.annotations.ColumnDefault;
-
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import lombok.ToString;
+import org.hibernate.annotations.ColumnDefault;
 
 @Builder
 @AllArgsConstructor
-@NoArgsConstructor
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Getter
 @Setter
 @ToString
@@ -38,7 +54,7 @@ public class Transaction {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "participant_id")
     @ToString.Exclude
-    private com.coc.sba_treektour.modules.schedule.entity.EventParticipant participant;
+    private EventParticipant participant;
 
     public Long getParticipantId() { return participant == null ? null : participant.getId(); }
 

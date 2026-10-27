@@ -1,11 +1,12 @@
-package com.coc.sba_treektour.payment;
+package com.coc.sba_treektour.modules.payment.service.impl;
 
 import com.coc.sba_treektour.common.config.ZaloPayConfig;
-import com.coc.sba_treektour.modules.payment.dto.*;
+import com.coc.sba_treektour.modules.payment.dto.request.CreateZaloPayPaymentRequest;
 import com.coc.sba_treektour.modules.payment.entity.Transaction;
 import com.coc.sba_treektour.modules.payment.repository.TransactionRepository;
-import com.coc.sba_treektour.modules.payment.service.TransactionsServiceImpl;
+import com.coc.sba_treektour.modules.payment.service.impl.TransactionsServiceImpl;
 import jakarta.persistence.EntityManager;
+import com.coc.sba_treektour.modules.payment.service.ParticipantPaymentBridge;
 import org.junit.jupiter.api.*;
 import com.coc.sba_treektour.modules.order.entity.Order;
 import com.coc.sba_treektour.modules.order.enums.OrderStatus;
@@ -37,7 +38,7 @@ class OrderPaymentTests {
     User owner = User.builder().id(9L).email("owner@test.local").status("ACTIVE").build();
     TransactionTemplate template = mock(TransactionTemplate.class);
     EntityManager em = mock(EntityManager.class);
-    com.coc.sba_treektour.modules.payment.service.ParticipantPaymentBridge participantBridge = mock(com.coc.sba_treektour.modules.payment.service.ParticipantPaymentBridge.class);
+    ParticipantPaymentBridge participantBridge = mock(ParticipantPaymentBridge.class);
     ZaloPayConfig config = new ZaloPayConfig();
     RestClient.Builder builder = RestClient.builder();
     MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
