@@ -19,6 +19,11 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
+import java.util.List;
+
 @Entity
 @Table(name = "event_details")
 @Getter
@@ -50,6 +55,16 @@ public class EventDetail {
     @Column(columnDefinition = "TEXT")
     @Setter
     private String requirements;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(nullable = false, columnDefinition = "jsonb")
+    @Setter
+    private List<ItineraryDay> itinerary = List.of();
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "packing_items", nullable = false, columnDefinition = "jsonb")
+    @Setter
+    private List<PackingItem> packingItems = List.of();
 
     /** Tạo chi tiết gắn với nội dung tour; attachDetails giữ liên kết hai chiều. */
     public EventDetail(TourEvent event) {

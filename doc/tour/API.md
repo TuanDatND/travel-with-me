@@ -228,3 +228,54 @@ Refactor không đổi endpoint, JSON, HTTP status, field, validation, enum valu
 Kết quả chuẩn hóa: compileJava + compileTestJava + **147 tests PASS** trên PostgreSQL local riêng; frontend `npm run lint` và `npm run build` PASS. Kiểm tra tự động xác nhận mapping endpoint/method và header DTO (field/validation) giữ nguyên, migrations không đổi; ngoài module 4 chỉ sửa import.
 
 Sau khi di chuyển package, cần rebuild sạch output biên dịch của IDE/Gradle trước khi chạy lại để tránh Spring quét class cũ gây trùng bean. Không bật bean overriding để che lỗi. Lần refactor này dùng build output riêng `build/tour-structure-verification`, không restart backend đang chạy hoặc chạy migration DB nhóm.
+
+
+## Nội dung chi tiết theo FE mới — 2026-10-24
+
+Nhánh `feature/tour-detailed-content`. POST `/api/admin/events` và PUT
+`/api/admin/events/{eventId}` giữ các trường cũ, bổ sung trong `details`:
+
+| Trường | Nội dung và giới hạn |
+| --- | --- |
+| `itinerary` | Danh sách tối đa 30 ngày; thứ tự `day` bắt đầu từ 1, liên tục, không trùng |
+| `itinerary[].title` | Tên chặng bắt buộc, tối đa 200 ký tự |
+| `itinerary[].summary` | Tóm tắt ngày, tối đa 2.000 ký tự |
+| `itinerary[].distanceKm`, `elevation` | Chuỗi hiển thị có đơn vị, tối đa 100 ký tự, ví dụ `8–10 km`, `Lên 450 m`; không dùng tính giá hay kiểm tra sức khỏe |
+| `itinerary[].highlights` | Tối đa 20 ý, mỗi ý không rỗng và tối đa 300 ký tự |
+| `itinerary[].activities` | Tối đa 50 hoạt động, giữ thứ tự nhập |
+| `activities[].time`, `title` | Bắt buộc; tối đa 100/200 ký tự. `time` là mốc tương đối trong ngày như `07:00 – 08:00`, không phải ngày khởi hành |
+| `activities[].location`, `description` | Địa điểm cụ thể/mô tả; tối đa 1.000/2.000 ký tự |
+| `activities[].icon` | `meet`, `hike`, `food`, `summit`, `camp`, `rest`, `flag`; không gửi/null mặc định `hike` |
+| `packingItems` | Tối đa 100 mục; `text` bắt buộc, tối đa 1.000 ký tự; `required` bắt buộc là boolean |
+
+Mẫu JSON đầy đủ: [examples/create-tour-rich.json](examples/create-tour-rich.json).
+Sau khi tạo vẫn là DRAFT; thêm ảnh rồi đổi trạng thái PUBLISHED như trước.
+GET admin/public chi tiết trả cùng nội dung mới; khách chỉ đọc tour PUBLISHED.
+Response lỗi lồng nhau vẫn là HTTP 400 `INVALID_INPUT`, kèm `data.fieldErrors`
+(ví dụ `details.itinerary[0].activities[0].title`). Ngày không liên tục trả 400
+với thông báo nghiệp vụ. Không thay đổi `EventReference` của member 5.
+
+**PUT thay toàn bộ nội dung:** FE phải tải và gửi đủ các trường muốn giữ.
+Danh sách bị bỏ qua/null được chuẩn hóa thành `[]`; gửi `[]` để xóa nội dung.
+Request cũ vẫn hợp lệ nhưng không giữ nội dung mới nếu client không gửi lại.
+`details: null` tiếp tục xóa toàn bộ chi tiết như contract cũ.
+
+Migration mới `V6__event_rich_content.sql` thêm đúng hai cột JSONB
+`event_details.itinerary`, `event_details.packing_items`, NOT NULL, mặc định `[]`.
+Tour cũ tự có danh sách rỗng. Không thay PK `event_detail_id`, FK unique `event_id`,
+bảng `tour_events`, `event_images`, enum hay schema Schedule/Account/Payment.
+Không sửa migration đã áp dụng. Cần migration này trước khi chạy backend mới.
+Đã kiểm thử với Flyway bật trên PostgreSQL local riêng; chưa áp dụng DB Supabase chung.
+
+FE có editor dùng chung cho tạo/sửa, tự đánh lại ngày sau khi xóa. Trang chi tiết
+đọc nội dung API, hiển thị đang cập nhật khi chưa có; không tự sinh lịch trình,
+cự ly, độ cao hay checklist. Số chỗ và hướng dẫn viên vẫn theo từng lịch khởi hành
+của member 5. Các cam kết dịch vụ chung đang là nội dung tĩnh của FE, không phải
+trường mới trong API tạo tour.
+
+Kiểm tra: compileJava + compileTestJava và **150 tests PASS** (0 skipped), gồm
+lưu/đọc JSONB sau khi clear persistence context, sửa rồi đọc lại, công bố/đọc công khai,
+ẩn nháp, giữ request cũ, xóa danh sách và từ chối dữ liệu lồng nhau sai/giới hạn.
+FE lint/build PASS. Đã thử tạo và sửa qua browser → API → DB local, rồi xem cả
+hai ngày và checklist trên trang khách. Ảnh cho bước công bố là fixture legacy local;
+không gọi Cloudinary hay gửi email thật trong lượt kiểm thử này.

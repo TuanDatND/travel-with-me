@@ -1,13 +1,19 @@
 package com.coc.sba_treektour.modules.event.service.impl;
 
 import com.coc.sba_treektour.modules.event.dto.request.EventInput;
+import com.coc.sba_treektour.modules.event.dto.request.ItineraryDayInput;
+import com.coc.sba_treektour.modules.event.dto.response.ActivityResponse;
 import com.coc.sba_treektour.modules.event.dto.response.DetailsResponse;
 import com.coc.sba_treektour.modules.event.dto.response.EventReference;
 import com.coc.sba_treektour.modules.event.dto.response.EventResponse;
 import com.coc.sba_treektour.modules.event.dto.response.EventSummary;
 import com.coc.sba_treektour.modules.event.dto.response.ImageResponse;
+import com.coc.sba_treektour.modules.event.dto.response.ItineraryDayResponse;
+import com.coc.sba_treektour.modules.event.dto.response.PackingItemResponse;
 import com.coc.sba_treektour.modules.event.entity.EventDetail;
 import com.coc.sba_treektour.modules.event.entity.EventImage;
+import com.coc.sba_treektour.modules.event.entity.ItineraryDay;
+import com.coc.sba_treektour.modules.event.entity.PackingItem;
 import com.coc.sba_treektour.modules.event.entity.TourEvent;
 import com.coc.sba_treektour.modules.event.enums.DifficultyLevel;
 import com.coc.sba_treektour.modules.event.enums.EventStatus;
@@ -244,6 +250,11 @@ public class EventServiceImpl implements EventService {
             e.attachDetails(null);
             return;
         }
+        var days = i.details().itinerary();
+        for (int index = 0; index < days.size(); index++) {
+            if (days.get(index).day() != index + 1)
+                throw TourException.invalid("Itinerary days must be ordered consecutively from 1");
+        }
         EventDetail d = e.getDetails();
         if (d == null) {
             d = new EventDetail(e);
@@ -253,6 +264,53 @@ public class EventServiceImpl implements EventService {
         d.setDifficultyLevel(i.details().difficultyLevel());
         d.setMeetingPoint(i.details().meetingPoint());
         d.setRequirements(i.details().requirements());
+        d.setItinerary(days.stream().map(this::dayEntity).toList());
+        d.setPackingItems(
+                i.details().packingItems().stream()
+                        .map(item -> new PackingItem(item.text().trim(), item.required()))
+                        .toList());
+    }
+
+    /** Chuyển một ngày và các hoạt động từ request thành giá trị lưu JSONB. */
+    private ItineraryDay dayEntity(ItineraryDayInput day) {
+        return new ItineraryDay(
+                day.day(),
+                day.title().trim(),
+                day.summary(),
+                day.distanceKm(),
+                day.elevation(),
+                day.highlights(),
+                day.activities().stream()
+                        .map(
+                                a ->
+                                        new ItineraryDay.Activity(
+                                                a.time().trim(),
+                                                a.title().trim(),
+                                                a.location(),
+                                                a.description(),
+                                                a.icon() == null ? "hike" : a.icon()))
+                        .toList());
+    }
+
+    /** Chuyển nội dung đã lưu thành response, giữ nguyên thứ tự các hoạt động. */
+    private ItineraryDayResponse dayResponse(ItineraryDay day) {
+        return new ItineraryDayResponse(
+                day.day(),
+                day.title(),
+                day.summary(),
+                day.distanceKm(),
+                day.elevation(),
+                day.highlights(),
+                day.activities().stream()
+                        .map(
+                                a ->
+                                        new ActivityResponse(
+                                                a.time(),
+                                                a.title(),
+                                                a.location(),
+                                                a.description(),
+                                                a.icon()))
+                        .toList());
     }
 
     /** Kiểm tra chuỗi null, rỗng hoặc chỉ chứa khoảng trắng. */
@@ -275,7 +333,7 @@ public class EventServiceImpl implements EventService {
                 || e.getImages().isEmpty())
             throw TourException.conflict(
                     "Publishing requires description, location, duration, difficulty, meeting"
-                        + " point, requirements and an image");
+                            + " point, requirements and an image");
     }
 
     /** Chuyển entity ảnh thành response, không tiết lộ publicId nội bộ của Cloudinary. */
@@ -315,7 +373,14 @@ public class EventServiceImpl implements EventService {
                                 d.getDurationMinutes(),
                                 d.getDifficultyLevel(),
                                 d.getMeetingPoint(),
-                                d.getRequirements()),
+                                d.getRequirements(),
+                                d.getItinerary().stream().map(this::dayResponse).toList(),
+                                d.getPackingItems().stream()
+                                        .map(
+                                                item ->
+                                                        new PackingItemResponse(
+                                                                item.text(), item.required()))
+                                        .toList()),
                 e.getImages().stream().map(this::imageResponse).toList());
     }
 }

@@ -30,6 +30,8 @@ import com.coc.sba_treektour.modules.tour.repository.GuideRepository;
 import com.coc.sba_treektour.modules.tour.service.GuideService;
 import com.jayway.jsonpath.JsonPath;
 
+import jakarta.persistence.EntityManager;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -56,6 +58,7 @@ import java.util.UUID;
 @Transactional
 class TourApiIntegrationTests {
     @Autowired MockMvc mvc;
+    @Autowired EntityManager entityManager;
     @Autowired EventRepository events;
     @Autowired GuideRepository guides;
     @Autowired EventService eventService;
@@ -70,6 +73,156 @@ class TourApiIntegrationTests {
              "details":{"durationMinutes":2880,"difficultyLevel":"MODERATE",
                         "meetingPoint":"Outpost", "requirements":"Trekking shoes"}}
             """;
+
+    private final String richDetails =
+            """
+            {"durationMinutes":2880,"difficultyLevel":"MODERATE","meetingPoint":"Outpost",
+             "requirements":"Giày trekking", "itinerary":[
+              {"day":1,"title":"Vượt đồi cỏ","summary":"Đi bộ đến điểm cắm trại",
+               "distanceKm":"8–10 km","elevation":"Lên 450 m","highlights":["Đồi cỏ"],
+               "activities":[{"time":"07:00 – 08:00","title":"Tập trung","location":"Đà Lạt",
+                              "description":"Kiểm tra trang bị","icon":"meet"}]},
+              {"day":2,"title":"Trở về","activities":[{"time":"08:00","title":"Xuống núi"}]}
+             ],"packingItems":[{"text":"Giày trekking","required":true},
+                               {"text":"Kính râm","required":false}]}
+            """;
+
+    /** Ghép chi tiết vào request tour hợp lệ để kiểm tra đúng validation lồng nhau. */
+    private String contentRequest(String details) {
+        return "{\"eventName\":\"Tour nội"
+                + " dung\",\"eventType\":\"TREKKING\",\"basePrice\":1500000,\"description\":\"Hai"
+                + " ngày\",\"location\":\"Lâm Đồng\",\"details\":"
+                + details
+                + "}";
+    }
+
+    /** Lưu/đọc JSONB thật, sửa nội dung rồi công bố và kiểm tra response công khai. */
+    @Test
+    @WithMockUser(authorities = "ADMIN")
+    void detailedContentPersistsUpdatesAndIsPublicAfterPublishing() throws Exception {
+        long eventId =
+                id(
+                        mvc.perform(
+                                        post("/api/admin/events")
+                                                .contentType(MediaType.APPLICATION_JSON)
+                                                .content(contentRequest(richDetails)))
+                                .andExpect(status().isCreated())
+                                .andExpect(
+                                        jsonPath("$.data.details.itinerary[1].activities[0].icon")
+                                                .value("hike"))
+                                .andReturn(),
+                        "eventId");
+        entityManager.clear();
+        mvc.perform(get("/api/admin/events/{id}", eventId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.details.itinerary.length()").value(2))
+                .andExpect(jsonPath("$.data.details.itinerary[0].title").value("Vượt đồi cỏ"))
+                .andExpect(
+                        jsonPath("$.data.details.itinerary[0].activities[0].location")
+                                .value("Đà Lạt"))
+                .andExpect(jsonPath("$.data.details.packingItems[1].required").value(false));
+        mvc.perform(get("/api/events/{id}", eventId)).andExpect(status().isNotFound());
+        mvc.perform(
+                        put("/api/admin/events/{id}", eventId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(contentRequest(richDetails.replace("8–10 km", "9 km"))))
+                .andExpect(status().isOk());
+        entityManager.clear();
+        assertThat(
+                        jdbc.queryForObject(
+                                "SELECT itinerary #>> '{0,distanceKm}' FROM event_details WHERE"
+                                        + " event_id=?",
+                                String.class,
+                                eventId))
+                .isEqualTo("9 km");
+        // Ảnh legacy làm fixture; không đăng ký callback Cloudinary qua transaction của test.
+        jdbc.update(
+                "INSERT INTO event_images(event_id,image_url) VALUES (?,?)",
+                eventId,
+                "https://example.test/content.png");
+        entityManager.clear();
+        mvc.perform(
+                        patch("/api/admin/events/{id}/status", eventId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"status\":\"PUBLISHED\"}"))
+                .andExpect(status().isOk());
+        entityManager.clear();
+        mvc.perform(
+                        get("/api/events/{id}", eventId)
+                                .with(user("guest").authorities(() -> "CUSTOMER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.details.itinerary[0].distanceKm").value("9 km"))
+                .andExpect(jsonPath("$.data.details.packingItems[0].text").value("Giày trekking"));
+    }
+
+    /** Request cũ và danh sách null vẫn chạy; PUT danh sách rỗng xóa nội dung cũ rõ ràng. */
+    @Test
+    @WithMockUser(authorities = "ADMIN")
+    void oldRequestsRemainCompatibleAndEmptyListsClearContent() throws Exception {
+        long eventId =
+                id(
+                        mvc.perform(
+                                        post("/api/admin/events")
+                                                .contentType(MediaType.APPLICATION_JSON)
+                                                .content(fullEvent))
+                                .andExpect(status().isCreated())
+                                .andExpect(jsonPath("$.data.details.itinerary").isEmpty())
+                                .andExpect(jsonPath("$.data.details.packingItems").isEmpty())
+                                .andReturn(),
+                        "eventId");
+        mvc.perform(
+                        put("/api/admin/events/{id}", eventId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(contentRequest(richDetails)))
+                .andExpect(status().isOk());
+        mvc.perform(
+                        put("/api/admin/events/{id}", eventId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(contentRequest("{\"itinerary\":[],\"packingItems\":[]}")))
+                .andExpect(status().isOk());
+        entityManager.clear();
+        mvc.perform(get("/api/admin/events/{id}", eventId))
+                .andExpect(jsonPath("$.data.details.itinerary").isEmpty())
+                .andExpect(jsonPath("$.data.details.packingItems").isEmpty());
+        mvc.perform(
+                        post("/api/admin/events")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        contentRequest(
+                                                "{\"itinerary\":null,\"packingItems\":null}")))
+                .andExpect(status().isCreated());
+    }
+
+    /** Chặn số ngày sai thứ tự, phần tử null, thiếu dữ liệu và vượt giới hạn nội dung. */
+    @Test
+    @WithMockUser(authorities = "ADMIN")
+    void detailedContentRejectsInvalidNestedInput() throws Exception {
+        List<String> invalid =
+                List.of(
+                        richDetails.replace("\"day\":2", "\"day\":1"),
+                        richDetails.replace("\"day\":1", "\"day\":0"),
+                        richDetails.replace("\"icon\":\"meet\"", "\"icon\":\"unknown\""),
+                        richDetails.replace("\"title\":\"Tập trung\"", "\"title\":\"  \""),
+                        richDetails.replace("\"required\":true", "\"required\":null"),
+                        "{\"itinerary\":[null]}",
+                        "{\"packingItems\":[null]}",
+                        richDetails.replace(
+                                "\"highlights\":[\"Đồi cỏ\"]", "\"highlights\":[\" \"]"),
+                        "{\"itinerary\":["
+                                + "{\"day\":1,\"title\":\"Ngày\"},".repeat(30)
+                                + "{\"day\":1,\"title\":\"Ngày\"}]}",
+                        "{\"packingItems\":["
+                                + "{\"text\":\"Đồ\",\"required\":true},".repeat(100)
+                                + "{\"text\":\"Đồ\",\"required\":true}]}");
+        for (String details : invalid) {
+            mvc.perform(
+                            post("/api/admin/events")
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(contentRequest(details)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.data.code").value("INVALID_INPUT"));
+        }
+    }
 
     /** Tạo tài khoản mẫu cho mỗi bài kiểm thử; dữ liệu được rollback sau khi chạy. */
     @BeforeEach
