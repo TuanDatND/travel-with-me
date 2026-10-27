@@ -175,15 +175,43 @@ API bổ sung GET /api/payments/zalopay/participants/{participantId}/payment: ki
 cũng kiểm tra owner vé. Hủy giao dịch không hủy vé/giải phóng chỗ; lifecycle vé vẫn thuộc Member 5.
 FE tour chưa được nối trong mốc backend này; trang kết quả FE hiện chủ yếu hiển thị chi tiết gear.
 
-### Giới hạn database sau merge
+### Mapping hiện tại — rà soát 2026-10-28
 
-Tài liệu Member 5 ghi migration V5 cho expires_at/registration_reference và các bảng audit/review,
-nhưng source nhánh hiện tại chỉ có V1/V3/V4/V2026100901; không thấy file V5.
-Cần Member 5 đưa migration gốc lên repository hoặc xác nhận DB thử đã áp dụng migration đó trước khi chạy luồng tour.
-Payment không tạo thay migration thuộc Schedule. Chưa chạy migration Payment trên database chung.
+Transaction đã nối đầy đủ 2 FK có trong V1: order_id → Order và participant_id → EventParticipant,
+đều ManyToOne LAZY, không cascade. Hai association nullable vì mỗi transaction chỉ chọn một đích;
+constraint ck_transactions_target ở DB buộc đúng một FK khác NULL. Đây là mapping chính thức,
+không phải ID Long tạm. orderId/participantId Long trong DTO vẫn là contract JSON, không phải thiếu quan hệ.
+
+Không thêm FK User/Branch/Tour vào transactions: với Order đi qua user/branch; với Participant
+đi qua schedule để lấy userId/branchId/eventId theo contract module sở hữu. Không thêm inverse collection
+ở entity member khác chỉ để đủ sơ đồ, không đổi schema hoặc migration.
+
+V5__schedule_lifecycle_and_audit.sql đã có trong source hiện tại. Chưa xác nhận migration được áp dụng
+trên DB đang chạy. Payment không tạo migration thay Schedule và không thêm migration riêng cho mapping.
+Payment được ghi INTEGRATED trong MODULE_INTEGRATION_STATUS.md theo định nghĩa đã nối quan hệ và
+kiểm tra build. Đây không phải xác nhận mọi JPQL/concurrency/provider đã được thử trên DB thật.
 
 Xác minh mốc Participant: compileJava + 52 tests Payment/Order PASS (mock), gồm giá vé server/participantId, quyền owner, hạn vé, thứ tự khóa, identity nội bộ và khôi phục context, CONFIRMED/REVIEW_REQUIRED, lỗi xác nhận giữ SUCCEEDED và worker retry. Chưa chạy DB/provider thật.
 
-Mốc bỏ cột xác nhận: compileJava + 52 tests Payment/Order PASS (mock). Xác nhận lặp dùng contract idempotent của Member 5; lỗi xác nhận vẫn giữ SUCCEEDED. Query worker mới đọc confirmation_reference và schedule_payment_reviews chưa kiểm chứng trên PostgreSQL thật. Migration Payment chưa chạy lên database chung.
+Mốc bỏ cột xác nhận: compileJava + 52 tests Payment/Order PASS (mock). Xác nhận lặp dùng contract idempotent của Member 5; lỗi xác nhận vẫn giữ SUCCEEDED. Query worker mới đọc confirmation_reference và schedule_payment_reviews chưa kiểm chứng trên PostgreSQL thật. Không có migration riêng của Payment sau khi bỏ các cột snapshot/xác nhận.
 
 Return URL qua env: compileJava + 53 tests Payment/Order PASS (mock), gồm bỏ qua redirectUrl client và gửi/trả URL cấu hình kèm transactionId. Chưa thử redirect ZaloPay thực tế.
+
+## Manual refunds — 2026-10-28
+
+Khách CUSTOMER ACTIVE gửi yêu cầu hoàn toàn bộ số tiền thu ròng còn lại. Không nhận amount từ client.
+Không gọi ZaloPay; ADMIN ACTIVE xác nhận chỉ sau khi đã chuyển tiền ngoài hệ thống.
+
+- POST /api/payments/refunds, body {"orderId":5} hoặc {"participantId":7}: owner tạo REFUND/MANUAL/PENDING trong transactions hiện có. Gửi lặp khi có yêu cầu PENDING trả cùng bản ghi.
+- GET /api/payments/refunds/me?page=0&size=20: chỉ yêu cầu của chính khách.
+- GET /api/payments/refunds?page=0&size=20: ADMIN xem yêu cầu PENDING; không mở cho STAFF.
+- POST /api/payments/refunds/{id}/confirm, không body: ADMIN chuyển REFUND/MANUAL/PENDING → SUCCEEDED. Gọi lại SUCCEEDED trả bản ghi cũ.
+- Số tiền = SUM(PAYMENT SUCCEEDED) − SUM(REFUND SUCCEEDED), phải dương. Chặn khi còn PAYMENT PENDING; admin kiểm tra lại số dư và trạng thái khi xác nhận.
+- Cùng khóa Order trước Transaction, hoặc Schedule → Participant trước Transaction; không giữ khóa trong khi gọi provider vì luồng này không có provider.
+- MVP: Order chỉ PENDING/CANCELLED; vé chỉ CANCELLED/EXPIRED. Đơn đã duyệt/giao/hoàn tất cần nghiệp vụ hủy/trả của owner Order trước; không tự chỉnh Order/Schedule/tồn kho. Không tự hoàn phí từng phần.
+- Không tạo bảng/cột/migration, không đổi PK/FK/enum. PAYMENT gốc vẫn SUCCEEDED; ghi REFUND riêng để số dư Order/báo cáo trừ đúng tiền đã trả. PENDING chưa ảnh hưởng số dư.
+- created_at của REFUND là ngày yêu cầu; schema hiện chưa có thời điểm hoàn tất, người xác nhận hoặc chứng từ chuyển tiền. Không coi đây là báo cáo hoàn theo ngày chuyển tiền thực tế hoặc sổ chứng từ đầy đủ. Hoàn tiền thủ công ngoài transactions (xác nhận vé thủ công của Schedule) chưa được bao phủ.
+- FE: /refunds (khách), /admin/refunds (ADMIN); link từ My Orders và chi tiết vé đã hủy/hết hạn; nút xác nhận ghi rõ đã trả tiền bên ngoài, không giả lập chuyển tiền.
+- Không tự xử lý/đóng schedule_payment_reviews: hàng đối soát thuộc lifecycle vé; consumer và quy trình đóng review cần phối hợp Member 5.
+
+Verification: compileJava + compileTestJava và 71 tests Payment/Order PASS (11 tests hoàn tiền, bao gồm kiểm tra method security thật qua Spring proxy; phần repository dùng mock). FE lint/build PASS. Chưa chạy HTTP/JPQL/concurrency trên PostgreSQL thật; chưa thao tác database dùng chung hoặc chuyển tiền.
