@@ -13,8 +13,8 @@ import com.coc.sba_treektour.modules.schedule.exception.ScheduleConflictExceptio
 import com.coc.sba_treektour.modules.schedule.repository.*;
 import com.coc.sba_treektour.modules.schedule.security.ScheduleAccessPolicy;
 import com.coc.sba_treektour.modules.schedule.service.*;
-import com.coc.sba_treektour.modules.event.enums.EventStatus;
-import com.coc.sba_treektour.modules.event.service.EventService;
+import com.coc.sba_treektour.modules.tour.enums.EventStatus;
+import com.coc.sba_treektour.modules.tour.service.EventService;
 import java.time.OffsetDateTime;
 import java.util.List;
 import org.springframework.security.access.AccessDeniedException;

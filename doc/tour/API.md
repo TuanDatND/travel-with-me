@@ -188,30 +188,26 @@ Live Cloudinary calls still require a manual smoke test with configured credenti
 JWT integration adds real login checks for ADMIN, CUSTOMER, STAFF and GUIDE, rejection of disabled/blocked accounts and invalid tokens. 19 tests pass on a separate PostgreSQL database.
 
 
-## Cấu trúc chuẩn hóa theo docs nhóm (2026-10-24)
+## Cấu trúc package tour — cập nhật 2026-10-28
 
 ```text
-modules/event/
-  controller/                 AdminEventController, PublicEventController
-  dto/request/                EventInput, DetailsInput, EventStatusInput, ImageDescriptionInput
-  dto/response/               EventResponse, DetailsResponse, EventSummary, ImageResponse, EventReference
-  entity/                     TourEvent, EventDetail, EventImage
-  enums/                      EventType, EventStatus, DifficultyLevel
-  repository/                 EventRepository, ImageRepository
-  service/EventService.java   interface
-  service/impl/               EventServiceImpl
+modules/tour/
+  controller/                 AdminEventController, PublicEventController,
+                              AdminGuideController, PublicGuideController
+  dto/request/                EventInput, DetailsInput, ItineraryDayInput, ActivityInput,
+                              PackingItemInput, EventStatusInput, ImageDescriptionInput,
+                              GuideCreateInput, GuideUpdateInput, GuideStatusInput, GuideRegistrationInput
+  dto/response/               EventResponse, DetailsResponse, EventSummary, ImageResponse,
+                              ItineraryDayResponse, ActivityResponse, PackingItemResponse, EventReference,
+                              AdminGuideResponse, PublicGuideResponse, GuideReference,
+                              GuideRegistrationResponse, PageResponse
+  entity/                     TourEvent, EventDetail, EventImage, ItineraryDay, PackingItem, TourGuide
+  enums/                      EventType, EventStatus, DifficultyLevel, GuideStatus
+  repository/                 EventRepository, ImageRepository, GuideRepository, AccountReadRepository
+  service/                    EventService, GuideService, GuideRegistrationService (interfaces)
+  service/impl/               EventServiceImpl, GuideServiceImpl, GuideRegistrationServiceImpl
   storage/                    CloudinaryImageStorage
   validator/                  ImageValidator
-modules/tour/
-  controller/                 AdminGuideController, PublicGuideController
-  dto/request/                GuideCreateInput, GuideUpdateInput, GuideStatusInput, GuideRegistrationInput
-  dto/response/               AdminGuideResponse, PublicGuideResponse, GuideReference,
-                              GuideRegistrationResponse, PageResponse
-  entity/                     TourGuide
-  enums/                      GuideStatus
-  repository/                 GuideRepository, AccountReadRepository
-  service/                    GuideService, GuideRegistrationService (interfaces)
-  service/impl/               GuideServiceImpl, GuideRegistrationServiceImpl
   exception/                  TourException, TourExceptionHandler
   config/                     TourSecurityConfig
   util/                       TourQueries
@@ -223,7 +219,7 @@ Test thuộc `src/test/java/com/coc/sba_treektour/modules/tour`, package khớp 
 
 Refactor không đổi endpoint, JSON, HTTP status, field, validation, enum values, bảng/cột/PK/FK hoặc migration. `DetailsResponse` tách khỏi request nhưng giữ các field JSON cũ. Java caller cập nhật import DTO/enum/exception theo package mới. Schedule chỉ đổi import EventStatus/GuideStatus; không sửa nghiệp vụ module 5. Event/GuideReference vẫn giữ cùng field và cùng ý nghĩa.
 
-`event` vẫn chứa TREKKING/CAMPING, phân biệt bằng eventType; `tour` chứa hồ sơ hướng dẫn viên và cấu hình/tiện ích dùng chung trong phạm vi member 4. TourExceptionHandler vẫn xử lý các controller event/tour/schedule; phân quyền JWT giữ nguyên.
+`tour` chứa cả nội dung TREKKING/CAMPING (phân biệt bằng eventType), ảnh và hồ sơ hướng dẫn viên. Không còn package `modules.event`; giữ tên class Event* và endpoint `/api/events`, `/api/admin/events`. Java caller chuyển import từ `modules.event.*` sang `modules.tour.*`. TourExceptionHandler xử lý controller tour/schedule; phân quyền JWT giữ nguyên.
 
 Kết quả chuẩn hóa: compileJava + compileTestJava + **147 tests PASS** trên PostgreSQL local riêng; frontend `npm run lint` và `npm run build` PASS. Kiểm tra tự động xác nhận mapping endpoint/method và header DTO (field/validation) giữ nguyên, migrations không đổi; ngoài module 4 chỉ sửa import.
 

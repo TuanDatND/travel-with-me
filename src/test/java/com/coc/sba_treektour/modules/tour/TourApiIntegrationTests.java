@@ -18,12 +18,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.coc.sba_treektour.modules.event.entity.TourEvent;
-import com.coc.sba_treektour.modules.event.enums.EventStatus;
-import com.coc.sba_treektour.modules.event.enums.EventType;
-import com.coc.sba_treektour.modules.event.repository.EventRepository;
-import com.coc.sba_treektour.modules.event.service.EventService;
-import com.coc.sba_treektour.modules.event.storage.CloudinaryImageStorage;
+import com.coc.sba_treektour.modules.tour.entity.TourEvent;
+import com.coc.sba_treektour.modules.tour.enums.EventStatus;
+import com.coc.sba_treektour.modules.tour.enums.EventType;
+import com.coc.sba_treektour.modules.tour.repository.EventRepository;
+import com.coc.sba_treektour.modules.tour.service.EventService;
+import com.coc.sba_treektour.modules.tour.storage.CloudinaryImageStorage;
 import com.coc.sba_treektour.modules.tour.entity.TourGuide;
 import com.coc.sba_treektour.modules.tour.exception.TourException;
 import com.coc.sba_treektour.modules.tour.repository.GuideRepository;

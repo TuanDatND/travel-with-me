@@ -10,8 +10,8 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import com.coc.sba_treektour.modules.event.storage.CloudinaryImageStorage;
-import com.coc.sba_treektour.modules.event.validator.ImageValidator;
+import com.coc.sba_treektour.modules.tour.storage.CloudinaryImageStorage;
+import com.coc.sba_treektour.modules.tour.validator.ImageValidator;
 import com.coc.sba_treektour.modules.tour.entity.TourGuide;
 import com.coc.sba_treektour.modules.tour.repository.AccountReadRepository;
 import com.coc.sba_treektour.modules.tour.repository.GuideRepository;
