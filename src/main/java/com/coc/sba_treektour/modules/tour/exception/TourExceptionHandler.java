@@ -24,7 +24,6 @@ import java.util.Map;
 @RestControllerAdvice(
         basePackages = {
             "com.coc.sba_treektour.modules.tour.controller",
-            "com.coc.sba_treektour.modules.event.controller",
             "com.coc.sba_treektour.modules.schedule.controller"
         })
 public class TourExceptionHandler {

@@ -48,7 +48,6 @@ src/main/java/com/coc/sba_treektour/
     │       └── impl/
     │           └── OrderServiceImpl.java
     ├── payment/
-    ├── event/
     ├── tour/
     └── schedule/
 
@@ -206,7 +205,7 @@ Khảo sát source hiện có ngày 2026-10-24, không phải xác nhận các m
 | Order | Đã chuẩn hóa DTO, enums, exception, interface/impl và imports ở mốc này |
 | Payment | OrderPaymentQueryService đã có impl riêng; TransactionsServiceImpl còn ở service, cần owner chuyển vào service.impl và cập nhật test/import |
 | Product / Inventory | ProductService, InventoryService, RentalBookingService đang là concrete service; owner cần tách interface/impl |
-| Event / Tour | Đã chuẩn hóa trên feature/tour-guide-structure: EventService, GuideService, GuideRegistrationService là interface + service.impl; DTO request/response, enums/exception riêng; compile/test 147 PASS, API/schema giữ nguyên. |
+| Tour (gồm nội dung event và guide) | Đã gộp package event vào tour ngày 2026-10-28; giữ API/schema và cập nhật import Schedule. Đã chuẩn hóa trên feature/tour-guide-structure: EventService, GuideService, GuideRegistrationService là interface + service.impl; DTO request/response, enums/exception riêng; compile/test 147 PASS, API/schema giữ nguyên. |
 | Schedule | Có service interface/impl; owner rà các helper, DTO, enums và dependency liên module theo cùng checklist |
 
 Không suy ra code đúng chỉ vì đủ folder; phải kiểm tra trách nhiệm và dependency bên trong.

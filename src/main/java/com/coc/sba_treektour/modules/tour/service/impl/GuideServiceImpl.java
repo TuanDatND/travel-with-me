@@ -1,7 +1,7 @@
 package com.coc.sba_treektour.modules.tour.service.impl;
 
-import com.coc.sba_treektour.modules.event.storage.CloudinaryImageStorage;
-import com.coc.sba_treektour.modules.event.validator.ImageValidator;
+import com.coc.sba_treektour.modules.tour.storage.CloudinaryImageStorage;
+import com.coc.sba_treektour.modules.tour.validator.ImageValidator;
 import com.coc.sba_treektour.modules.tour.dto.request.GuideCreateInput;
 import com.coc.sba_treektour.modules.tour.dto.request.GuideUpdateInput;
 import com.coc.sba_treektour.modules.tour.dto.response.AdminGuideResponse;
