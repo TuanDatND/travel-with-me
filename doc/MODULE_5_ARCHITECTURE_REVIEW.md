@@ -64,3 +64,18 @@ using native @Query and interface projections rather than direct JDBC. Pageable 
 Spring Data after the SQL assignment scope. Native timestamp projections use Instant; DTO mapping
 uses UTC OffsetDateTime and payment checks compare instants. The PostgreSQL advisory transaction
 lock keeps its original key and requires an existing transaction. API/schema remain unchanged.
+
+## Legacy API retirement (2026-10-28)
+
+At the user's explicit request, the 11 legacy HTTP operations have been removed.
+The initial compatibility decision above is historical; only canonical endpoints
+are supported now. See MODULE_5_API_MIGRATION.md for the removed/replacement mapping.
+No schema or Payment backend contract changes.
+
+## Resource URI convention (2026-10-28)
+
+Per the user's naming requirement, Schedule endpoints have no me segments.
+Guide assignments are a JWT-scoped collection at /api/guide-assignments;
+/api/participants defaults to the authenticated user, with an authorized optional userId filter.
+Rescheduling/cancellation operations use reschedulings/cancellations resources;
+path parameters are scheduleId/participantId. No aliases or schema changes.

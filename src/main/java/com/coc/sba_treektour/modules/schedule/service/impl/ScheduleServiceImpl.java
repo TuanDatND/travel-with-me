@@ -4,7 +4,6 @@ import com.coc.sba_treektour.modules.schedule.config.ScheduleSettings;
 import com.coc.sba_treektour.modules.schedule.dto.request.CreateScheduleRequest;
 import com.coc.sba_treektour.modules.schedule.dto.request.PatchScheduleRequest;
 import com.coc.sba_treektour.modules.schedule.dto.request.RescheduleRequest;
-import com.coc.sba_treektour.modules.schedule.dto.request.UpdateScheduleRequest;
 import com.coc.sba_treektour.modules.schedule.dto.request.UpdateScheduleStatusRequest;
 import com.coc.sba_treektour.modules.schedule.dto.response.GuideScheduleResponse;
 import com.coc.sba_treektour.modules.schedule.dto.response.ScheduleHistoryResponse;
@@ -110,12 +109,6 @@ public class ScheduleServiceImpl implements ScheduleService {
         scheduleAccessPolicy.requireAssignedGuideOrManager(schedule);
         return guideScheduleRepository.findAssigned(scheduleAccessPolicy.userId(), id, null, SchedulePageRequests.of(0, 1)).stream()
                 .map(this::toGuideResponse).findFirst().orElseThrow(() -> new AccessDeniedException("Lịch không còn được phân công cho bạn"));
-    }
-
-    @Override
-    @Transactional
-    public ScheduleResponse update(Long id, UpdateScheduleRequest request) {
-        return updateLocked(locked(id), request.guideId(), request.maxParticipants());
     }
 
     @Override

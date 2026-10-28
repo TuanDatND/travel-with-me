@@ -1,125 +1,130 @@
-# Module 5 — API migration (mốc 4–5)
+# Module 5 — API naming và contract hiện tại
 
-Ngày: 2026-10-28. Package `modules.schedule`. Giữ `ApiResponse<T>`, JSON response,
-mảng `data`, enum lưu DB, PK/FK và migration. Không thêm `/v1` riêng cho module.
-API mới là contract ưu tiên; API cũ còn hoạt động để client chuyển dần.
+Cập nhật: 2026-10-28. Theo yêu cầu người dùng, URL module 5 không chứa `me`,
+`my-assignments` hoặc `assigned-to-me`. URI thể hiện tài nguyên; collection dùng danh từ
+số nhiều, subresource đơn như status/attendance/history giữ danh từ phù hợp.
+Không có alias hoặc operation deprecated. Đây là thay đổi HTTP breaking có chủ đích.
 
-## Bảng chuyển đổi
+Nguyên tắc tham khảo: [Microsoft REST API design](https://learn.microsoft.com/en-us/azure/architecture/best-practices/api-design).
+Việc không dùng `me` là quy ước cụ thể của module theo yêu cầu, không phải tuyên bố REST cấm từ này.
 
-Tiền tố chung `/api`. Các route không xuất hiện trong bảng giữ nguyên.
+## Danh sách endpoint chính thức
 
-| Legacy (còn hỗ trợ) | Canonical | Quyền |
+| Method | URI | Mục đích / quyền |
 | --- | --- | --- |
-| POST /schedules/{scheduleId}/register | POST /schedules/{scheduleId}/participants | CUSTOMER đăng ký chính JWT |
-| GET /schedules/my-assignments | GET /schedules/assigned-to-me | GUIDE đang hoạt động |
-| GET /schedules/my-assignments/{id} | GET /schedules/assigned-to-me/{id} | GUIDE đúng phân công |
-| GET /schedules/{id}/histories | GET /schedules/{id}/history | ADMIN, STAFF đúng branch, GUIDE được phân công |
-| PUT /schedules/{id} | PATCH /schedules/{id} | ADMIN, STAFF đúng branch; khác biệt partial update bên dưới |
-| GET /participants/by-user/{userId} | GET /participants?userId={userId} | Chính user, ADMIN; STAFF chỉ vé thuộc branch được quản lý |
-| — | GET /participants/me | ADMIN/STAFF/CUSTOMER; lấy userId từ JWT |
-| PATCH /participants/{id}/confirm-payment | POST /participants/{id}/manual-payment-confirmations | ADMIN, STAFF đúng branch |
-| PATCH /participants/{id}/check-in | PATCH /participants/{id}/attendance với CHECKED_IN | ADMIN, STAFF đúng branch, GUIDE được phân công |
-| PATCH /participants/{id}/no-show | PATCH /participants/{id}/attendance với NO_SHOW | Như check-in; giữ quy tắc cửa sổ điểm danh |
-| GET /participants/{id}/histories | GET /participants/{id}/history | Chủ vé, ADMIN, STAFF đúng branch |
-| GET /participants/payment-reviews | GET /schedule-payment-reviews | ADMIN; STAFF cần branchId đúng branch |
+| GET | /api/schedules | Lọc lịch công khai; giữ phạm vi tour ẩn của ADMIN/STAFF |
+| POST | /api/schedules | Tạo lịch; ADMIN/STAFF đúng chi nhánh |
+| GET | /api/schedules/{scheduleId} | Chi tiết lịch; giữ quy tắc xem tour |
+| PATCH | /api/schedules/{scheduleId} | Cập nhật guide/sức chứa; ADMIN/STAFF đúng chi nhánh |
+| POST | /api/schedules/{scheduleId}/reschedulings | Dời lịch, ghi history; ADMIN/STAFF đúng chi nhánh |
+| PATCH | /api/schedules/{scheduleId}/status | Đổi trạng thái có lý do; ADMIN/STAFF đúng chi nhánh |
+| GET | /api/schedules/{scheduleId}/history | Lịch sử; ADMIN/STAFF đúng chi nhánh/GUIDE được phân công |
+| GET | /api/guide-assignments | Danh sách phân công của GUIDE lấy từ JWT |
+| GET | /api/guide-assignments/{scheduleId} | Chi tiết lịch được phân công cho GUIDE hiện tại |
+| POST | /api/schedules/{scheduleId}/participants | CUSTOMER đăng ký chính mình |
+| GET | /api/schedules/{scheduleId}/participants | Roster; ADMIN/STAFF đúng chi nhánh/GUIDE được phân công |
+| GET | /api/participants | Mặc định vé của user từ JWT; userId tùy chọn để lọc có kiểm quyền |
+| GET | /api/participants/{participantId} | Chi tiết vé; chủ vé/ADMIN/STAFF đúng chi nhánh |
+| POST | /api/participants/{participantId}/cancellations | Hủy vé; chủ vé/ADMIN/STAFF đúng chi nhánh |
+| POST | /api/participants/{participantId}/manual-payment-confirmations | Xác nhận thủ công; ADMIN/STAFF đúng chi nhánh |
+| PATCH | /api/participants/{participantId}/attendance | Điểm danh; ADMIN/STAFF đúng chi nhánh/GUIDE được phân công |
+| GET | /api/participants/{participantId}/history | Lịch sử vé; chủ vé/ADMIN/STAFF đúng chi nhánh |
+| GET | /api/schedule-payment-reviews | Đối soát; ADMIN hoặc STAFF truyền branchId đúng chi nhánh |
 
-Các alias dùng cùng service nghiệp vụ, transaction, thứ tự khóa, history và chống lặp.
-Cùng một vé không thể giữ chỗ/xác nhận/ghi audit hai lần chỉ bằng đổi route.
-`POST /schedules`, GET danh sách/chi tiết lịch, POST reschedule, PATCH status,
-GET roster/chi tiết vé và POST cancel giữ nguyên.
+Swagger chia tag Schedules, Guide assignments, Participants, kèm operation summary.
+Placeholder dùng scheduleId/participantId; field JSON response `id` và các ID hiện tại không đổi.
+GuideAssignmentController vẫn thuộc module schedule, không sửa controller/service Tour.
+Assignment là view phân công của người đăng nhập, dùng scheduleId xác định mục; không thêm bảng/ID mới.
 
-## Request/response mới
+## Xác định người dùng và phân quyền
 
-### Cập nhật một phần lịch
+- GET /api/guide-assignments chỉ dành cho GUIDE active; backend lấy userId từ JWT,
+  áp dụng scope trước phân trang. Không nhận guideId/userId để giả danh người khác.
+- GET /api/participants không có userId: gọi findMine, trả vé của người đăng nhập.
+- GET /api/participants?userId=123: chủ user hoặc ADMIN xem; STAFF chỉ nhận vé thuộc
+  chi nhánh đang quản lý, lọc SQL trước phân trang; CUSTOMER đọc user khác trả 403.
+- Anonymous nhận 401 với các API bảo vệ. Chính sách service/resource không đổi.
+- Endpoint Account /api/users/me dùng để tải hồ sơ vẫn thuộc module Account;
+  lượt thay đổi này không đổi API Account hoặc cách frontend nạp phiên đăng nhập.
 
-`PATCH /api/schedules/{id}`, Content-Type `application/json`:
+## Request/response
+
+Giữ ApiResponse<T>, JSON fields, mảng data và các mã lỗi nghiệp vụ. List có page >= 0,
+size 1..100, default page=0/size=50; frontend dùng size=20.
+
+PATCH lịch nhận từng trường:
 
 ```json
 {"maxParticipants":20}
 ```
 
-- Bỏ `guideId`: giữ guide hiện tại. `guideId: null`: gỡ phân công. ID guide phải dương nếu truyền giá trị.
-- Bỏ `maxParticipants`: giữ sức chứa. Truyền giá trị phải >= 1 và không ít hơn số chỗ đang giữ.
-- `{}` hoặc `maxParticipants: null` trả 400. Không nhận các cờ presence nội bộ từ client.
-- Chỉ sửa trước khởi hành, kiểm tra guide ACTIVE/không trùng lịch và quyền branch như trước.
-- Khóa lịch trước khi hợp nhất các trường để tránh ghi đè dữ liệu từ request đồng thời.
-- HTTP 200, `ApiResponse<ScheduleResponse>`; không đổi field JSON.
+Bỏ guideId để giữ phân công; `{"guideId":null}` gỡ phân công; ID nếu truyền phải dương.
+Bỏ maxParticipants để giữ sức chứa; null/0, request rỗng hoặc sức chứa nhỏ hơn số chỗ
+đang giữ trả 400. Khóa lịch trước khi hợp nhất dữ liệu và kiểm tra nghiệp vụ.
 
-`PUT` cũ giữ contract cũ: maxParticipants bắt buộc; guideId null/bị bỏ qua đều gỡ phân công.
-Frontend hiện gửi cả guideId (có thể null) và maxParticipants qua PATCH nên giữ ý nghĩa form cũ.
-
-### Điểm danh
-
-`PATCH /api/participants/{id}/attendance`:
+POST reschedulings giữ request dời lịch:
 
 ```json
-{"status":"CHECKED_IN"}
+{"newStartDatetime":"2026-12-20T07:00:00+07:00","newEndDatetime":"2026-12-20T17:00:00+07:00","changeReason":"Weather"}
 ```
 
-Hoặc `{"status":"NO_SHOW"}`. Body/status bắt buộc; enum khác trả 400. Response HTTP 200,
-`ApiResponse<ParticipantResponse>`. Đây là enum request, không thêm giá trị enum schema.
-CHECKED_IN dùng checkInStatus; NO_SHOW dùng participantStatus theo nghiệp vụ hiện có.
-Không nhận trạng thái thanh toán/hoàn tất/hủy qua endpoint attendance.
+registrationClosesAt tùy chọn giữ logic cũ. Operation áp dụng đồng bộ, ghi history,
+trả HTTP 200 + ScheduleResponse; không thêm workflow bất đồng bộ hoặc resource DB mới.
 
-### Xác nhận thanh toán thủ công
-
-`POST /api/participants/{id}/manual-payment-confirmations`:
+POST cancellations giữ body tùy chọn cho chủ vé, quản lý hủy thay khách bắt buộc có lý do:
 
 ```json
-{"registrationReference":"UUID của lần đăng ký hiện tại","paymentReference":"BANK-RECEIPT-001"}
+{"reason":"Không thể tham gia"}
 ```
 
-HTTP 200 trả trạng thái vé, gồm cả lần gọi lặp cùng UUID/chứng từ. Không tạo ID biên nhận mới.
-Giữ kiểm tra thời hạn, UUID, chứng từ và chặn vé có giao dịch Payment; không gọi provider.
-Contract backend `ParticipantPaymentService.confirm` và authority SCHEDULE_PAYMENT giữ nguyên,
-không mở endpoint HTTP cho callback nội bộ này.
+Trả HTTP 200 + ParticipantResponse, giữ xử lý gọi lặp, hạn hủy/điểm danh và review thanh toán.
+Không xóa vé, không tự hoàn tiền.
 
-### Vé của tôi và lọc theo người dùng
+PATCH attendance nhận status CHECKED_IN hoặc NO_SHOW; body/status bắt buộc, giá trị khác trả 400.
+Response ParticipantResponse giữ nguyên checkInStatus/participantStatus theo nghiệp vụ cũ.
 
-`GET /api/participants/me?page=0&size=20` không cần userId. Backend dùng JWT;
-userId truyền thêm không thể đổi chủ thể. GET `/api/participants` bắt buộc query userId,
-thiếu trả 400; không cung cấp danh sách vé toàn hệ thống mặc định.
-Tất cả danh sách giữ `page >= 0`, `size` từ 1 tới 100, mặc định page=0/size=50;
-frontend gửi size=20. STAFF được lọc quyền trong SQL trước khi phân trang.
+POST manual-payment-confirmations giữ UUID/chứng từ:
 
-## Deprecation và triển khai
+```json
+{"registrationReference":"UUID hiện tại","paymentReference":"BANK-RECEIPT-001"}
+```
 
-- OpenAPI `/v3/api-docs` đánh dấu **chỉ 11 operation legacy** bằng `deprecated: true`,
-  mô tả route thay thế; operation canonical vẫn được công bố bình thường.
-- Không phát hành ngày Sunset hay xóa route trong đợt này. HTTP method/status/body cũ giữ nguyên.
-- Triển khai backend có alias trước, sau đó triển khai frontend dùng canonical routes.
-  Frontend mới cần backend mới; rollback frontend có thể dùng lại route legacy trên backend mới.
-- Chỉ xem xét xóa legacy trong một thay đổi breaking riêng sau khi kiểm kê mọi consumer,
-  owner FE/Payment xác nhận chuyển đổi và nhóm thống nhất lịch thông báo. Không suy ra
-  không còn consumer chỉ vì repo frontend hiện tại đã chuyển.
-- Không thay route Payment, logic callback/refund, schema, DB chung, cấu hình bảo mật module khác.
+Giữ validation thời hạn, UUID, chống lặp và chặn vé đã có transaction; HTTP 200 trả trạng thái vé.
+Contract backend ParticipantPaymentService.confirm và authority SCHEDULE_PAYMENT không đổi,
+không mở endpoint HTTP cho contract nội bộ này.
 
-## Frontend đã chuyển
+## Các URL đã loại bỏ
 
-Repo `travel-with-me-Frontend`: chỉ sửa `src/features/schedules/api.ts`, `api.test.ts`,
-`CustomerPages.tsx`. Client dùng canonical endpoints cho đăng ký, cập nhật lịch,
-assignment, vé cá nhân, điểm danh, xác nhận thủ công, lịch sử và review.
-MyTickets lấy danh sách từ JWT thay vì gửi userId; component có key theo tài khoản
-để reset dữ liệu khi đổi tài khoản. README đang có thay đổi của thành viên khác được giữ nguyên.
+Không có handler/alias cho 11 operation legacy trước đó: register, my-assignments (list/detail),
+histories (lịch/vé), PUT lịch, by-user, confirm-payment, check-in, no-show, participants/payment-reviews.
+Các URL trung gian schedules/assigned-to-me (list/detail), participants/me,
+schedules/{id}/reschedule và participants/{id}/cancel cũng đã loại bỏ.
+Không tạo endpoint guides/me/schedules hoặc users/me/participants.
 
-## Kiểm chứng
+Client phải chuyển sang bảng chính thức. API đã loại bỏ không thực thi nghiệp vụ;
+HTTP lỗi phụ thuộc method/path/security/xác thực, không cam kết một mã lỗi duy nhất.
+Backend đang chạy cần restart bản build mới và Swagger cần tải lại để thấy tên mới.
 
-- Compile Java/test: PASS.
-- Kiểm tra tập trung trước OpenAPI: 37 tests PASS (31 Schedule + 6 Payment bridge), 0 skipped.
-- FE: `npm run test:module5` 20 tests PASS; `npm run lint` và `npm run build` PASS.
-  Build có cảnh báo bundle > 500 kB hiện hữu.
-- Hồi quy cuối có test OpenAPI: **181 tests PASS** (32 Schedule, 59 Payment),
-  0 failures/errors/skipped, trên PostgreSQL 17.11 riêng `module5_api_final_20261028`.
-  Flyway áp dụng và validate đủ 9 migrations, validate-on-migrate=true, Hibernate ddl-auto=validate.
-- Test mới bao phủ contract mới/cũ, quyền anonymous/role/branch/guide/owner, PATCH absent/null,
-  query theo JWT, validation, audit/idempotence và đăng ký đồng thời hai route cho chỗ cuối.
-- MockMvc chạy filter/security/service/database thật trong test; API client FE dùng fetch giả
-  để kiểm tra method/path/body. Chưa kiểm thử trình duyệt hoặc provider Payment thật.
+## Phạm vi và kiểm thử
 
-Lệnh BE (database test riêng đã được tạo trên localhost):
+- Backend: controller/security, contract test và tài liệu module 5.
+- Frontend: chỉ features/schedules/api.ts và api.test.ts để đổi URL/method body contract;
+  không sửa trang, nghiệp vụ module khác hoặc thay đổi đang có của người dùng.
+- Không đổi schema, 9 migration, PK/FK, JSON, transaction/locking, state machine hoặc Payment contract.
+- compileJava + compileTestJava và toàn bộ **183 tests PASS** (34 Schedule/59 Payment),
+  0 failures/errors/skipped trên PostgreSQL 17.11 riêng module5_resource_api_20261028;
+  Flyway áp dụng/validate 9 migrations, Hibernate validate bật.
+- FE 21 tests module 5, lint và build PASS; cảnh báo bundle > 500 kB hiện hữu.
+- Test OpenAPI kiểm tra domain ID placeholders, không có URI chứa me/assigned-to-me,
+  và không có các operation legacy. Test quyền/branch/guide/owner, cutoff, audit/idempotence,
+  cạnh tranh giữ chỗ và Payment được giữ trên các URI mới.
+- MockMvc dùng security/service/database thật; test FE dùng fetch giả để kiểm tra contract.
+  Chưa kiểm thử browser/provider thật hoặc deploy.
+
+Lệnh BE với database test riêng đã tạo:
 
 ```powershell
-$env:DB_URL = 'jdbc:postgresql://127.0.0.1:55485/module5_api_final_20261028'
+$env:DB_URL = 'jdbc:postgresql://127.0.0.1:55485/module5_resource_api_20261028'
 $env:DB_USERNAME = 'module5_test'
 $env:DB_PASSWORD = ''
 $env:FLYWAY_ENABLED = 'true'
@@ -130,5 +135,4 @@ $env:SPRING_MAIL_PORT = '1'
 .\gradlew.bat compileJava compileTestJava test --offline --console=plain
 ```
 
-Kết quả từng mốc: [MODULE_INTEGRATION_STATUS.md](MODULE_INTEGRATION_STATUS.md).
-Lịch sử chuẩn hóa cấu trúc: [MODULE_5_STRUCTURE_STANDARDIZATION.md](MODULE_5_STRUCTURE_STANDARDIZATION.md).
+Xem MODULE_INTEGRATION_STATUS.md cho kết quả kiểm tra cuối và lịch sử thay đổi.

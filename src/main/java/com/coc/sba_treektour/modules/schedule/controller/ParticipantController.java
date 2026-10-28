@@ -9,6 +9,8 @@ import com.coc.sba_treektour.modules.schedule.dto.response.ParticipantHistoryRes
 import com.coc.sba_treektour.modules.schedule.dto.response.ParticipantResponse;
 import com.coc.sba_treektour.modules.schedule.dto.response.SchedulePaymentReviewResponse;
 import com.coc.sba_treektour.modules.schedule.service.ParticipantService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -23,12 +25,14 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+@Tag(name = "Participants")
 @RequiredArgsConstructor
 public class ParticipantController {
 
     private final ParticipantService participantService;
 
-    @PostMapping({"/api/schedules/{scheduleId}/participants", "/api/schedules/{scheduleId}/register"})
+    @Operation(summary = "Register the current user for a schedule")
+    @PostMapping("/api/schedules/{scheduleId}/participants")
     @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<ParticipantResponse> register(
             @PathVariable Long scheduleId,
@@ -37,80 +41,60 @@ public class ParticipantController {
         return ApiResponse.created("Đăng ký giữ chỗ tour thành công", participantService.register(scheduleId, request));
     }
 
+    @Operation(summary = "List participants of a schedule")
     @GetMapping("/api/schedules/{scheduleId}/participants")
     public ApiResponse<List<ParticipantResponse>> findBySchedule(@PathVariable Long scheduleId,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size) {
         return ApiResponse.success("Lấy danh sách người tham gia thành công", participantService.findByScheduleId(scheduleId, page, size));
     }
 
-    @GetMapping("/api/participants/{id}")
-    public ApiResponse<ParticipantResponse> findById(@PathVariable Long id) {
-        return ApiResponse.success("Lấy thông tin vé thành công", participantService.findById(id));
+    @Operation(summary = "Get a participant registration")
+    @GetMapping("/api/participants/{participantId}")
+    public ApiResponse<ParticipantResponse> findById(@PathVariable Long participantId) {
+        return ApiResponse.success("Lấy thông tin vé thành công", participantService.findById(participantId));
     }
 
-    @GetMapping("/api/participants/by-user/{userId}")
-    public ApiResponse<List<ParticipantResponse>> findByUserId(@PathVariable Long userId,
-            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size) {
-        return ApiResponse.success("Lấy danh sách vé của người dùng thành công", participantService.findByUserId(userId, page, size));
-    }
-
+    @Operation(summary = "List registration tickets; defaults to the current user")
     @GetMapping("/api/participants")
     public ApiResponse<List<ParticipantResponse>> findByUser(
-            @RequestParam Long userId,
+            @RequestParam(required = false) Long userId,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size) {
-        return ApiResponse.success("Lấy danh sách vé của người dùng thành công", participantService.findByUserId(userId, page, size));
+        return ApiResponse.success("Lấy danh sách vé của người dùng thành công", userId == null ? participantService.findMine(page, size) : participantService.findByUserId(userId, page, size));
     }
 
-    @GetMapping("/api/participants/me")
-    public ApiResponse<List<ParticipantResponse>> mine(
-            @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size) {
-        return ApiResponse.success("Lấy danh sách vé của người dùng thành công", participantService.findMine(page, size));
-    }
-
-    @PostMapping("/api/participants/{id}/manual-payment-confirmations")
-    public ApiResponse<ParticipantResponse> confirmManualPayment(@PathVariable Long id,
+    @Operation(summary = "Record a manual payment confirmation")
+    @PostMapping("/api/participants/{participantId}/manual-payment-confirmations")
+    public ApiResponse<ParticipantResponse> confirmManualPayment(@PathVariable Long participantId,
             @Valid @RequestBody ConfirmParticipantPaymentRequest request) {
-        return ApiResponse.success("Xác nhận thanh toán vé thành công", participantService.confirmPayment(id, request));
+        return ApiResponse.success("Xác nhận thanh toán vé thành công", participantService.confirmPayment(participantId, request));
     }
 
-    @PatchMapping("/api/participants/{id}/attendance")
-    public ApiResponse<ParticipantResponse> attendance(@PathVariable Long id,
+    @Operation(summary = "Update participant attendance")
+    @PatchMapping("/api/participants/{participantId}/attendance")
+    public ApiResponse<ParticipantResponse> attendance(@PathVariable Long participantId,
             @Valid @RequestBody UpdateAttendanceRequest request) {
         return switch (request.status()) {
-            case CHECKED_IN -> ApiResponse.success("Điểm danh khách hàng thành công", participantService.checkIn(id));
-            case NO_SHOW -> ApiResponse.success("Đánh dấu vắng mặt thành công", participantService.markNoShow(id));
+            case CHECKED_IN -> ApiResponse.success("Điểm danh khách hàng thành công", participantService.checkIn(participantId));
+            case NO_SHOW -> ApiResponse.success("Đánh dấu vắng mặt thành công", participantService.markNoShow(participantId));
         };
     }
 
-    @PostMapping("/api/participants/{id}/cancel")
-    public ApiResponse<ParticipantResponse> cancel(@PathVariable Long id,
+    @Operation(summary = "Cancel a participant registration")
+    @PostMapping("/api/participants/{participantId}/cancellations")
+    public ApiResponse<ParticipantResponse> cancel(@PathVariable Long participantId,
             @Valid @RequestBody(required = false) CancelParticipantRequest request) {
-        return ApiResponse.success("Hủy đăng ký tour thành công", participantService.cancel(id, request));
+        return ApiResponse.success("Hủy đăng ký tour thành công", participantService.cancel(participantId, request));
     }
 
-    @PatchMapping("/api/participants/{id}/confirm-payment")
-    public ApiResponse<ParticipantResponse> confirmPayment(@PathVariable Long id,
-            @Valid @RequestBody ConfirmParticipantPaymentRequest request) {
-        return ApiResponse.success("Xác nhận thanh toán vé thành công", participantService.confirmPayment(id, request));
-    }
-
-    @PatchMapping("/api/participants/{id}/check-in")
-    public ApiResponse<ParticipantResponse> checkIn(@PathVariable Long id) {
-        return ApiResponse.success("Điểm danh khách hàng thành công", participantService.checkIn(id));
-    }
-
-    @PatchMapping("/api/participants/{id}/no-show")
-    public ApiResponse<ParticipantResponse> markNoShow(@PathVariable Long id) {
-        return ApiResponse.success("Đánh dấu vắng mặt thành công", participantService.markNoShow(id));
-    }
-
-    @GetMapping({"/api/participants/{id}/history", "/api/participants/{id}/histories"})
-    public ApiResponse<List<ParticipantHistoryResponse>> histories(@PathVariable Long id,
+    @Operation(summary = "List participant registration history")
+    @GetMapping("/api/participants/{participantId}/history")
+    public ApiResponse<List<ParticipantHistoryResponse>> histories(@PathVariable Long participantId,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size) {
-        return ApiResponse.success("Lịch sử vé", participantService.getHistories(id, page, size));
+        return ApiResponse.success("Lịch sử vé", participantService.getHistories(participantId, page, size));
     }
 
-    @GetMapping({"/api/schedule-payment-reviews", "/api/participants/payment-reviews"})
+    @Operation(summary = "List schedule payment reviews")
+    @GetMapping("/api/schedule-payment-reviews")
     public ApiResponse<List<SchedulePaymentReviewResponse>> paymentReviews(@RequestParam(required = false) Long branchId,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size) {
         return ApiResponse.success("Yêu cầu đối soát, chưa phải hoàn tiền thành công", participantService.paymentReviews(branchId, page, size));

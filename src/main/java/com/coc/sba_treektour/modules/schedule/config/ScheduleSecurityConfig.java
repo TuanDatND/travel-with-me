@@ -22,31 +22,29 @@ public class ScheduleSecurityConfig {
     @Order(0)
     SecurityFilterChain scheduleSecurity(HttpSecurity http, JwtService jwt, UserDetailsService accounts, ObjectMapper mapper) throws Exception {
         return http.securityMatcher("/api/schedules", "/api/schedules/**", "/api/participants", "/api/participants/**",
-                "/api/schedule-payment-reviews", "/api/schedule-payment-reviews/**")
+                "/api/schedule-payment-reviews", "/api/schedule-payment-reviews/**",
+                "/api/guide-assignments", "/api/guide-assignments/**")
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .formLogin(AbstractHttpConfigurer::disable).httpBasic(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(a -> a
-                        .requestMatchers(HttpMethod.GET, "/api/schedules/my-assignments", "/api/schedules/my-assignments/*",
-                                "/api/schedules/assigned-to-me", "/api/schedules/assigned-to-me/*")
+                        .requestMatchers(HttpMethod.GET, "/api/guide-assignments", "/api/guide-assignments/*")
                             .hasAuthority("GUIDE")
                         .requestMatchers(HttpMethod.GET, "/api/schedules", "/api/schedules/*").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/schedules/*/register", "/api/schedules/*/participants").hasAuthority("CUSTOMER")
-                        .requestMatchers(HttpMethod.GET, "/api/schedules/*/participants", "/api/schedules/*/histories", "/api/schedules/*/history")
+                        .requestMatchers(HttpMethod.POST, "/api/schedules/*/participants").hasAuthority("CUSTOMER")
+                        .requestMatchers(HttpMethod.GET, "/api/schedules/*/participants", "/api/schedules/*/history")
                             .hasAnyAuthority("ADMIN", "STAFF", "GUIDE")
-                        .requestMatchers(HttpMethod.PATCH, "/api/participants/*/check-in", "/api/participants/*/no-show", "/api/participants/*/attendance")
+                        .requestMatchers(HttpMethod.PATCH, "/api/participants/*/attendance")
                             .hasAnyAuthority("ADMIN", "STAFF", "GUIDE")
-                        .requestMatchers(HttpMethod.PATCH, "/api/participants/*/confirm-payment").hasAnyAuthority("ADMIN", "STAFF")
                         .requestMatchers(HttpMethod.POST, "/api/participants/*/manual-payment-confirmations").hasAnyAuthority("ADMIN", "STAFF")
-                        .requestMatchers(HttpMethod.GET, "/api/participants/payment-reviews", "/api/schedule-payment-reviews").hasAnyAuthority("ADMIN", "STAFF")
-                        .requestMatchers(HttpMethod.GET, "/api/participants", "/api/participants/*", "/api/participants/by-user/*",
-                                "/api/participants/*/histories", "/api/participants/*/history")
+                        .requestMatchers(HttpMethod.GET, "/api/schedule-payment-reviews").hasAnyAuthority("ADMIN", "STAFF")
+                        .requestMatchers(HttpMethod.GET, "/api/participants", "/api/participants/*",
+                                "/api/participants/*/history")
                             .hasAnyAuthority("ADMIN", "STAFF", "CUSTOMER")
-                        .requestMatchers(HttpMethod.POST, "/api/participants/*/cancel").hasAnyAuthority("ADMIN", "STAFF", "CUSTOMER")
+                        .requestMatchers(HttpMethod.POST, "/api/participants/*/cancellations").hasAnyAuthority("ADMIN", "STAFF", "CUSTOMER")
                         .requestMatchers(HttpMethod.POST, "/api/schedules").hasAnyAuthority("ADMIN", "STAFF")
                         .requestMatchers(HttpMethod.PATCH, "/api/schedules/*").hasAnyAuthority("ADMIN", "STAFF")
-                        .requestMatchers(HttpMethod.PUT, "/api/schedules/*").hasAnyAuthority("ADMIN", "STAFF")
-                        .requestMatchers(HttpMethod.POST, "/api/schedules/*/reschedule").hasAnyAuthority("ADMIN", "STAFF")
+                        .requestMatchers(HttpMethod.POST, "/api/schedules/*/reschedulings").hasAnyAuthority("ADMIN", "STAFF")
                         .requestMatchers(HttpMethod.PATCH, "/api/schedules/*/status").hasAnyAuthority("ADMIN", "STAFF")
                         .anyRequest().denyAll())
                 .addFilterBefore(new JwtAuthenticationFilter(jwt, email -> {

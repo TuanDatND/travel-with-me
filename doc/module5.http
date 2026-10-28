@@ -45,7 +45,7 @@ Content-Type: application/json
 {"status":"CHECKED_IN"}
 
 ### Cancel before departure, before check-in
-POST {{baseUrl}}/api/participants/{{participantId}}/cancel
+POST {{baseUrl}}/api/participants/{{participantId}}/cancellations
 Authorization: Bearer {{customerToken}}
 Content-Type: application/json
 
@@ -61,11 +61,11 @@ Authorization: Bearer {{adminToken}}
 
 
 ### My tickets: principal from JWT
-GET {{baseUrl}}/api/participants/me?page=0&size=20
+GET {{baseUrl}}/api/participants?page=0&size=20
 Authorization: Bearer {{customerToken}}
 
 ### Assigned guide schedules
-GET {{baseUrl}}/api/schedules/assigned-to-me?page=0&size=20
+GET {{baseUrl}}/api/guide-assignments?page=0&size=20
 Authorization: Bearer {{guideToken}}
 
 ### Capacity-only partial update (keep guide)
@@ -86,6 +86,10 @@ Content-Type: application/json
 GET {{baseUrl}}/api/schedules/{{scheduleId}}/history?page=0&size=20
 Authorization: Bearer {{adminToken}}
 
-### Legacy compatibility: remains supported, deprecated in OpenAPI
-GET {{baseUrl}}/api/participants/{{participantId}}/histories?page=0&size=20
-Authorization: Bearer {{customerToken}}
+
+### Reschedule: noun resource, same validation/history
+POST {{baseUrl}}/api/schedules/{{scheduleId}}/reschedulings
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{"newStartDatetime":"2026-12-21T07:00:00+07:00","newEndDatetime":"2026-12-21T17:00:00+07:00","changeReason":"Weather"}

@@ -2,9 +2,8 @@
 
 Cập nhật: 2026-10-28 (cấu trúc mốc 1–3 và API mốc 4–5). Package: `com.coc.sba_treektour.modules.schedule`.
 Tài liệu này thay thế contract lịch/vé trong các tài liệu demo ngày 2026-10-10.
-API canonical mới, alias legacy, request PATCH/attendance và lộ trình deprecation:
-[MODULE_5_API_MIGRATION.md](MODULE_5_API_MIGRATION.md). Bảng route bên dưới giữ các route
-legacy vẫn được hỗ trợ; quyền tương ứng áp dụng cả route canonical trong tài liệu chuyển đổi.
+API canonical, request PATCH/attendance và danh sách legacy đã xóa theo yêu cầu người dùng:
+[MODULE_5_API_MIGRATION.md](MODULE_5_API_MIGRATION.md). Chỉ các route canonical còn được hỗ trợ; client cũ cần chuyển theo bảng trong tài liệu này.
 Phân tích trước khi sửa: [MODULE_5_ARCHITECTURE_REVIEW.md](MODULE_5_ARCHITECTURE_REVIEW.md).
 
 ## Kiến trúc và phạm vi
@@ -44,23 +43,23 @@ có `@PreAuthorize`; policy kiểm tra phạm vi tài nguyên trong transaction.
 
 | API | Quyền |
 | --- | --- |
-| GET `/api/schedules`, GET `/api/schedules/{id}` | Công khai; lịch của tour PUBLISHED. ADMIN xem mọi tour; STAFF chỉ xem tour ẩn ở chi nhánh được quản lý |
-| GET `/api/schedules/my-assignments`, GET `/api/schedules/my-assignments/{id}` | GUIDE đang hoạt động, đúng lịch được phân công |
+| GET `/api/schedules`, GET `/api/schedules/{scheduleId}` | Công khai; lịch của tour PUBLISHED. ADMIN xem mọi tour; STAFF chỉ xem tour ẩn ở chi nhánh được quản lý |
+| GET `/api/guide-assignments`, GET `/api/guide-assignments/{scheduleId}` | GUIDE đang hoạt động, đúng lịch được phân công |
 | POST `/api/schedules` | ADMIN hoặc STAFF đang hoạt động tại branchId được yêu cầu |
-| PUT `/api/schedules/{id}` | ADMIN hoặc STAFF đúng chi nhánh lịch |
-| POST `/api/schedules/{id}/reschedule` | ADMIN hoặc STAFF đúng chi nhánh lịch |
-| PATCH `/api/schedules/{id}/status` | ADMIN hoặc STAFF đúng chi nhánh lịch |
-| GET `/api/schedules/{id}/histories` | ADMIN, STAFF đúng chi nhánh, GUIDE được phân công |
-| POST `/api/schedules/{id}/register` | CUSTOMER hoạt động, đăng ký cho chính JWT |
-| GET `/api/schedules/{id}/participants` | ADMIN, STAFF đúng chi nhánh, GUIDE được phân công |
-| GET `/api/participants/{id}` | Chủ vé, ADMIN, STAFF đúng chi nhánh |
-| GET `/api/participants/by-user/{userId}` | Chính người dùng, ADMIN; STAFF chỉ nhận các vé thuộc chi nhánh được quản lý |
-| POST `/api/participants/{id}/cancel` | Chủ vé, ADMIN, STAFF đúng chi nhánh; hủy thay khách phải có lý do |
-| PATCH `/api/participants/{id}/confirm-payment` | ADMIN, STAFF đúng chi nhánh; chỉ xác nhận thủ công |
-| PATCH `/api/participants/{id}/check-in` | ADMIN, STAFF đúng chi nhánh, GUIDE được phân công |
-| PATCH `/api/participants/{id}/no-show` | ADMIN, STAFF đúng chi nhánh, GUIDE được phân công |
-| GET `/api/participants/{id}/histories` | Chủ vé, ADMIN, STAFF đúng chi nhánh |
-| GET `/api/participants/payment-reviews` | ADMIN; STAFF phải truyền branchId và đúng chi nhánh |
+| PATCH `/api/schedules/{scheduleId}` | ADMIN hoặc STAFF đúng chi nhánh lịch |
+| POST `/api/schedules/{scheduleId}/reschedulings` | ADMIN hoặc STAFF đúng chi nhánh lịch |
+| PATCH `/api/schedules/{scheduleId}/status` | ADMIN hoặc STAFF đúng chi nhánh lịch |
+| GET `/api/schedules/{scheduleId}/history` | ADMIN, STAFF đúng chi nhánh, GUIDE được phân công |
+| POST `/api/schedules/{scheduleId}/participants` | CUSTOMER hoạt động, đăng ký cho chính JWT |
+| GET `/api/schedules/{scheduleId}/participants` | ADMIN, STAFF đúng chi nhánh, GUIDE được phân công |
+| GET `/api/participants/{participantId}` | Chủ vé, ADMIN, STAFF đúng chi nhánh |
+| GET `/api/participants` (mặc định JWT), GET `/api/participants?userId={userId}` | Chính người dùng, ADMIN; STAFF chỉ nhận các vé thuộc chi nhánh được quản lý |
+| POST `/api/participants/{participantId}/cancellations` | Chủ vé, ADMIN, STAFF đúng chi nhánh; hủy thay khách phải có lý do |
+| POST `/api/participants/{participantId}/manual-payment-confirmations` | ADMIN, STAFF đúng chi nhánh; chỉ xác nhận thủ công |
+| PATCH `/api/participants/{participantId}/attendance` với CHECKED_IN | ADMIN, STAFF đúng chi nhánh, GUIDE được phân công |
+| PATCH `/api/participants/{participantId}/attendance` với NO_SHOW | ADMIN, STAFF đúng chi nhánh, GUIDE được phân công |
+| GET `/api/participants/{participantId}/history` | Chủ vé, ADMIN, STAFF đúng chi nhánh |
+| GET `/api/schedule-payment-reviews` | ADMIN; STAFF phải truyền branchId và đúng chi nhánh |
 
 STAFF cần cả hồ sơ staff ACTIVE và branch ACTIVE. GUIDE cần đúng guideId được phân
 công, hồ sơ ACTIVE, tài khoản ACTIVE và role GUIDE. ADMIN không phụ thuộc hồ sơ staff.
@@ -144,10 +143,10 @@ Tạo lịch:
 ```
 
 Dời lịch nhận `newStartDatetime`, `newEndDatetime`, `changeReason` và
-`registrationClosesAt` tùy chọn. PUT thông tin lịch nhận guideId (null để bỏ phân công)
-và maxParticipants như trước.
+`registrationClosesAt` tùy chọn. PATCH thông tin lịch nhận guideId (bỏ trường để giữ guide, null để bỏ phân công)
+và maxParticipants tùy chọn; xem PatchScheduleRequest trong tài liệu chuyển đổi.
 
-Xác nhận thủ công **thay đổi request**: PATCH `/api/participants/{id}/confirm-payment`:
+Xác nhận thủ công **thay đổi request**: POST `/api/participants/{participantId}/manual-payment-confirmations`:
 
 ```json
 {
@@ -257,7 +256,8 @@ trên database PostgreSQL 17.11 riêng; các module Account, Catalog và Tour đ
 Mốc 1–3 giữ nguyên endpoint, tên JSON, mảng danh sách, enum values, PK/FK, JPA mappings,
 transactions và migration. DTO xác nhận thủ công đổi tên Java thành
 `dto.request.ConfirmParticipantPaymentRequest`; response đối soát thành
-`dto.response.SchedulePaymentReviewResponse`. API mốc 4–5 đã có canonical routes và alias legacy; xem tài liệu chuyển đổi, không xóa route cũ.
+`dto.response.SchedulePaymentReviewResponse`. API mốc 4–5 ban đầu có alias; theo yêu cầu tiếp theo, 11 operation legacy đã xóa.
+Chỉ dùng canonical routes trong tài liệu chuyển đổi.
 
 Kết quả kiểm tra mới nhất và bảng đổi tên: [MODULE_5_STRUCTURE_STANDARDIZATION.md](MODULE_5_STRUCTURE_STANDARDIZATION.md).
 
@@ -314,3 +314,29 @@ Kết quả sau rà soát: compileJava + compileTestJava với lint và toàn b�
 0 skipped (33 Schedule/59 Payment); PostgreSQL 17.11 module5_review_20261028 riêng,
 Flyway áp dụng/validate 9 migrations và Hibernate validate bật. Không đổi API/JSON/schema
 hoặc migration; không sửa source ngoài module 5 và các tài liệu trạng thái của nó.
+
+
+## Xóa API legacy theo yêu cầu người dùng (2026-10-28)
+
+Đã xóa 11 operation cũ bị gạch trên Swagger, security rule tương ứng của module 5,
+ScheduleApiDocumentationConfig và DTO/service chỉ phục vụ PUT lịch. Các test nghiệp vụ
+đều gọi canonical endpoints. Có kiểm tra riêng OpenAPI và request legacy không thực thi
+nghiệp vụ; không sửa schema/migration/Payment contract hoặc frontend source.
+Kiểm tra sau xóa: compileJava + compileTestJava và 182 tests PASS (33 Schedule/59 Payment),
+0 skipped trên PostgreSQL 17.11 riêng/Flyway/Hibernate validate; FE 20 tests/lint/build PASS
+(cảnh báo bundle lớn). Không kiểm thử browser/provider thật hoặc deploy backend.
+Kết quả cuối ghi trong MODULE_INTEGRATION_STATUS.md.
+
+
+## Quy ước URI tài nguyên không có me (2026-10-28)
+
+Theo yêu cầu người dùng: GET /api/guide-assignments và /{scheduleId} dùng JWT guide,
+GET /api/participants mặc định dùng JWT user; userId tùy chọn vẫn kiểm quyền.
+POST dời lịch/hủy vé dùng reschedulings/cancellations; path variables ghi rõ
+scheduleId/participantId. Swagger có tag/summary theo tài nguyên, không alias/deprecated.
+Đây là thay đổi HTTP có chủ đích; JSON/schema/Payment contract không đổi.
+Bảng API và ví dụ hiện hành: MODULE_5_API_MIGRATION.md.
+
+Kết quả naming API mới: compileJava + compileTestJava và 183 tests PASS (34 Schedule/59 Payment),
+0 skipped trên PostgreSQL 17.11 riêng/Flyway/Hibernate validate; FE 21 tests/lint/build PASS
+(cảnh báo bundle lớn). Body/response/schema/Payment contract giữ nguyên.
