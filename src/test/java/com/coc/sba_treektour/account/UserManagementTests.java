@@ -1,25 +1,32 @@
 package com.coc.sba_treektour.account;
 
+import com.coc.sba_treektour.common.service.EmailService;
 import com.coc.sba_treektour.modules.account.dto.request.AdminUpdateUserRequest;
 import com.coc.sba_treektour.modules.account.dto.request.ChangePasswordRequest;
 import com.coc.sba_treektour.modules.account.dto.response.UserResponse;
 import com.coc.sba_treektour.modules.account.entity.Role;
 import com.coc.sba_treektour.modules.account.entity.User;
+import com.coc.sba_treektour.modules.account.exception.InvalidAccountException;
 import com.coc.sba_treektour.modules.account.repository.RoleRepository;
 import com.coc.sba_treektour.modules.account.repository.UserRepository;
 import com.coc.sba_treektour.modules.account.service.UserService;
 import com.coc.sba_treektour.modules.account.service.impl.UserServiceImpl;
-import com.coc.sba_treektour.common.service.EmailService;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class UserManagementTests {
 
@@ -36,6 +43,11 @@ public class UserManagementTests {
         passwordEncoder = mock(PasswordEncoder.class);
         emailService = mock(EmailService.class);
         userService = new UserServiceImpl(userRepository, roleRepository, passwordEncoder, emailService);
+    }
+
+    @AfterEach
+    void tearDown() {
+        SecurityContextHolder.clearContext();
     }
 
     @Test
@@ -121,6 +133,33 @@ public class UserManagementTests {
     }
 
     @Test
+    void testUpdateUserByAdmin_SelfDemoteOrLock_ThrowsException() {
+        Role adminRole = Role.builder().id(1L).name("ADMIN").build();
+        User adminUser = User.builder()
+                .id(99L)
+                .email("admin@treektour.com")
+                .fullName("Admin")
+                .role(adminRole)
+                .status("ACTIVE")
+                .build();
+
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(adminUser, null, adminUser.getAuthorities())
+        );
+
+        when(userRepository.findById(99L)).thenReturn(Optional.of(adminUser));
+
+        AdminUpdateUserRequest demoteRequest = AdminUpdateUserRequest.builder()
+                .fullName("Admin")
+                .role("CUSTOMER")
+                .build();
+
+        assertThrows(InvalidAccountException.class, () -> userService.updateUserByAdmin(99L, demoteRequest));
+        assertThrows(InvalidAccountException.class, () -> userService.updateUserStatus(99L, "BLOCKED"));
+        assertThrows(InvalidAccountException.class, () -> userService.deleteUser(99L));
+    }
+
+    @Test
     void testUpdateUserStatus_Success() {
         Role role = Role.builder().id(1L).name("STAFF").build();
         User user = User.builder().id(10L).role(role).status("ACTIVE").build();
@@ -133,11 +172,12 @@ public class UserManagementTests {
     }
 
     @Test
-    void testDeleteUser_Success() {
-        User user = User.builder().id(10L).build();
+    void testDeleteUser_SoftDeletesToInactive() {
+        User user = User.builder().id(10L).status("ACTIVE").build();
         when(userRepository.findById(10L)).thenReturn(Optional.of(user));
 
         userService.deleteUser(10L);
-        verify(userRepository).delete(user);
+        assertEquals("INACTIVE", user.getStatus());
+        verify(userRepository).save(user);
     }
 }

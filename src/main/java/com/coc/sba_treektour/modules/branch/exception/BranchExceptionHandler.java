@@ -1,6 +1,7 @@
 package com.coc.sba_treektour.modules.branch.exception;
 
 import com.coc.sba_treektour.common.response.ApiResponse;
+import com.coc.sba_treektour.modules.account.exception.UserNotFoundException;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +21,12 @@ public class BranchExceptionHandler {
 
     @ExceptionHandler(StaffNotFoundException.class)
     public ResponseEntity<ApiResponse<Void>> handleStaffNotFound(StaffNotFoundException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error(HttpStatus.NOT_FOUND.value(), ex.getMessage()));
+    }
+
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUserNotFound(UserNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ApiResponse.error(HttpStatus.NOT_FOUND.value(), ex.getMessage()));
     }
