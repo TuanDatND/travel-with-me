@@ -1,4 +1,4 @@
-package com.coc.sba_treektour.modules.schedule.dto;
+package com.coc.sba_treektour.modules.schedule.dto.response;
 
 import java.time.OffsetDateTime;
 

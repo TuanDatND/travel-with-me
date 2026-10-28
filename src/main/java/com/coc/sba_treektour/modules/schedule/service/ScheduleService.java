@@ -1,7 +1,13 @@
 package com.coc.sba_treektour.modules.schedule.service;
 
-import com.coc.sba_treektour.modules.schedule.dto.*;
-import com.coc.sba_treektour.modules.schedule.entity.ScheduleStatus;
+import com.coc.sba_treektour.modules.schedule.dto.request.CreateScheduleRequest;
+import com.coc.sba_treektour.modules.schedule.dto.request.RescheduleRequest;
+import com.coc.sba_treektour.modules.schedule.dto.request.UpdateScheduleRequest;
+import com.coc.sba_treektour.modules.schedule.dto.request.UpdateScheduleStatusRequest;
+import com.coc.sba_treektour.modules.schedule.dto.response.GuideScheduleResponse;
+import com.coc.sba_treektour.modules.schedule.dto.response.ScheduleHistoryResponse;
+import com.coc.sba_treektour.modules.schedule.dto.response.ScheduleResponse;
+import com.coc.sba_treektour.modules.schedule.enums.ScheduleStatus;
 import java.util.List;
 
 public interface ScheduleService {

@@ -6,6 +6,8 @@ import com.coc.sba_treektour.modules.payment.entity.Transaction;
 import com.coc.sba_treektour.modules.payment.repository.TransactionRepository;
 import com.coc.sba_treektour.modules.payment.service.impl.ParticipantPaymentBridgeImpl;
 import com.coc.sba_treektour.modules.schedule.entity.*;
+import com.coc.sba_treektour.modules.schedule.enums.ScheduleStatus;
+import com.coc.sba_treektour.modules.schedule.enums.ParticipantStatus;
 import com.coc.sba_treektour.modules.schedule.repository.*;
 import com.coc.sba_treektour.modules.schedule.service.ParticipantPaymentService;
 import jakarta.persistence.EntityManager;

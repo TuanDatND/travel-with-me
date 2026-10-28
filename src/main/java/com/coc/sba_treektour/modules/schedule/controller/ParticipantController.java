@@ -1,27 +1,31 @@
 package com.coc.sba_treektour.modules.schedule.controller;
 
 import com.coc.sba_treektour.common.response.ApiResponse;
-import com.coc.sba_treektour.modules.schedule.dto.ParticipantResponse;
-import com.coc.sba_treektour.modules.schedule.dto.RegisterParticipantRequest;
-import com.coc.sba_treektour.modules.schedule.dto.CancelParticipantRequest;
-import com.coc.sba_treektour.modules.schedule.dto.ConfirmParticipantRequest;
-import com.coc.sba_treektour.modules.schedule.dto.ParticipantHistoryResponse;
-import com.coc.sba_treektour.modules.schedule.dto.PaymentReviewResponse;
+import com.coc.sba_treektour.modules.schedule.dto.request.CancelParticipantRequest;
+import com.coc.sba_treektour.modules.schedule.dto.request.ConfirmParticipantPaymentRequest;
+import com.coc.sba_treektour.modules.schedule.dto.request.RegisterParticipantRequest;
+import com.coc.sba_treektour.modules.schedule.dto.response.ParticipantHistoryResponse;
+import com.coc.sba_treektour.modules.schedule.dto.response.ParticipantResponse;
+import com.coc.sba_treektour.modules.schedule.dto.response.SchedulePaymentReviewResponse;
 import com.coc.sba_treektour.modules.schedule.service.ParticipantService;
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
+@RequiredArgsConstructor
 public class ParticipantController {
 
     private final ParticipantService participantService;
-
-    public ParticipantController(ParticipantService participantService) {
-        this.participantService = participantService;
-    }
 
     @PostMapping("/api/schedules/{scheduleId}/register")
     @ResponseStatus(HttpStatus.CREATED)
@@ -57,7 +61,7 @@ public class ParticipantController {
 
     @PatchMapping("/api/participants/{id}/confirm-payment")
     public ApiResponse<ParticipantResponse> confirmPayment(@PathVariable Long id,
-            @Valid @RequestBody ConfirmParticipantRequest request) {
+            @Valid @RequestBody ConfirmParticipantPaymentRequest request) {
         return ApiResponse.success("Xác nhận thanh toán vé thành công", participantService.confirmPayment(id, request));
     }
 
@@ -78,7 +82,7 @@ public class ParticipantController {
     }
 
     @GetMapping("/api/participants/payment-reviews")
-    public ApiResponse<List<PaymentReviewResponse>> paymentReviews(@RequestParam(required = false) Long branchId,
+    public ApiResponse<List<SchedulePaymentReviewResponse>> paymentReviews(@RequestParam(required = false) Long branchId,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size) {
         return ApiResponse.success("Yêu cầu đối soát, chưa phải hoàn tiền thành công", participantService.paymentReviews(branchId, page, size));
     }

@@ -1,23 +1,23 @@
 package com.coc.sba_treektour.modules.schedule.repository;
 
-import com.coc.sba_treektour.modules.schedule.dto.GuideScheduleResponse;
-import com.coc.sba_treektour.modules.schedule.entity.ScheduleStatus;
+import com.coc.sba_treektour.modules.schedule.dto.response.GuideScheduleResponse;
+import com.coc.sba_treektour.modules.schedule.enums.ScheduleStatus;
 import java.time.OffsetDateTime;
 import java.util.List;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 /** Đọc assignment theo JWT userId, lọc quyền trước khi phân trang. Không map JPA ra module khác. */
 @Repository
+@RequiredArgsConstructor
 public class GuideScheduleRepository {
-    private final JdbcTemplate jdbc;
-
-    public GuideScheduleRepository(JdbcTemplate jdbc) { this.jdbc = jdbc; }
+    private final JdbcTemplate jdbcTemplate;
 
     public List<GuideScheduleResponse> findAssigned(Long userId, Long scheduleId,
             ScheduleStatus status, Pageable page) {
-        return jdbc.query("""
+        return jdbcTemplate.query("""
                 SELECT s.*, e.event_name, b.branch_name
                 FROM event_schedules s
                 JOIN tour_guides g ON g.guide_id=s.guide_id

@@ -6,20 +6,17 @@ import com.coc.sba_treektour.modules.schedule.entity.EventSchedule;
 import com.coc.sba_treektour.modules.schedule.repository.ScheduleIntegrationRepository;
 import com.coc.sba_treektour.modules.tour.enums.GuideStatus;
 import com.coc.sba_treektour.modules.tour.service.GuideService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
 @Component
+@RequiredArgsConstructor
 public class ScheduleAccessPolicy {
-    private final GuideService guides;
-    private final ScheduleIntegrationRepository integration;
-
-    public ScheduleAccessPolicy(GuideService guides, ScheduleIntegrationRepository integration) {
-        this.guides = guides;
-        this.integration = integration;
-    }
+    private final GuideService guideService;
+    private final ScheduleIntegrationRepository scheduleIntegrationRepository;
 
     public Long userId() {
         var auth = SecurityContextHolder.getContext().getAuthentication();
@@ -37,7 +34,7 @@ public class ScheduleAccessPolicy {
     }
 
     public boolean manages(Long branchId) {
-        return hasRole("ADMIN") || hasRole("STAFF") && integration.staffAssigned(userId(), branchId);
+        return hasRole("ADMIN") || hasRole("STAFF") && scheduleIntegrationRepository.staffAssigned(userId(), branchId);
     }
 
     public void requireManager(Long branchId) {
@@ -58,7 +55,7 @@ public class ScheduleAccessPolicy {
         userId();
         if (manages(schedule.getBranchId())) return;
         if (hasRole("GUIDE") && schedule.getGuideId() != null) {
-            var guide = guides.reference(schedule.getGuideId());
+            var guide = guideService.reference(schedule.getGuideId());
             if (guide.userId().equals(userId()) && guide.accountActive() && guide.status() == GuideStatus.ACTIVE) return;
         }
         throw new AccessDeniedException("Chỉ guide được phân công hoặc quản lý đúng chi nhánh được thao tác");

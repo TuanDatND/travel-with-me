@@ -1,6 +1,15 @@
 package com.coc.sba_treektour.modules.schedule.entity;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 import lombok.AccessLevel;
@@ -21,12 +30,12 @@ public class SchedulePaymentReview {
     @Column(name = "transaction_id") private Long transactionId;
     @Column(name = "dedup_key", nullable = false, unique = true, length = 200) private String dedupKey;
     @Column(nullable = false, length = 50) private String kind;
-    @Column(nullable = false, precision = 18, scale = 2) private java.math.BigDecimal amount;
+    @Column(nullable = false, precision = 18, scale = 2) private BigDecimal amount;
     @Column(nullable = false, columnDefinition = "TEXT") private String reason;
     @Column(name = "created_at", nullable = false) private OffsetDateTime createdAt;
 
     public SchedulePaymentReview(EventParticipant participant, UUID reference, Long transactionId,
-            String key, String kind, java.math.BigDecimal amount, String reason, OffsetDateTime now) {
+            String key, String kind, BigDecimal amount, String reason, OffsetDateTime now) {
         this.participant = participant;
         this.registrationReference = reference;
         this.transactionId = transactionId;

@@ -1,24 +1,36 @@
 package com.coc.sba_treektour.modules.schedule.controller;
 
 import com.coc.sba_treektour.common.response.ApiResponse;
-import com.coc.sba_treektour.modules.schedule.dto.*;
-import com.coc.sba_treektour.modules.schedule.entity.ScheduleStatus;
+import com.coc.sba_treektour.modules.schedule.dto.request.CreateScheduleRequest;
+import com.coc.sba_treektour.modules.schedule.dto.request.RescheduleRequest;
+import com.coc.sba_treektour.modules.schedule.dto.request.UpdateScheduleRequest;
+import com.coc.sba_treektour.modules.schedule.dto.request.UpdateScheduleStatusRequest;
+import com.coc.sba_treektour.modules.schedule.dto.response.GuideScheduleResponse;
+import com.coc.sba_treektour.modules.schedule.dto.response.ScheduleHistoryResponse;
+import com.coc.sba_treektour.modules.schedule.dto.response.ScheduleResponse;
+import com.coc.sba_treektour.modules.schedule.enums.ScheduleStatus;
 import com.coc.sba_treektour.modules.schedule.service.ScheduleService;
 import jakarta.validation.Valid;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.*;
-
 import java.util.List;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/schedules")
+@RequiredArgsConstructor
 public class ScheduleController {
 
     private final ScheduleService scheduleService;
-
-    public ScheduleController(ScheduleService scheduleService) {
-        this.scheduleService = scheduleService;
-    }
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)

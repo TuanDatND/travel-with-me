@@ -1,33 +1,51 @@
 package com.coc.sba_treektour.modules.schedule;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-
+import com.coc.sba_treektour.modules.account.repository.UserRepository;
+import com.coc.sba_treektour.modules.schedule.exception.ScheduleConflictException;
+import com.coc.sba_treektour.modules.schedule.service.HoldExpiryService;
+import com.coc.sba_treektour.modules.schedule.service.ParticipantPaymentService;
+import com.coc.sba_treektour.modules.schedule.service.ScheduleService;
 import com.jayway.jsonpath.JsonPath;
-
-import org.junit.jupiter.api.*;
+import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
-
-import java.time.OffsetDateTime;
-import java.util.*;
-import java.util.concurrent.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = "schedule.expiry.enabled=false")
 @AutoConfigureMockMvc
 class ScheduleIntegrationTests {
-    @Autowired com.coc.sba_treektour.modules.schedule.service.HoldExpiryService expiry;
-    @Autowired com.coc.sba_treektour.modules.schedule.service.ParticipantPaymentService paymentService;
-    @Autowired com.coc.sba_treektour.modules.schedule.service.ScheduleService scheduleService;
-    @Autowired com.coc.sba_treektour.modules.account.repository.UserRepository accounts;
+    @Autowired HoldExpiryService expiry;
+    @Autowired ParticipantPaymentService paymentService;
+    @Autowired ScheduleService scheduleService;
+    @Autowired UserRepository accounts;
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired PasswordEncoder passwords;
@@ -750,8 +768,8 @@ class ScheduleIntegrationTests {
         long ticket = id(call(post("/api/schedules/{id}/register", schedule), customer, "{}", 201));
         long transaction = transaction(ticket, "PENDING", 1500000);
         var reference = registrationReference(ticket);
-        org.assertj.core.api.Assertions.assertThatThrownBy(() -> paymentConfirm(ticket, reference, transaction))
-                .isInstanceOf(com.coc.sba_treektour.modules.schedule.exception.ScheduleConflictException.class);
+        Assertions.assertThatThrownBy(() -> paymentConfirm(ticket, reference, transaction))
+                .isInstanceOf(ScheduleConflictException.class);
         jdbc.update("UPDATE transactions SET status='SUCCEEDED' WHERE transaction_id=?", transaction);
         assertThat(paymentConfirm(ticket, reference, transaction)).isEqualTo("CONFIRMED");
         assertThat(paymentConfirm(ticket, reference, transaction)).isEqualTo("CONFIRMED");
@@ -795,14 +813,14 @@ class ScheduleIntegrationTests {
         call(get("/api/schedules").param("status", "INVALID"), null, null, 400);
         call(post("/api/schedules"), admin, "{", 400);
         var user = accounts.findById(users.get(1)).orElseThrow();
-        org.springframework.security.core.context.SecurityContextHolder.getContext().setAuthentication(
-                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(user, null, user.getAuthorities()));
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(user, null, user.getAuthorities()));
         try {
-            org.assertj.core.api.Assertions.assertThatThrownBy(() -> scheduleService.create(null))
-                    .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
-            org.assertj.core.api.Assertions.assertThatThrownBy(() -> paymentService.confirm(1L, UUID.randomUUID(), 1L))
-                    .isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
-        } finally { org.springframework.security.core.context.SecurityContextHolder.clearContext(); }
+            Assertions.assertThatThrownBy(() -> scheduleService.create(null))
+                    .isInstanceOf(AccessDeniedException.class);
+            Assertions.assertThatThrownBy(() -> paymentService.confirm(1L, UUID.randomUUID(), 1L))
+                    .isInstanceOf(AccessDeniedException.class);
+        } finally { SecurityContextHolder.clearContext(); }
     }
 
     private UUID registrationReference(long ticket) {
@@ -814,12 +832,12 @@ class ScheduleIntegrationTests {
     }
 
     private String paymentConfirm(long ticket, UUID reference, long transaction) {
-        var context = org.springframework.security.core.context.SecurityContextHolder.createEmptyContext();
-        context.setAuthentication(new org.springframework.security.authentication.UsernamePasswordAuthenticationToken("internal-payment", null,
-                List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("SCHEDULE_PAYMENT"))));
-        org.springframework.security.core.context.SecurityContextHolder.setContext(context);
+        var context = SecurityContextHolder.createEmptyContext();
+        context.setAuthentication(new UsernamePasswordAuthenticationToken("internal-payment", null,
+                List.of(new SimpleGrantedAuthority("SCHEDULE_PAYMENT"))));
+        SecurityContextHolder.setContext(context);
         try { return paymentService.confirm(ticket, reference, transaction).name(); }
-        finally { org.springframework.security.core.context.SecurityContextHolder.clearContext(); }
+        finally { SecurityContextHolder.clearContext(); }
     }
 
     private void changeStatus(long id, String state, int expected) throws Exception {

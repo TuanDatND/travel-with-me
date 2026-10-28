@@ -1,42 +1,40 @@
-package com.coc.sba_treektour.modules.schedule.controller;
-
-import com.coc.sba_treektour.modules.schedule.exception.DuplicateRegistrationException;
-import com.coc.sba_treektour.modules.schedule.exception.InvalidScheduleOperationException;
-import com.coc.sba_treektour.modules.schedule.exception.ParticipantNotFoundException;
-import com.coc.sba_treektour.modules.schedule.exception.ScheduleNotAvailableException;
-import com.coc.sba_treektour.modules.schedule.exception.ScheduleNotFoundException;
+package com.coc.sba_treektour.modules.schedule.exception;
 
 import com.coc.sba_treektour.common.response.ApiResponse;
-import com.coc.sba_treektour.modules.schedule.service.*;
-
+import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
-@org.springframework.core.annotation.Order(-1)
+@Order(-1)
 @RestControllerAdvice(basePackages = "com.coc.sba_treektour.modules.schedule")
 public class ScheduleExceptionHandler {
 
-    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Void>> denied(RuntimeException ex) {
         return ResponseEntity.status(403).body(ApiResponse.error(403, ex.getMessage()));
     }
 
-    @ExceptionHandler(org.springframework.security.core.AuthenticationException.class)
+    @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ApiResponse<Void>> unauthenticated(RuntimeException ex) {
         return ResponseEntity.status(401).body(ApiResponse.error(401, ex.getMessage()));
     }
 
-    @ExceptionHandler(com.coc.sba_treektour.modules.schedule.exception.ScheduleConflictException.class)
+    @ExceptionHandler(ScheduleConflictException.class)
     public ResponseEntity<ApiResponse<Void>> conflict(RuntimeException ex) {
         return ResponseEntity.status(409).body(ApiResponse.error(409, ex.getMessage()));
     }
 
-    @ExceptionHandler({org.springframework.http.converter.HttpMessageNotReadableException.class,
-            org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class,
-            org.springframework.web.bind.MissingServletRequestParameterException.class})
+    @ExceptionHandler({HttpMessageNotReadableException.class,
+            MethodArgumentTypeMismatchException.class,
+            MissingServletRequestParameterException.class})
     public ResponseEntity<ApiResponse<Void>> malformed(Exception ex) {
         return ResponseEntity.badRequest().body(ApiResponse.error(400, "JSON hoặc tham số không hợp lệ"));
     }

@@ -1,15 +1,33 @@
 package com.coc.sba_treektour.modules.schedule.entity;
 
-import jakarta.persistence.*;
+import com.coc.sba_treektour.modules.schedule.enums.CheckInStatus;
+import com.coc.sba_treektour.modules.schedule.enums.ParticipantStatus;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Table(
     name = "event_participants",
     uniqueConstraints = @UniqueConstraint(name = "uq_event_participants_schedule_user", columnNames = {"schedule_id", "user_id"})
 )
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class EventParticipant {
 
     @Id
@@ -50,8 +68,6 @@ public class EventParticipant {
 
     @Column(name = "confirmation_reference", length = 200)
     private String confirmationReference;
-
-    protected EventParticipant() {}
 
     public EventParticipant(EventSchedule schedule, Long userId, BigDecimal registeredPrice, String note,
             OffsetDateTime now, OffsetDateTime expiresAt) {
@@ -108,18 +124,6 @@ public class EventParticipant {
             throw new IllegalStateException("Chỉ hoàn tất vé đã xác nhận và điểm danh");
         this.participantStatus = ParticipantStatus.COMPLETED;
     }
-
-    public Long getId() { return id; }
-    public EventSchedule getSchedule() { return schedule; }
-    public Long getUserId() { return userId; }
-    public OffsetDateTime getRegistrationDate() { return registrationDate; }
-    public ParticipantStatus getParticipantStatus() { return participantStatus; }
-    public CheckInStatus getCheckInStatus() { return checkInStatus; }
-    public BigDecimal getRegisteredPrice() { return registeredPrice; }
-    public String getNote() { return note; }
-    public OffsetDateTime getExpiresAt() { return expiresAt; }
-    public UUID getRegistrationReference() { return registrationReference; }
-    public String getConfirmationReference() { return confirmationReference; }
 
     public boolean occupiesSeat() {
         return participantStatus == ParticipantStatus.PENDING || participantStatus == ParticipantStatus.CONFIRMED;

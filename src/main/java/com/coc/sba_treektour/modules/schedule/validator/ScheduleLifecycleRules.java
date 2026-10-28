@@ -1,13 +1,13 @@
-package com.coc.sba_treektour.modules.schedule.service;
+package com.coc.sba_treektour.modules.schedule.validator;
 
+import com.coc.sba_treektour.modules.schedule.entity.EventSchedule;
+import com.coc.sba_treektour.modules.schedule.enums.ScheduleStatus;
 import com.coc.sba_treektour.modules.schedule.exception.InvalidScheduleOperationException;
-
-import com.coc.sba_treektour.modules.schedule.entity.*;
 import java.time.OffsetDateTime;
 
 /** Pure business rules; no HTTP, security context or database access. */
-public final class ScheduleLifecycle {
-    private ScheduleLifecycle() {}
+public final class ScheduleLifecycleRules {
+    private ScheduleLifecycleRules() {}
 
     public static void requireEditable(EventSchedule schedule, OffsetDateTime now) {
         if (!now.isBefore(schedule.getStartDatetime()) || schedule.getStatus() == ScheduleStatus.IN_PROGRESS

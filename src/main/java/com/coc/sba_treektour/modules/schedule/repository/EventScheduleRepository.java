@@ -1,24 +1,27 @@
 package com.coc.sba_treektour.modules.schedule.repository;
 
 import com.coc.sba_treektour.modules.schedule.entity.EventSchedule;
-import com.coc.sba_treektour.modules.schedule.entity.ScheduleStatus;
-
+import com.coc.sba_treektour.modules.schedule.enums.ScheduleStatus;
+import jakarta.persistence.LockModeType;
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Optional;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.util.List;
-
 public interface EventScheduleRepository extends JpaRepository<EventSchedule, Long> {
 
-    @Query("select s.id from EventSchedule s where s.registrationClosesAt <= :now and s.status in (com.coc.sba_treektour.modules.schedule.entity.ScheduleStatus.OPEN, com.coc.sba_treektour.modules.schedule.entity.ScheduleStatus.FULL) order by s.id")
-    List<Long> findDueToClose(@Param("now") java.time.OffsetDateTime now, org.springframework.data.domain.Pageable page);
+    @Query("select s.id from EventSchedule s where s.registrationClosesAt <= :now and s.status in (com.coc.sba_treektour.modules.schedule.enums.ScheduleStatus.OPEN, com.coc.sba_treektour.modules.schedule.enums.ScheduleStatus.FULL) order by s.id")
+    List<Long> findDueToClose(@Param("now") OffsetDateTime now, Pageable page);
 
     /** Khóa lịch để tuần tự hóa đăng ký, hủy, đổi lịch và phân công. */
-    @org.springframework.data.jpa.repository.Lock(
-            jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Lock(
+            LockModeType.PESSIMISTIC_WRITE)
     @Query("select s from EventSchedule s where s.id = :id")
-    java.util.Optional<EventSchedule> findForUpdate(@Param("id") Long id);
+    Optional<EventSchedule> findForUpdate(@Param("id") Long id);
 
     /** Kết hợp tất cả bộ lọc; khách chỉ thấy lịch của tour PUBLISHED. */
     @Query(
@@ -41,7 +44,7 @@ public interface EventScheduleRepository extends JpaRepository<EventSchedule, Lo
             @Param("status") String status,
             @Param("admin") boolean admin,
             @Param("staffUserId") Long staffUserId,
-            org.springframework.data.domain.Pageable page);
+            Pageable page);
 
     /** Kiểm tra trùng thời gian theo người, kể cả nhiều guideId của cùng userId. */
     @Query(
@@ -56,8 +59,8 @@ public interface EventScheduleRepository extends JpaRepository<EventSchedule, Lo
     boolean overlaps(
             @Param("userId") Long userId,
             @Param("excludeId") Long excludeId,
-            @Param("startTime") java.time.OffsetDateTime startTime,
-            @Param("endTime") java.time.OffsetDateTime endTime);
+            @Param("startTime") OffsetDateTime startTime,
+            @Param("endTime") OffsetDateTime endTime);
 
     /** Đọc lịch theo tour, sắp xếp ngày khởi hành. */
     List<EventSchedule> findByEventIdOrderByStartDatetimeAsc(Long eventId);

@@ -1,6 +1,6 @@
 # Module 5 — Lịch và đăng ký tham gia
 
-Cập nhật: 2026-10-21. Package: `com.coc.sba_treektour.modules.schedule`.
+Cập nhật: 2026-10-28 (chuẩn hóa cấu trúc mốc 1–3). Package: `com.coc.sba_treektour.modules.schedule`.
 Tài liệu này thay thế contract lịch/vé trong các tài liệu demo ngày 2026-10-10.
 Phân tích trước khi sửa: [MODULE_5_ARCHITECTURE_REVIEW.md](MODULE_5_ARCHITECTURE_REVIEW.md).
 
@@ -16,7 +16,12 @@ controller → service interface → service/impl → repository → PostgreSQL
 - `security/ScheduleAccessPolicy`: principal JWT, chủ vé, chi nhánh và guide được phân công.
 - `config/ScheduleSecurityConfig`: filter chain riêng, Order(0), chỉ nhận đường dẫn lịch/vé.
 - `repository/ScheduleIntegrationRepository`: SQL đọc Account/Branch/Payment và khóa guide.
-- `ParticipantLifecycle`: thao tác nội bộ bắt buộc có transaction và đã khóa lịch.
+- `service/impl/ParticipantLifecycle`: thao tác nội bộ bắt buộc có transaction và đã khóa lịch.
+- `dto/request`, `dto/response`: request và response tách riêng; `enums` chứa trạng thái.
+- `validator/ScheduleLifecycleRules`: quy tắc vòng đời thuần; `util/SchedulePageRequests`: kiểm tra phân trang.
+- `scheduler/ScheduleExpiryJob`: worker, giữ cấu hình và lịch chạy hiện có.
+- Constructor injection dùng `@RequiredArgsConstructor`; `ScheduleSettings` giữ constructor cấu hình `@Value` và Clock để bảo toàn validation/testability.
+- Baseline, quy tắc đặt tên và đối chiếu contract: [MODULE_5_STRUCTURE_STANDARDIZATION.md](MODULE_5_STRUCTURE_STANDARDIZATION.md).
 - `HoldExpiryService`: worker nội bộ; `ParticipantPaymentService`: contract Payment nội bộ.
 - `exception`: lỗi nghiệp vụ độc lập HTTP; controller advice chuyển thành ApiResponse.
 
@@ -34,6 +39,7 @@ có `@PreAuthorize`; policy kiểm tra phạm vi tài nguyên trong transaction.
 | API | Quyền |
 | --- | --- |
 | GET `/api/schedules`, GET `/api/schedules/{id}` | Công khai; lịch của tour PUBLISHED. ADMIN xem mọi tour; STAFF chỉ xem tour ẩn ở chi nhánh được quản lý |
+| GET `/api/schedules/my-assignments`, GET `/api/schedules/my-assignments/{id}` | GUIDE đang hoạt động, đúng lịch được phân công |
 | POST `/api/schedules` | ADMIN hoặc STAFF đang hoạt động tại branchId được yêu cầu |
 | PUT `/api/schedules/{id}` | ADMIN hoặc STAFF đúng chi nhánh lịch |
 | POST `/api/schedules/{id}/reschedule` | ADMIN hoặc STAFF đúng chi nhánh lịch |
@@ -173,8 +179,11 @@ hay status từ client. Kết quả:
   giao dịch đã vào hàng đối soát. Không khôi phục vé, không chiếm lại chỗ; lưu review
   chống trùng theo transaction_id. Payment phải tiếp tục quy trình đối soát.
 
-**Callback ZaloPay hiện tại của member 6 chưa gọi contract này.** Đã giữ nguyên code
-Payment theo phạm vi module. Luồng bản đầu có thể dùng xác nhận thủ công.
+Source tại 2026-10-28 đã có `ParticipantPaymentBridgeImpl.confirm` gọi contract này với
+identity `SCHEDULE_PAYMENT`; `TransactionsServiceImpl.confirmParticipant` dùng bridge
+cho giao dịch thành công. Mốc chuẩn hóa chỉ cập nhật import enum bắt buộc ở Payment,
+không sửa luồng callback/query/retry. Việc có đường gọi trong source không thay thế
+kiểm thử provider thật/end-to-end; kết quả kiểm tra riêng xem tài liệu chuẩn hóa.
 
 `schedule_payment_reviews` là hàng yêu cầu đối soát bền vững: mã giao dịch (nếu có),
 UUID lần đăng ký, số tiền snapshot, loại và lý do. Record liên quan giao dịch PENDING
@@ -212,7 +221,7 @@ hold quá hạn trong transaction có khóa lịch. Một lỗi worker được 
 
 ## Kiểm thử
 
-`src/test/java/com/coc/sba_treektour/schedule/ScheduleIntegrationTests.java` kế thừa
+`src/test/java/com/coc/sba_treektour/modules/schedule/ScheduleIntegrationTests.java` kế thừa
 8 tình huống tích hợp cũ và bổ sung quyền chi nhánh, vòng đời/thời gian, hết hạn,
 manual receipt/UUID, callback lặp/muộn/sai tiền, history và các race condition.
 Test module 5 tắt timer để kiểm soát thời gian; gọi worker thật qua service.
@@ -232,6 +241,16 @@ PostgreSQL 17.11 portable dùng trong lần kiểm tra này nằm trong build (g
 Không chạy migration hoặc sửa dữ liệu trên Supabase/database dùng chung.
 Kết quả chạy cuối cùng được ghi tại dòng module 5 trong MODULE_INTEGRATION_STATUS.md.
 
-Kết quả 2026-10-21: `compileJava`, `compileTestJava` và toàn bộ **60 tests PASS**,
+Kết quả lịch sử 2026-10-21: `compileJava`, `compileTestJava` và toàn bộ **60 tests PASS**,
 gồm **21 test module 5**, không có test bị bỏ qua. Migration mới đã chạy thành công
 trên database PostgreSQL 17.11 riêng; các module Account, Catalog và Tour đều pass.
+
+
+## Chuẩn hóa 2026-10-28
+
+Mốc 1–3 giữ nguyên endpoint, tên JSON, mảng danh sách, enum values, PK/FK, JPA mappings,
+transactions và migration. DTO xác nhận thủ công đổi tên Java thành
+`dto.request.ConfirmParticipantPaymentRequest`; response đối soát thành
+`dto.response.SchedulePaymentReviewResponse`. Không áp dụng đề xuất đổi API của mốc 4.
+
+Kết quả kiểm tra mới nhất và bảng đổi tên: [MODULE_5_STRUCTURE_STANDARDIZATION.md](MODULE_5_STRUCTURE_STANDARDIZATION.md).

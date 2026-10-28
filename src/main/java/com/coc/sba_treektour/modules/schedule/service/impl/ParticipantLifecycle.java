@@ -1,10 +1,19 @@
-package com.coc.sba_treektour.modules.schedule.service;
+package com.coc.sba_treektour.modules.schedule.service.impl;
 
 import com.coc.sba_treektour.modules.schedule.config.ScheduleSettings;
-import com.coc.sba_treektour.modules.schedule.entity.*;
-import com.coc.sba_treektour.modules.schedule.repository.*;
+import com.coc.sba_treektour.modules.schedule.entity.EventParticipant;
+import com.coc.sba_treektour.modules.schedule.entity.EventSchedule;
+import com.coc.sba_treektour.modules.schedule.entity.ParticipantHistory;
+import com.coc.sba_treektour.modules.schedule.entity.SchedulePaymentReview;
+import com.coc.sba_treektour.modules.schedule.enums.ParticipantStatus;
+import com.coc.sba_treektour.modules.schedule.repository.EventParticipantRepository;
+import com.coc.sba_treektour.modules.schedule.repository.ParticipantHistoryRepository;
+import com.coc.sba_treektour.modules.schedule.repository.ScheduleIntegrationRepository;
+import com.coc.sba_treektour.modules.schedule.repository.SchedulePaymentReviewRepository;
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,21 +21,16 @@ import org.springframework.transaction.annotation.Transactional;
 /** Internal transactional operations. Always called after acquiring the schedule write lock. */
 @Component
 @Transactional(propagation = Propagation.MANDATORY)
+@RequiredArgsConstructor
 public class ParticipantLifecycle {
-    private final EventParticipantRepository participants;
-    private final ParticipantHistoryRepository histories;
-    private final SchedulePaymentReviewRepository reviews;
-    private final ScheduleIntegrationRepository integration;
-    private final ScheduleSettings settings;
-
-    public ParticipantLifecycle(EventParticipantRepository participants, ParticipantHistoryRepository histories,
-            SchedulePaymentReviewRepository reviews, ScheduleIntegrationRepository integration, ScheduleSettings settings) {
-        this.participants = participants; this.histories = histories; this.reviews = reviews;
-        this.integration = integration; this.settings = settings;
-    }
+    private final EventParticipantRepository eventParticipantRepository;
+    private final ParticipantHistoryRepository participantHistoryRepository;
+    private final SchedulePaymentReviewRepository schedulePaymentReviewRepository;
+    private final ScheduleIntegrationRepository scheduleIntegrationRepository;
+    private final ScheduleSettings scheduleSettings;
 
     public void expire(EventSchedule schedule, OffsetDateTime now) {
-        for (var p : participants.findByScheduleId(schedule.getId())) {
+        for (var p : eventParticipantRepository.findByScheduleId(schedule.getId())) {
             if (p.expire(now)) {
                 schedule.release();
                 audit(p, "EXPIRE_HOLD", ParticipantStatus.PENDING, null, "Hết hạn giữ chỗ");
@@ -49,25 +53,25 @@ public class ParticipantLifecycle {
     }
 
     public void audit(EventParticipant p, String action, ParticipantStatus oldStatus, Long actor, String reason) {
-        histories.save(new ParticipantHistory(p, action, oldStatus, actor, reason, settings.now()));
+        participantHistoryRepository.save(new ParticipantHistory(p, action, oldStatus, actor, reason, scheduleSettings.now()));
     }
 
     public boolean hasPaymentReview(Long transactionId) {
-        return reviews.existsByDedupKey("TRANSACTION:" + transactionId);
+        return schedulePaymentReviewRepository.existsByDedupKey("TRANSACTION:" + transactionId);
     }
 
     public void review(EventParticipant p, UUID reference, Long transactionId, String kind, String reason) {
         review(p, reference, transactionId, p.getRegisteredPrice(), kind, reason);
     }
 
-    public void review(EventParticipant p, UUID reference, Long transactionId, java.math.BigDecimal amount, String kind, String reason) {
+    public void review(EventParticipant p, UUID reference, Long transactionId, BigDecimal amount, String kind, String reason) {
         String key = transactionId == null ? p.getId() + ":" + reference + ":MANUAL" : "TRANSACTION:" + transactionId;
-        if (!reviews.existsByDedupKey(key))
-            reviews.save(new SchedulePaymentReview(p, reference, transactionId, key, kind, amount, reason, settings.now()));
+        if (!schedulePaymentReviewRepository.existsByDedupKey(key))
+            schedulePaymentReviewRepository.save(new SchedulePaymentReview(p, reference, transactionId, key, kind, amount, reason, scheduleSettings.now()));
     }
 
     private void reviewTransactions(EventParticipant p, String reason) {
-        for (var payment : integration.payments(p.getId())) {
+        for (var payment : scheduleIntegrationRepository.payments(p.getId())) {
             if (payment.createdAt().isBefore(p.getRegistrationDate())) continue;
             if (payment.status().equals("SUCCEEDED") || payment.status().equals("PENDING"))
                 review(p, p.getRegistrationReference(), payment.id(), payment.amount(), "REFUND_REVIEW", reason);
