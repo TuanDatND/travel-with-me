@@ -9,11 +9,8 @@ import com.coc.sba_treektour.modules.branch.dto.response.BranchResponse;
 import com.coc.sba_treektour.modules.branch.dto.response.StaffResponse;
 import com.coc.sba_treektour.modules.branch.entity.Branch;
 import com.coc.sba_treektour.modules.branch.entity.Staff;
-import com.coc.sba_treektour.modules.branch.enums.BranchStatus;
-import com.coc.sba_treektour.modules.branch.enums.StaffStatus;
 import com.coc.sba_treektour.modules.branch.exception.BranchNotFoundException;
 import com.coc.sba_treektour.modules.branch.exception.InvalidBranchOperationException;
-import com.coc.sba_treektour.modules.branch.exception.StaffNotFoundException;
 import com.coc.sba_treektour.modules.branch.repository.BranchRepository;
 import com.coc.sba_treektour.modules.branch.repository.StaffRepository;
 import com.coc.sba_treektour.modules.branch.service.BranchService;
@@ -23,12 +20,16 @@ import com.coc.sba_treektour.modules.branch.service.impl.StaffServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import java.util.List;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class BranchAndStaffTests {
 
@@ -93,6 +94,18 @@ public class BranchAndStaffTests {
     }
 
     @Test
+    void testDeleteBranch_SoftDeletesToInactive() {
+        Branch branch = Branch.builder().id(1L).name("Chi nhánh Đà Nẵng").status("ACTIVE").build();
+        when(branchRepository.findById(1L)).thenReturn(Optional.of(branch));
+        when(staffRepository.existsByBranchId(1L)).thenReturn(false);
+
+        branchService.deleteBranch(1L);
+
+        assertEquals("INACTIVE", branch.getStatus());
+        verify(branchRepository).save(branch);
+    }
+
+    @Test
     void testAssignStaff_RoleNotStaff_ThrowsException() {
         StaffRequest request = StaffRequest.builder()
                 .branchId(1L)
@@ -100,9 +113,9 @@ public class BranchAndStaffTests {
                 .position("Quản lý")
                 .build();
 
-        Branch branch = Branch.builder().id(1L).name("Chi nhánh HCM").build();
+        Branch branch = Branch.builder().id(1L).name("Chi nhánh HCM").status("ACTIVE").build();
         Role customerRole = Role.builder().id(4L).name("CUSTOMER").build();
-        User user = User.builder().id(10L).role(customerRole).build();
+        User user = User.builder().id(10L).role(customerRole).status("ACTIVE").build();
 
         when(staffRepository.existsByUserId(10L)).thenReturn(false);
         when(branchRepository.findById(1L)).thenReturn(Optional.of(branch));
@@ -115,6 +128,30 @@ public class BranchAndStaffTests {
     }
 
     @Test
+    void testAssignStaff_InactiveBranchOrBlockedUser_ThrowsException() {
+        StaffRequest request = StaffRequest.builder()
+                .branchId(1L)
+                .userId(10L)
+                .position("Quản lý kho")
+                .build();
+
+        Branch inactiveBranch = Branch.builder().id(1L).name("Chi nhánh HCM").status("INACTIVE").build();
+        when(staffRepository.existsByUserId(10L)).thenReturn(false);
+        when(branchRepository.findById(1L)).thenReturn(Optional.of(inactiveBranch));
+
+        assertThrows(InvalidBranchOperationException.class, () -> staffService.assignStaff(request));
+
+        Branch activeBranch = Branch.builder().id(1L).name("Chi nhánh HCM").status("ACTIVE").build();
+        Role staffRole = Role.builder().id(2L).name("STAFF").build();
+        User blockedUser = User.builder().id(10L).role(staffRole).status("BLOCKED").build();
+
+        when(branchRepository.findById(1L)).thenReturn(Optional.of(activeBranch));
+        when(userRepository.findById(10L)).thenReturn(Optional.of(blockedUser));
+
+        assertThrows(InvalidBranchOperationException.class, () -> staffService.assignStaff(request));
+    }
+
+    @Test
     void testAssignStaff_Success() {
         StaffRequest request = StaffRequest.builder()
                 .branchId(1L)
@@ -122,9 +159,9 @@ public class BranchAndStaffTests {
                 .position("Quản lý kho")
                 .build();
 
-        Branch branch = Branch.builder().id(1L).name("Chi nhánh HCM").build();
+        Branch branch = Branch.builder().id(1L).name("Chi nhánh HCM").status("ACTIVE").build();
         Role staffRole = Role.builder().id(2L).name("STAFF").build();
-        User user = User.builder().id(10L).fullName("Nguyễn Văn A").role(staffRole).build();
+        User user = User.builder().id(10L).fullName("Nguyễn Văn A").role(staffRole).status("ACTIVE").build();
 
         Staff savedStaff = Staff.builder()
                 .id(100L)

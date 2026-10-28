@@ -1,8 +1,11 @@
 package com.coc.sba_treektour.common.config;
 
+import com.coc.sba_treektour.common.security.Roles;
+import com.coc.sba_treektour.modules.account.controller.OAuth2AuthenticationSuccessHandler;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -17,8 +20,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-
-import com.coc.sba_treektour.modules.account.controller.OAuth2AuthenticationSuccessHandler;
 
 @Configuration
 @EnableWebSecurity
@@ -41,10 +42,11 @@ public class SecurityConfig {
                     "/swagger-ui.html",
                     "/api/auth/**"
                 ).permitAll()
-                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/branches/**").permitAll()
-                .requestMatchers("/api/branches/**").hasAuthority("ADMIN")
-                .requestMatchers("/api/staff/**").hasAnyAuthority("ADMIN", "STAFF")
-                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/users/internal").hasAuthority("ADMIN")
+                .requestMatchers(HttpMethod.GET, "/api/branches/**").permitAll()
+                .requestMatchers("/api/branches/**").hasAuthority(Roles.ADMIN)
+                .requestMatchers(HttpMethod.GET, "/api/staff/**").hasAnyAuthority(Roles.ADMIN, Roles.STAFF)
+                .requestMatchers("/api/staff/**").hasAuthority(Roles.ADMIN)
+                .requestMatchers(HttpMethod.POST, "/api/users/internal").hasAuthority(Roles.ADMIN)
                 .anyRequest().authenticated()
             )
             .oauth2Login(oauth2 -> oauth2
@@ -55,7 +57,7 @@ public class SecurityConfig {
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
             .formLogin(AbstractHttpConfigurer::disable)
             .httpBasic(AbstractHttpConfigurer::disable);
-            
+
         return http.build();
     }
 

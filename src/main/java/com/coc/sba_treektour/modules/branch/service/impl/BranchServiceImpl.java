@@ -42,13 +42,18 @@ public class BranchServiceImpl implements BranchService {
 
     @Override
     public BranchResponse createBranch(BranchRequest request) {
+        String status = BranchStatus.ACTIVE.name();
+        if (request.getStatus() != null && !request.getStatus().isBlank()) {
+            status = validateBranchStatus(request.getStatus());
+        }
+
         Branch branch = Branch.builder()
                 .name(request.getName())
                 .phone(request.getPhone())
                 .address(request.getAddress())
-                .status(BranchStatus.ACTIVE.name())
+                .status(status)
                 .build();
-        
+
         Branch savedBranch = branchRepository.save(branch);
         return mapToBranchResponse(savedBranch);
     }
@@ -62,6 +67,10 @@ public class BranchServiceImpl implements BranchService {
         branch.setPhone(request.getPhone());
         branch.setAddress(request.getAddress());
 
+        if (request.getStatus() != null && !request.getStatus().isBlank()) {
+            branch.setStatus(validateBranchStatus(request.getStatus()));
+        }
+
         Branch updatedBranch = branchRepository.save(branch);
         return mapToBranchResponse(updatedBranch);
     }
@@ -70,14 +79,8 @@ public class BranchServiceImpl implements BranchService {
     public BranchResponse updateBranchStatus(Long id, String status) {
         Branch branch = branchRepository.findById(id)
                 .orElseThrow(() -> new BranchNotFoundException("Branch not found with id: " + id));
-        
-        String upperStatus = status.toUpperCase();
-        try {
-            BranchStatus.valueOf(upperStatus);
-        } catch (IllegalArgumentException e) {
-            throw new InvalidBranchOperationException("Invalid status. Must be ACTIVE or INACTIVE");
-        }
 
+        String upperStatus = validateBranchStatus(status);
         branch.setStatus(upperStatus);
         Branch updatedBranch = branchRepository.save(branch);
         return mapToBranchResponse(updatedBranch);
@@ -92,11 +95,20 @@ public class BranchServiceImpl implements BranchService {
             throw new InvalidBranchOperationException("Không thể xóa chi nhánh vì vẫn còn nhân viên đang trực thuộc!");
         }
 
+        branch.setStatus(BranchStatus.INACTIVE.name());
+        branchRepository.save(branch);
+    }
+
+    private String validateBranchStatus(String status) {
+        if (status == null || status.isBlank()) {
+            throw new InvalidBranchOperationException("Invalid status. Must be ACTIVE or INACTIVE");
+        }
+        String upperStatus = status.toUpperCase();
         try {
-            branchRepository.delete(branch);
-        } catch (Exception ex) {
-            branch.setStatus(BranchStatus.INACTIVE.name());
-            branchRepository.save(branch);
+            BranchStatus.valueOf(upperStatus);
+            return upperStatus;
+        } catch (IllegalArgumentException e) {
+            throw new InvalidBranchOperationException("Invalid status. Must be ACTIVE or INACTIVE");
         }
     }
 

@@ -1,14 +1,16 @@
-package com.coc.sba_treektour.modules.account;
+package com.coc.sba_treektour.account;
 
+import com.coc.sba_treektour.common.service.EmailService;
+import com.coc.sba_treektour.common.util.PasswordGenerator;
 import com.coc.sba_treektour.modules.account.dto.request.CreateInternalUserRequest;
 import com.coc.sba_treektour.modules.account.dto.response.InternalUserResponse;
 import com.coc.sba_treektour.modules.account.entity.Role;
 import com.coc.sba_treektour.modules.account.entity.User;
+import com.coc.sba_treektour.modules.account.exception.InvalidAccountException;
 import com.coc.sba_treektour.modules.account.repository.RoleRepository;
 import com.coc.sba_treektour.modules.account.repository.UserRepository;
 import com.coc.sba_treektour.modules.account.service.UserService;
-import com.coc.sba_treektour.common.service.EmailService;
-import com.coc.sba_treektour.common.util.PasswordGenerator;
+import com.coc.sba_treektour.modules.account.service.impl.UserServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -16,11 +18,15 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Optional;
 
-import com.coc.sba_treektour.modules.account.service.impl.UserServiceImpl;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class AdminInternalUserTests {
 
@@ -50,14 +56,14 @@ public class AdminInternalUserTests {
     void testCreateInternalUser_SuccessForStaff() {
         CreateInternalUserRequest request = CreateInternalUserRequest.builder()
                 .fullName("Nguyễn Văn Nhân Viên")
-                .email("staff.test@treektour.com")
+                .email("  Staff.Test@TreekTour.com  ")
                 .phone("0987654321")
                 .role("STAFF")
                 .build();
 
         Role staffRole = Role.builder().id(2L).name("STAFF").build();
 
-        when(userRepository.existsByEmail("staff.test@treektour.com")).thenReturn(false);
+        when(userRepository.findByEmail("staff.test@treektour.com")).thenReturn(Optional.empty());
         when(roleRepository.findByName("STAFF")).thenReturn(Optional.of(staffRole));
         when(passwordEncoder.encode(anyString())).thenReturn("hashed_password");
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
@@ -86,14 +92,128 @@ public class AdminInternalUserTests {
     }
 
     @Test
+    void testCreateInternalUser_ReassignExistingInactiveOrUnassignedUser() {
+        CreateInternalUserRequest request = CreateInternalUserRequest.builder()
+                .fullName("Đạt Trần")
+                .email("datgalaxy0704@gmail.com")
+                .phone("0912345678")
+                .role("STAFF")
+                .build();
+
+        Role staffRole = Role.builder().id(2L).name("STAFF").build();
+        User existingUser = User.builder()
+                .id(55L)
+                .fullName("Tên Cũ")
+                .email("datgalaxy0704@gmail.com")
+                .role(staffRole)
+                .status("INACTIVE")
+                .build();
+
+        when(userRepository.findByEmail("datgalaxy0704@gmail.com")).thenReturn(Optional.of(existingUser));
+        when(roleRepository.findByName("STAFF")).thenReturn(Optional.of(staffRole));
+        when(passwordEncoder.encode(anyString())).thenReturn("new_hashed_password");
+        when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
+        when(emailService.sendInternalAccountEmail(anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(true);
+
+        InternalUserResponse response = userService.createInternalUser(request);
+
+        assertNotNull(response);
+        assertEquals(55L, response.getId());
+        assertEquals("Đạt Trần", response.getFullName());
+        assertEquals("ACTIVE", response.getStatus());
+    }
+
+    @Test
+    void testCreateInternalUser_ActiveGuideCannotBecomeStaff_ThrowsException() {
+        CreateInternalUserRequest request = CreateInternalUserRequest.builder()
+                .fullName("Guide Đang Hoạt Động")
+                .email("guide.active@treektour.com")
+                .phone("0912345678")
+                .role("STAFF")
+                .build();
+
+        Role staffRole = Role.builder().id(2L).name("STAFF").build();
+        Role guideRole = Role.builder().id(3L).name("GUIDE").build();
+        User activeGuideUser = User.builder()
+                .id(77L)
+                .fullName("Guide Đang Hoạt Động")
+                .email("guide.active@treektour.com")
+                .role(guideRole)
+                .status("ACTIVE")
+                .build();
+
+        when(userRepository.findByEmail("guide.active@treektour.com")).thenReturn(Optional.of(activeGuideUser));
+        when(userRepository.hasActiveGuideProfile(77L)).thenReturn(true);
+        when(roleRepository.findByName("STAFF")).thenReturn(Optional.of(staffRole));
+
+        InvalidAccountException ex = assertThrows(InvalidAccountException.class,
+                () -> userService.createInternalUser(request));
+        assertTrue(ex.getMessage().contains("Hướng dẫn viên (GUIDE) đang hoạt động"));
+
+        // Even if the user's role in users table was previously changed to STAFF, active tour_guides still blocks it
+        activeGuideUser.setRole(staffRole);
+        InvalidAccountException ex2 = assertThrows(InvalidAccountException.class,
+                () -> userService.createInternalUser(request));
+        assertTrue(ex2.getMessage().contains("Hướng dẫn viên (GUIDE) đang hoạt động"));
+    }
+
+    @Test
+    void testCreateInternalUser_LockedGuideCanBecomeStaff_Success() {
+        CreateInternalUserRequest request = CreateInternalUserRequest.builder()
+                .fullName("Guide Đã Khóa")
+                .email("guide.locked@treektour.com")
+                .phone("0912345678")
+                .role("STAFF")
+                .build();
+
+        Role staffRole = Role.builder().id(2L).name("STAFF").build();
+        Role guideRole = Role.builder().id(3L).name("GUIDE").build();
+        User lockedGuideUser = User.builder()
+                .id(78L)
+                .fullName("Guide Đã Khóa")
+                .email("guide.locked@treektour.com")
+                .role(guideRole)
+                .status("ACTIVE") // User table still ACTIVE, but tour_guides table is INACTIVE (locked on UI)
+                .build();
+
+        when(userRepository.findByEmail("guide.locked@treektour.com")).thenReturn(Optional.of(lockedGuideUser));
+        when(userRepository.hasActiveGuideProfile(78L)).thenReturn(false);
+        when(roleRepository.findByName("STAFF")).thenReturn(Optional.of(staffRole));
+        when(passwordEncoder.encode(anyString())).thenReturn("new_hashed_password");
+        when(userRepository.save(any(User.class))).thenAnswer(i -> i.getArgument(0));
+        when(emailService.sendInternalAccountEmail(anyString(), anyString(), anyString(), anyString()))
+                .thenReturn(true);
+
+        InternalUserResponse response = userService.createInternalUser(request);
+
+        assertNotNull(response);
+        assertEquals(78L, response.getId());
+        assertEquals("STAFF", response.getRole());
+        assertEquals("ACTIVE", response.getStatus());
+
+        // Creating another GUIDE profile for a user who already has a guide profile (even if locked) is blocked before sending email
+        CreateInternalUserRequest guideRequest = CreateInternalUserRequest.builder()
+                .fullName("Guide Đã Khóa")
+                .email("guide.locked@treektour.com")
+                .phone("0912345678")
+                .role("GUIDE")
+                .build();
+        when(roleRepository.findByName("GUIDE")).thenReturn(Optional.of(guideRole));
+        when(userRepository.hasAnyGuideProfile(78L)).thenReturn(true);
+
+        InvalidAccountException exGuide = assertThrows(InvalidAccountException.class,
+                () -> userService.createInternalUser(guideRequest));
+        assertTrue(exGuide.getMessage().contains("đã có hồ sơ Hướng dẫn viên"));
+    }
+
+    @Test
     void testCreateInternalUser_RejectCustomerRole() {
         CreateInternalUserRequest request = CreateInternalUserRequest.builder()
                 .fullName("Test Customer")
                 .email("customer@treektour.com")
                 .role("CUSTOMER")
                 .build();
-
-        when(userRepository.existsByEmail("customer@treektour.com")).thenReturn(false);
 
         RuntimeException ex = assertThrows(RuntimeException.class, () -> userService.createInternalUser(request));
         assertTrue(ex.getMessage().contains("Chỉ được phép tạo tài khoản nội bộ cho vai trò STAFF hoặc GUIDE"));

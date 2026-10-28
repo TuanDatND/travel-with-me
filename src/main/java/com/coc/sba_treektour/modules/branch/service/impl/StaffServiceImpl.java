@@ -1,12 +1,15 @@
 package com.coc.sba_treektour.modules.branch.service.impl;
 
+import com.coc.sba_treektour.common.security.Roles;
 import com.coc.sba_treektour.modules.account.entity.User;
+import com.coc.sba_treektour.modules.account.enums.UserStatus;
 import com.coc.sba_treektour.modules.account.exception.UserNotFoundException;
 import com.coc.sba_treektour.modules.account.repository.UserRepository;
 import com.coc.sba_treektour.modules.branch.dto.request.StaffRequest;
 import com.coc.sba_treektour.modules.branch.dto.response.StaffResponse;
 import com.coc.sba_treektour.modules.branch.entity.Branch;
 import com.coc.sba_treektour.modules.branch.entity.Staff;
+import com.coc.sba_treektour.modules.branch.enums.BranchStatus;
 import com.coc.sba_treektour.modules.branch.enums.StaffStatus;
 import com.coc.sba_treektour.modules.branch.exception.BranchNotFoundException;
 import com.coc.sba_treektour.modules.branch.exception.InvalidBranchOperationException;
@@ -54,21 +57,38 @@ public class StaffServiceImpl implements StaffService {
 
         Branch branch = branchRepository.findById(request.getBranchId())
                 .orElseThrow(() -> new BranchNotFoundException("Branch not found with id: " + request.getBranchId()));
-        
+
+        if (branch.getStatus() != null && !BranchStatus.ACTIVE.name().equals(branch.getStatus())) {
+            throw new InvalidBranchOperationException("Không thể gán nhân viên vào chi nhánh đang ngừng hoạt động!");
+        }
+
         User user = userRepository.findById(request.getUserId())
                 .orElseThrow(() -> new UserNotFoundException("User not found with id: " + request.getUserId()));
 
-        if (user.getRole() == null || !"STAFF".equals(user.getRole().getName())) {
+        if (user.getRole() == null || !Roles.STAFF.equals(user.getRole().getName())) {
             throw new InvalidBranchOperationException("Chỉ được gán người dùng có vai trò STAFF vào chi nhánh!");
+        }
+
+        if (user.getStatus() != null && !UserStatus.ACTIVE.name().equals(user.getStatus())) {
+            throw new InvalidBranchOperationException("Không thể gán tài khoản người dùng đang bị khóa hoặc ngừng hoạt động!");
+        }
+
+        if (user.getId() != null && userRepository.hasActiveGuideProfile(user.getId())) {
+            throw new InvalidBranchOperationException("Người dùng này đang là Hướng dẫn viên (GUIDE) đang hoạt động, không thể gán làm nhân viên chi nhánh!");
+        }
+
+        String status = StaffStatus.ACTIVE.name();
+        if (request.getStatus() != null && !request.getStatus().isBlank()) {
+            status = validateStaffStatus(request.getStatus());
         }
 
         Staff staff = Staff.builder()
                 .branch(branch)
                 .user(user)
                 .position(request.getPosition())
-                .status(StaffStatus.ACTIVE.name())
+                .status(status)
                 .build();
-        
+
         Staff savedStaff = staffRepository.save(staff);
         return mapToStaffResponse(savedStaff);
     }
@@ -81,11 +101,18 @@ public class StaffServiceImpl implements StaffService {
         if (!staff.getBranch().getId().equals(request.getBranchId())) {
             Branch branch = branchRepository.findById(request.getBranchId())
                     .orElseThrow(() -> new BranchNotFoundException("Branch not found with id: " + request.getBranchId()));
+            if (branch.getStatus() != null && !BranchStatus.ACTIVE.name().equals(branch.getStatus())) {
+                throw new InvalidBranchOperationException("Không thể chuyển nhân viên sang chi nhánh đang ngừng hoạt động!");
+            }
             staff.setBranch(branch);
         }
 
         staff.setPosition(request.getPosition());
-        
+
+        if (request.getStatus() != null && !request.getStatus().isBlank()) {
+            staff.setStatus(validateStaffStatus(request.getStatus()));
+        }
+
         Staff updatedStaff = staffRepository.save(staff);
         return mapToStaffResponse(updatedStaff);
     }
@@ -94,14 +121,8 @@ public class StaffServiceImpl implements StaffService {
     public StaffResponse updateStaffStatus(Long id, String status) {
         Staff staff = staffRepository.findById(id)
                 .orElseThrow(() -> new StaffNotFoundException("Staff not found with id: " + id));
-        
-        String upperStatus = status.toUpperCase();
-        try {
-            StaffStatus.valueOf(upperStatus);
-        } catch (IllegalArgumentException e) {
-            throw new InvalidBranchOperationException("Invalid status. Must be ACTIVE or INACTIVE");
-        }
 
+        String upperStatus = validateStaffStatus(status);
         staff.setStatus(upperStatus);
         Staff updatedStaff = staffRepository.save(staff);
         return mapToStaffResponse(updatedStaff);
@@ -112,6 +133,19 @@ public class StaffServiceImpl implements StaffService {
         Staff staff = staffRepository.findById(id)
                 .orElseThrow(() -> new StaffNotFoundException("Staff not found with id: " + id));
         staffRepository.delete(staff);
+    }
+
+    private String validateStaffStatus(String status) {
+        if (status == null || status.isBlank()) {
+            throw new InvalidBranchOperationException("Invalid status. Must be ACTIVE or INACTIVE");
+        }
+        String upperStatus = status.toUpperCase();
+        try {
+            StaffStatus.valueOf(upperStatus);
+            return upperStatus;
+        } catch (IllegalArgumentException e) {
+            throw new InvalidBranchOperationException("Invalid status. Must be ACTIVE or INACTIVE");
+        }
     }
 
     @Override
