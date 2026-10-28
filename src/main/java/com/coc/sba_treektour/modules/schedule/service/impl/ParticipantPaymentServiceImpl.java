@@ -33,9 +33,9 @@ public class ParticipantPaymentServiceImpl implements ParticipantPaymentService 
         var scheduleId = eventParticipantRepository.findScheduleId(id).orElseThrow(() -> new ParticipantNotFoundException(id));
         var schedule = eventScheduleRepository.findForUpdate(scheduleId).orElseThrow(() -> new ScheduleNotFoundException(scheduleId));
         var p = eventParticipantRepository.findForUpdate(id).orElseThrow(() -> new ParticipantNotFoundException(id));
-        var payment = scheduleIntegrationRepository.payments(id).stream().filter(t -> t.id().equals(transactionId)).findFirst()
+        var payment = scheduleIntegrationRepository.payments(id).stream().filter(t -> t.getId().equals(transactionId)).findFirst()
                 .orElseThrow(() -> new ScheduleConflictException("Giao dịch không thuộc vé này"));
-        if (!payment.status().equals("SUCCEEDED")) throw new ScheduleConflictException("Giao dịch chưa thành công");
+        if (!payment.getStatus().equals("SUCCEEDED")) throw new ScheduleConflictException("Giao dịch chưa thành công");
         participantLifecycle.expire(schedule, scheduleSettings.now());
         String reference = "TRANSACTION:" + transactionId;
         if (p.getRegistrationReference().equals(registrationReference)
@@ -43,13 +43,13 @@ public class ParticipantPaymentServiceImpl implements ParticipantPaymentService 
                     || p.getParticipantStatus() == ParticipantStatus.NO_SHOW)
                 && reference.equals(p.getConfirmationReference())) return ConfirmationResult.CONFIRMED;
         if (participantLifecycle.hasPaymentReview(transactionId)) return ConfirmationResult.REVIEW_REQUIRED;
-        if (!p.getRegistrationReference().equals(registrationReference) || payment.createdAt().isBefore(p.getRegistrationDate())
-                || payment.amount().compareTo(p.getRegisteredPrice()) != 0
+        if (!p.getRegistrationReference().equals(registrationReference) || payment.getCreatedAt().isBefore(p.getRegistrationDate().toInstant())
+                || payment.getAmount().compareTo(p.getRegisteredPrice()) != 0
                 || p.getParticipantStatus() != ParticipantStatus.PENDING || !scheduleSettings.now().isBefore(p.getExpiresAt())
                 || !scheduleSettings.now().isBefore(schedule.getRegistrationClosesAt())
                 || (schedule.getStatus() != ScheduleStatus.OPEN && schedule.getStatus() != ScheduleStatus.FULL
                     && schedule.getStatus() != ScheduleStatus.CLOSED)) {
-            participantLifecycle.review(p, registrationReference, transactionId, payment.amount(), "LATE_PAYMENT", "Thanh toán đến muộn, sai lần đăng ký, sai số tiền hoặc vé không còn hợp lệ");
+            participantLifecycle.review(p, registrationReference, transactionId, payment.getAmount(), "LATE_PAYMENT", "Thanh toán đến muộn, sai lần đăng ký, sai số tiền hoặc vé không còn hợp lệ");
             return ConfirmationResult.REVIEW_REQUIRED;
         }
         p.confirmPayment(reference, scheduleSettings.now());

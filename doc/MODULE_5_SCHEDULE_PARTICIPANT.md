@@ -1,7 +1,10 @@
 # Module 5 — Lịch và đăng ký tham gia
 
-Cập nhật: 2026-10-28 (chuẩn hóa cấu trúc mốc 1–3). Package: `com.coc.sba_treektour.modules.schedule`.
+Cập nhật: 2026-10-28 (cấu trúc mốc 1–3 và API mốc 4–5). Package: `com.coc.sba_treektour.modules.schedule`.
 Tài liệu này thay thế contract lịch/vé trong các tài liệu demo ngày 2026-10-10.
+API canonical mới, alias legacy, request PATCH/attendance và lộ trình deprecation:
+[MODULE_5_API_MIGRATION.md](MODULE_5_API_MIGRATION.md). Bảng route bên dưới giữ các route
+legacy vẫn được hỗ trợ; quyền tương ứng áp dụng cả route canonical trong tài liệu chuyển đổi.
 Phân tích trước khi sửa: [MODULE_5_ARCHITECTURE_REVIEW.md](MODULE_5_ARCHITECTURE_REVIEW.md).
 
 ## Kiến trúc và phạm vi
@@ -15,7 +18,10 @@ controller → service interface → service/impl → repository → PostgreSQL
 - `service/impl`: transaction, điều phối và kiểm tra quyền trên tài nguyên.
 - `security/ScheduleAccessPolicy`: principal JWT, chủ vé, chi nhánh và guide được phân công.
 - `config/ScheduleSecurityConfig`: filter chain riêng, Order(0), chỉ nhận đường dẫn lịch/vé.
-- `repository/ScheduleIntegrationRepository`: SQL đọc Account/Branch/Payment và khóa guide.
+- Repository module 5 đều là Spring Data interface (`JpaRepository` cho entity CRUD; `Repository` cho query chuyên biệt).
+- `repository/ScheduleIntegrationRepository`: native `@Query` đọc Account/Branch/Payment và advisory transaction lock guide; không dùng JdbcTemplate.
+- `repository/GuideScheduleRepository`: native query với interface projection và Pageable; service chuyển projection thành DTO.
+- Projection native đọc timestamptz dưới dạng Instant; DTO lịch chuyển về OffsetDateTime UTC, so sánh Payment theo instant để giữ đúng thời điểm.
 - `service/impl/ParticipantLifecycle`: thao tác nội bộ bắt buộc có transaction và đã khóa lịch.
 - `dto/request`, `dto/response`: request và response tách riêng; `enums` chứa trạng thái.
 - `validator/ScheduleLifecycleRules`: quy tắc vòng đời thuần; `util/SchedulePageRequests`: kiểm tra phân trang.
@@ -251,6 +257,60 @@ trên database PostgreSQL 17.11 riêng; các module Account, Catalog và Tour đ
 Mốc 1–3 giữ nguyên endpoint, tên JSON, mảng danh sách, enum values, PK/FK, JPA mappings,
 transactions và migration. DTO xác nhận thủ công đổi tên Java thành
 `dto.request.ConfirmParticipantPaymentRequest`; response đối soát thành
-`dto.response.SchedulePaymentReviewResponse`. Không áp dụng đề xuất đổi API của mốc 4.
+`dto.response.SchedulePaymentReviewResponse`. API mốc 4–5 đã có canonical routes và alias legacy; xem tài liệu chuyển đổi, không xóa route cũ.
 
 Kết quả kiểm tra mới nhất và bảng đổi tên: [MODULE_5_STRUCTURE_STANDARDIZATION.md](MODULE_5_STRUCTURE_STANDARDIZATION.md).
+
+
+## Repository Spring Data (2026-10-28)
+
+GuideScheduleRepository và ScheduleIntegrationRepository đã chuyển từ class JDBC sang
+interface extends Repository<EventSchedule, Long>. Hai interface chỉ khai báo query cần dùng,
+không mở CRUD cho bảng của module khác, không tạo entity giả hoặc thay schema.
+Khóa guide giữ cùng hash key tour-guide:userId và pg_advisory_xact_lock, bắt buộc có transaction
+đang hoạt động (Propagation.MANDATORY). Hàm lock chạy trong FROM và trả scalar 1 để Spring Data
+mapping được, không dùng Modifying vì đây là SELECT lấy khóa.
+
+Code runtime module 5 không còn JDBC trực tiếp/RowMapper. JdbcTemplate trong integration tests
+chỉ phục vụ seed/cleanup và điều chỉnh fixture thời gian, không phải repository nghiệp vụ.
+Kiểm tra cuối: compileJava + compileTestJava và toàn bộ 181 tests PASS (32 Schedule/59 Payment),
+0 skipped trên PostgreSQL 17.11 riêng module5_spring_data_20261028; Flyway validate 9 migrations
+và Hibernate validate bật. Các test phân trang/quyền assignment, xác nhận Payment/review,
+tranh chấp guide cùng userId và giữ chỗ đều PASS. API/schema/migration không đổi.
+Chi tiết trạng thái: MODULE_INTEGRATION_STATUS.md.
+
+
+## Rà soát cách dùng Spring Data (2026-10-28)
+
+- Hai lookup khóa theo ID dùng derived `findLockedById` + `@Lock(PESSIMISTIC_WRITE)`,
+  bỏ JPQL `select ... where id=:id`. Giữ adapter `findForUpdate` để không đổi contract
+  repository đang được Payment gọi. Không gắn lock lên findById thông thường.
+- Worker lấy lịch đến hạn qua derived query cutoff <= now + status IN OPEN/FULL,
+  closed projection chỉ ID và Pageable/order by ID. Giữ adapter findDueToClose.
+- Bỏ 5 khai báo không có caller trong source: danh sách lịch theo event/branch/status,
+  lịch sử lịch không phân trang, danh sách vé theo user không phân trang.
+- Giữ JPQL lấy scheduleId của vé để khóa lịch trước vé mà không tải entity; giữ query
+  distinct schedule IDs của vé quá hạn để phân trang theo lịch, không theo từng vé.
+- Query lọc scope/đọc dữ liệu liên module, projection assignment/Payment và advisory
+  lock PostgreSQL không có CRUD/derived method tương đương trên entity Schedule hiện tại.
+  @Query không phải API deprecated; không ép thành method name rất dài hoặc tạo entity giả.
+- Kiểm tra các lớp controller/service/entity/DTO/security/scheduler: đang dùng Jakarta,
+  java.time, constructor injection và SecurityFilterChain lambda. Không thấy các API cũ
+  getOne/getById, javax, Date/SimpleDateFormat hay WebSecurityConfigurerAdapter trong module 5.
+  @Autowired ở ScheduleSettings dùng để chọn giữa hai constructor, vẫn hợp lệ.
+- Không nâng dependency toàn dự án hoặc sửa module khác cho thay đổi này.
+
+Nguồn đối chiếu: [Spring Data query methods](https://docs.spring.io/spring-data/jpa/reference/repositories/query-methods-details.html),
+[Spring Data locking](https://docs.spring.io/spring-data/jpa/reference/4.0/jpa/locking.html).
+Compile được bật thêm -Xlint:deprecation/-Xlint:removal trong init script local (build, git ignored);
+kết quả cuối cập nhật tại MODULE_INTEGRATION_STATUS.md.
+
+Kết quả lint biên dịch: không có cảnh báo deprecated/removal thuộc module 5. Có cảnh báo
+ngoài phạm vi: common/config/JwtAuthenticationFilter dùng org.springframework.lang.NonNull;
+TourExceptionHandler/ImageValidator và ImageValidatorTests dùng HttpStatus.PAYLOAD_TOO_LARGE.
+Giữ nguyên source các owner khác; không coi những cảnh báo này là lỗi đã sửa.
+
+Kết quả sau rà soát: compileJava + compileTestJava với lint và toàn bộ **182 tests PASS**,
+0 skipped (33 Schedule/59 Payment); PostgreSQL 17.11 module5_review_20261028 riêng,
+Flyway áp dụng/validate 9 migrations và Hibernate validate bật. Không đổi API/JSON/schema
+hoặc migration; không sửa source ngoài module 5 và các tài liệu trạng thái của nó.

@@ -18,19 +18,17 @@ public interface EventParticipantRepository extends JpaRepository<EventParticipa
             "select p.schedule.id from EventParticipant p where p.id=:id")
     Optional<Long> findScheduleId(@Param("id") Long id);
 
-    /** Khóa vé khi thay đổi trạng thái để tránh cập nhật đồng thời ghi đè nhau. */
-    @Lock(
-            LockModeType.PESSIMISTIC_WRITE)
-    @Query(
-            "select p from EventParticipant p where p.id=:id")
-    Optional<EventParticipant> findForUpdate(
-            @Param("id") Long id);
+    /** Derived query with a write lock; keep ordinary findById non-locking for reads. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    Optional<EventParticipant> findLockedById(Long id);
+
+    /** Preserve the repository contract already used by Payment. */
+    default Optional<EventParticipant> findForUpdate(Long id) {
+        return findLockedById(id);
+    }
 
     /** Đọc danh sách vé của lịch. */
     List<EventParticipant> findByScheduleId(Long scheduleId);
-
-    /** Đọc vé mới nhất trước của người dùng. */
-    List<EventParticipant> findByUserIdOrderByRegistrationDateDesc(Long userId);
 
     /** Tìm vé theo cặp lịch/người dùng để kiểm tra trùng hoặc đăng ký lại. */
     Optional<EventParticipant> findByScheduleIdAndUserId(Long scheduleId, Long userId);

@@ -56,3 +56,11 @@ service.impl; it does not need a new public service interface.
 
 See [MODULE_5_STRUCTURE_STANDARDIZATION.md](MODULE_5_STRUCTURE_STANDARDIZATION.md)
 for the captured baseline, naming conventions, moved types and actual checks.
+
+## Spring Data repositories (2026-10-28)
+
+GuideScheduleRepository and ScheduleIntegrationRepository are Spring Data Repository interfaces,
+using native @Query and interface projections rather than direct JDBC. Pageable is applied by
+Spring Data after the SQL assignment scope. Native timestamp projections use Instant; DTO mapping
+uses UTC OffsetDateTime and payment checks compare instants. The PostgreSQL advisory transaction
+lock keeps its original key and requires an existing transaction. API/schema remain unchanged.

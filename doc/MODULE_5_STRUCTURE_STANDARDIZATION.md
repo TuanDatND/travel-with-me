@@ -1,6 +1,7 @@
 # Module 5 — Baseline và chuẩn hóa cấu trúc
 
-Ngày: 2026-10-28. Phạm vi mốc 1–3; giữ endpoint, JSON, schema và nghiệp vụ.
+Ngày: 2026-10-28. Lịch sử mốc 1–3; giữ endpoint, JSON, schema và nghiệp vụ trong mốc này.
+Mốc 4–5 triển khai tiếp: [MODULE_5_API_MIGRATION.md](MODULE_5_API_MIGRATION.md).
 
 ## Baseline trước refactor
 

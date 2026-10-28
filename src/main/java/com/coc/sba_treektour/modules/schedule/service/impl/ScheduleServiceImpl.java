@@ -2,6 +2,7 @@ package com.coc.sba_treektour.modules.schedule.service.impl;
 
 import com.coc.sba_treektour.modules.schedule.config.ScheduleSettings;
 import com.coc.sba_treektour.modules.schedule.dto.request.CreateScheduleRequest;
+import com.coc.sba_treektour.modules.schedule.dto.request.PatchScheduleRequest;
 import com.coc.sba_treektour.modules.schedule.dto.request.RescheduleRequest;
 import com.coc.sba_treektour.modules.schedule.dto.request.UpdateScheduleRequest;
 import com.coc.sba_treektour.modules.schedule.dto.request.UpdateScheduleStatusRequest;
@@ -31,6 +32,7 @@ import com.coc.sba_treektour.modules.tour.service.EventService;
 import com.coc.sba_treektour.modules.tour.service.GuideService;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
@@ -96,7 +98,8 @@ public class ScheduleServiceImpl implements ScheduleService {
     @PreAuthorize("hasAuthority('GUIDE')")
     @Transactional(readOnly = true)
     public List<GuideScheduleResponse> findAssigned(ScheduleStatus status, int page, int size) {
-        return guideScheduleRepository.findAssigned(scheduleAccessPolicy.userId(), null, status, SchedulePageRequests.of(page, size));
+        return guideScheduleRepository.findAssigned(scheduleAccessPolicy.userId(), null, status == null ? null : status.name(), SchedulePageRequests.of(page, size))
+                .stream().map(this::toGuideResponse).toList();
     }
 
     @Override
@@ -106,26 +109,38 @@ public class ScheduleServiceImpl implements ScheduleService {
         var schedule = find(id);
         scheduleAccessPolicy.requireAssignedGuideOrManager(schedule);
         return guideScheduleRepository.findAssigned(scheduleAccessPolicy.userId(), id, null, SchedulePageRequests.of(0, 1)).stream()
-                .findFirst().orElseThrow(() -> new AccessDeniedException("Lịch không còn được phân công cho bạn"));
+                .map(this::toGuideResponse).findFirst().orElseThrow(() -> new AccessDeniedException("Lịch không còn được phân công cho bạn"));
     }
 
     @Override
     @Transactional
     public ScheduleResponse update(Long id, UpdateScheduleRequest request) {
+        return updateLocked(locked(id), request.guideId(), request.maxParticipants());
+    }
+
+    @Override
+    @Transactional
+    public ScheduleResponse patch(Long id, PatchScheduleRequest request) {
         var schedule = locked(id);
+        return updateLocked(schedule,
+                request.isGuideIdPresent() ? request.getGuideId() : schedule.getGuideId(),
+                request.getMaxParticipants() == null ? schedule.getMaxParticipants() : request.getMaxParticipants());
+    }
+
+    private ScheduleResponse updateLocked(EventSchedule schedule, Long guideId, Integer maxParticipants) {
         scheduleAccessPolicy.requireManager(schedule.getBranchId());
         ScheduleLifecycleRules.requireEditable(schedule, scheduleSettings.now());
         participantLifecycle.expire(schedule, scheduleSettings.now());
         requirePublished(schedule.getEventId());
         requireBranch(schedule.getBranchId());
-        validateAssignment(request.guideId(), schedule.getStartDatetime(), schedule.getEndDatetime(), id);
-        if (request.maxParticipants() == null || request.maxParticipants() < 1
-                || request.maxParticipants() < schedule.getCurrentParticipants())
+        validateAssignment(guideId, schedule.getStartDatetime(), schedule.getEndDatetime(), schedule.getId());
+        if (maxParticipants == null || maxParticipants < 1
+                || maxParticipants < schedule.getCurrentParticipants())
             throw new InvalidScheduleOperationException("Sức chứa phải dương và không nhỏ hơn số chỗ đang giữ");
         var oldStatus = schedule.getStatus();
-        String reason = "Đổi guide " + schedule.getGuideId() + " -> " + request.guideId()
-                + "; sức chứa " + schedule.getMaxParticipants() + " -> " + request.maxParticipants();
-        schedule.updateDetails(request.guideId(), request.maxParticipants());
+        String reason = "Đổi guide " + schedule.getGuideId() + " -> " + guideId
+                + "; sức chứa " + schedule.getMaxParticipants() + " -> " + maxParticipants;
+        schedule.updateDetails(guideId, maxParticipants);
         record(schedule, oldStatus, schedule.getStatus(), null, null, reason);
         return toResponse(schedule);
     }
@@ -241,6 +256,14 @@ public class ScheduleServiceImpl implements ScheduleService {
                 oldEnd, oldEnd == null ? null : s.getEndDatetime(), old == null ? null : old.name(), target.name(), reason);
         history.setChangedBy(scheduleAccessPolicy.userId());
         eventScheduleHistoryRepository.save(history);
+    }
+
+    private GuideScheduleResponse toGuideResponse(GuideScheduleRepository.Assignment assignment) {
+        return new GuideScheduleResponse(assignment.getId(), assignment.getEventId(), assignment.getEventName(),
+                assignment.getBranchId(), assignment.getBranchName(), assignment.getGuideId(),
+                assignment.getStartDatetime().atOffset(ZoneOffset.UTC), assignment.getEndDatetime().atOffset(ZoneOffset.UTC), assignment.getMaxParticipants(),
+                assignment.getCurrentParticipants(), ScheduleStatus.valueOf(assignment.getStatus()),
+                assignment.getCreatedAt().atOffset(ZoneOffset.UTC), assignment.getRegistrationClosesAt().atOffset(ZoneOffset.UTC));
     }
 
     private ScheduleResponse toResponse(EventSchedule s) {

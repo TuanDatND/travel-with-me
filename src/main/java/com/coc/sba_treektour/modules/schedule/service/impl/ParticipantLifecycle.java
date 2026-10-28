@@ -72,9 +72,9 @@ public class ParticipantLifecycle {
 
     private void reviewTransactions(EventParticipant p, String reason) {
         for (var payment : scheduleIntegrationRepository.payments(p.getId())) {
-            if (payment.createdAt().isBefore(p.getRegistrationDate())) continue;
-            if (payment.status().equals("SUCCEEDED") || payment.status().equals("PENDING"))
-                review(p, p.getRegistrationReference(), payment.id(), payment.amount(), "REFUND_REVIEW", reason);
+            if (payment.getCreatedAt().isBefore(p.getRegistrationDate().toInstant())) continue;
+            if (payment.getStatus().equals("SUCCEEDED") || payment.getStatus().equals("PENDING"))
+                review(p, p.getRegistrationReference(), payment.getId(), payment.getAmount(), "REFUND_REVIEW", reason);
         }
     }
 }

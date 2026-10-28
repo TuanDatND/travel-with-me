@@ -16,6 +16,7 @@ public interface ParticipantService {
     ParticipantResponse markNoShow(Long id);
     ParticipantResponse findById(Long id);
     List<ParticipantResponse> findByScheduleId(Long id, int page, int size);
+    List<ParticipantResponse> findMine(int page, int size);
     List<ParticipantResponse> findByUserId(Long id, int page, int size);
     List<ParticipantHistoryResponse> getHistories(Long id, int page, int size);
     List<SchedulePaymentReviewResponse> paymentReviews(Long branchId, int page, int size);

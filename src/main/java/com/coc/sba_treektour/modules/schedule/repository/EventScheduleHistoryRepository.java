@@ -7,6 +7,4 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface EventScheduleHistoryRepository extends JpaRepository<EventScheduleHistory, Long> {
     List<EventScheduleHistory> findByScheduleIdOrderByChangedAtDescIdDesc(Long id, Pageable page);
-
-    List<EventScheduleHistory> findByScheduleIdOrderByChangedAtDesc(Long scheduleId);
 }

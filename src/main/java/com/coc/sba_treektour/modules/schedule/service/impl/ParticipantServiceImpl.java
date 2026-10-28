@@ -178,6 +178,12 @@ public class ParticipantServiceImpl implements ParticipantService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<ParticipantResponse> findMine(int page, int size) {
+        return findByUserId(scheduleAccessPolicy.userId(), page, size);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<ParticipantResponse> findByUserId(Long userId, int page, int size) {
         if (userId.equals(scheduleAccessPolicy.userId()) || scheduleAccessPolicy.hasRole("ADMIN"))
             return eventParticipantRepository.findByUserIdOrderByRegistrationDateDescIdDesc(userId, SchedulePageRequests.of(page, size)).stream().map(this::toResponse).toList();

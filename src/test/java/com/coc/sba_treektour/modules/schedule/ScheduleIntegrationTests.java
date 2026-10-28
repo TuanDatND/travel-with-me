@@ -3,12 +3,15 @@ package com.coc.sba_treektour.modules.schedule;
 import com.coc.sba_treektour.modules.account.repository.UserRepository;
 import com.coc.sba_treektour.modules.schedule.exception.ScheduleConflictException;
 import com.coc.sba_treektour.modules.schedule.service.HoldExpiryService;
+import com.coc.sba_treektour.modules.schedule.repository.EventScheduleRepository;
+import org.springframework.data.domain.PageRequest;
 import com.coc.sba_treektour.modules.schedule.service.ParticipantPaymentService;
 import com.coc.sba_treektour.modules.schedule.service.ScheduleService;
 import com.jayway.jsonpath.JsonPath;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
@@ -43,6 +46,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class ScheduleIntegrationTests {
     @Autowired HoldExpiryService expiry;
+    @Autowired EventScheduleRepository scheduleRepository;
     @Autowired ParticipantPaymentService paymentService;
     @Autowired ScheduleService scheduleService;
     @Autowired UserRepository accounts;
@@ -852,5 +856,197 @@ class ScheduleIntegrationTests {
 
     private void confirm(long ticket) throws Exception {
         call(patch("/api/participants/{id}/confirm-payment", ticket), admin, confirmationBody(ticket), 200);
+    }
+
+    @Test
+    void canonicalRegistrationAndPrincipalQueriesPreserveLegacyContract() throws Exception {
+        long schedule = schedule(3);
+        long ticket = id(call(post("/api/schedules/{id}/participants", schedule), customer, "{\"note\":\"Vegetarian\"}", 201));
+        assertThat(responseData(call(get("/api/participants/me"), customer, null, 200)))
+                .isEqualTo(responseData(call(get("/api/participants/by-user/{id}", users.get(1)), customer, null, 200)));
+        assertThat(responseData(call(get("/api/participants").param("userId", users.get(1).toString()), customer, null, 200)))
+                .isEqualTo(responseData(call(get("/api/participants/me"), customer, null, 200)));
+        assertThat((List<?>) responseData(call(get("/api/participants/me"), other, null, 200))).isEmpty();
+        call(get("/api/participants").param("userId", users.get(1).toString()), other, null, 403);
+        call(get("/api/participants"), customer, null, 400);
+        call(get("/api/participants/me").param("size", "101"), customer, null, 400);
+        call(get("/api/participants/me").param("page", "-1"), customer, null, 400);
+        // A caller-supplied userId must not change the principal-scoped query.
+        assertThat(responseData(call(get("/api/participants/me").param("userId", users.get(2).toString()), customer, null, 200)))
+                .isEqualTo(responseData(call(get("/api/participants/me"), customer, null, 200)));
+        call(post("/api/schedules/{id}/register", schedule), customer, "{}", 409);
+        assertThat(responseData(call(get("/api/participants/{id}/history", ticket), customer, null, 200)))
+                .isEqualTo(responseData(call(get("/api/participants/{id}/histories", ticket), customer, null, 200)));
+        assertThat(responseData(call(get("/api/schedules/{id}/history", schedule), guide, null, 200)))
+                .isEqualTo(responseData(call(get("/api/schedules/{id}/histories", schedule), guide, null, 200)));
+    }
+
+    @Test
+    void canonicalAssignmentsRetainGuideScopeBeforePublicScheduleMatcher() throws Exception {
+        long schedule = schedule(2);
+        assertThat(responseData(call(get("/api/schedules/assigned-to-me"), guide, null, 200)))
+                .isEqualTo(responseData(call(get("/api/schedules/my-assignments"), guide, null, 200)));
+        assertThat(responseData(call(get("/api/schedules/assigned-to-me/{id}", schedule), guide, null, 200)))
+                .isEqualTo(responseData(call(get("/api/schedules/my-assignments/{id}", schedule), guide, null, 200)));
+        call(get("/api/schedules/assigned-to-me"), null, null, 401);
+        call(get("/api/schedules/assigned-to-me/{id}", schedule), customer, null, 403);
+        call(get("/api/schedules/assigned-to-me"), admin, null, 403);
+        jdbc.update("UPDATE event_schedules SET guide_id=NULL WHERE schedule_id=?", schedule);
+        call(get("/api/schedules/assigned-to-me/{id}", schedule), guide, null, 403);
+    }
+
+    @Test
+    void partialSchedulePatchDistinguishesAbsentAndNullWithoutChangingLegacyPut() throws Exception {
+        long schedule = schedule(3);
+        var capacityOnly = call(patch("/api/schedules/{id}", schedule), admin, "{\"maxParticipants\":4}", 200);
+        assertThat(((Number) JsonPath.read(capacityOnly.getResponse().getContentAsString(), "$.data.guideId")).longValue()).isEqualTo(guideId);
+        call(patch("/api/schedules/{id}", schedule), admin, "{}", 400);
+        call(patch("/api/schedules/{id}", schedule), admin, "{\"maxParticipants\":null}", 400);
+        call(patch("/api/schedules/{id}", schedule), admin, "{\"maxParticipants\":0}", 400);
+        call(patch("/api/schedules/{id}", schedule), admin, "{\"guideId\":-1}", 400);
+        call(patch("/api/schedules/{id}", schedule), admin, "{\"guideIdPresent\":true}", 400);
+        call(patch("/api/schedules/{id}", schedule), admin, "{\"guideId\":null}", 200);
+        assertThat(jdbc.queryForObject("SELECT guide_id FROM event_schedules WHERE schedule_id=?", Long.class, schedule)).isNull();
+        assertThat(jdbc.queryForObject("SELECT max_participants FROM event_schedules WHERE schedule_id=?", Integer.class, schedule)).isEqualTo(4);
+        call(put("/api/schedules/{id}", schedule), admin, "{\"guideId\":" + guideId + ",\"maxParticipants\":3}", 200);
+        call(put("/api/schedules/{id}", schedule), admin, "{\"guideId\":null}", 400);
+        call(post("/api/schedules/{id}/participants", schedule), customer, "{}", 201);
+        call(post("/api/schedules/{id}/participants", schedule), other, "{}", 201);
+        call(patch("/api/schedules/{id}", schedule), admin, "{\"maxParticipants\":1}", 400);
+        assertThat(jdbc.queryForObject("SELECT max_participants FROM event_schedules WHERE schedule_id=?", Integer.class, schedule)).isEqualTo(3);
+    }
+
+    @Test
+    void canonicalManualConfirmationAndAttendanceReuseAuditAndIdempotency() throws Exception {
+        long schedule = schedule(2);
+        long present = id(call(post("/api/schedules/{id}/participants", schedule), customer, "{}", 201));
+        long absent = id(call(post("/api/schedules/{id}/register", schedule), other, "{}", 201));
+        String receipt = confirmationBody(present);
+        call(post("/api/participants/{id}/manual-payment-confirmations", present), customer, receipt, 403);
+        call(post("/api/participants/{id}/manual-payment-confirmations", present), admin, null, 400);
+        call(post("/api/participants/{id}/manual-payment-confirmations", present), admin, receipt, 200);
+        call(patch("/api/participants/{id}/confirm-payment", present), admin, receipt, 200);
+        call(post("/api/participants/{id}/manual-payment-confirmations", present), admin, receipt, 200);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM schedule_participant_history WHERE participant_id=? AND action='MANUAL_CONFIRM'", Integer.class, present)).isEqualTo(1);
+        confirm(absent);
+        changeStatus(schedule, "CLOSED", 200);
+        call(patch("/api/participants/{id}/attendance", present), guide, "{\"status\":\"CHECKED_IN\"}", 400);
+        jdbc.update("UPDATE event_schedules SET start_datetime=now()-interval '1 minute',end_datetime=now()+interval '2 hours',registration_closes_at=now()-interval '1 minute' WHERE schedule_id=?", schedule);
+        var checkedIn = call(patch("/api/participants/{id}/attendance", present), guide, "{\"status\":\"CHECKED_IN\"}", 200);
+        assertThat(responseData(checkedIn)).isEqualTo(responseData(call(patch("/api/participants/{id}/check-in", present), guide, null, 200)));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM schedule_participant_history WHERE participant_id=? AND action='CHECK_IN'", Integer.class, present)).isEqualTo(1);
+        call(patch("/api/participants/{id}/attendance", absent), guide, "{\"status\":\"NO_SHOW\"}", 400);
+        jdbc.update("UPDATE event_schedules SET start_datetime=now()-interval '45 minutes',registration_closes_at=now()-interval '45 minutes' WHERE schedule_id=?", schedule);
+        var noShow = call(patch("/api/participants/{id}/attendance", absent), guide, "{\"status\":\"NO_SHOW\"}", 200);
+        assertThat(responseData(noShow)).isEqualTo(responseData(call(patch("/api/participants/{id}/no-show", absent), guide, null, 200)));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM schedule_participant_history WHERE participant_id=? AND action='NO_SHOW'", Integer.class, absent)).isEqualTo(1);
+    }
+
+    @Test
+    void newRoutesRejectAnonymousAndForbiddenRolesAndInvalidAttendanceBodies() throws Exception {
+        long schedule = schedule(2);
+        long ticket = id(call(post("/api/schedules/{id}/participants", schedule), customer, "{}", 201));
+        for (String path : List.of("/api/participants/me", "/api/participants?userId=" + users.get(1),
+                "/api/schedule-payment-reviews", "/api/schedules/" + schedule + "/history", "/api/participants/" + ticket + "/history")) {
+            call(get(path), null, null, 401);
+        }
+        call(post("/api/schedules/{id}/participants", schedule), null, "{}", 401);
+        call(post("/api/schedules/{id}/participants", schedule), guide, "{}", 403);
+        call(patch("/api/schedules/{id}", schedule), null, "{\"maxParticipants\":4}", 401);
+        call(patch("/api/schedules/{id}", schedule), customer, "{\"maxParticipants\":4}", 403);
+        call(post("/api/participants/{id}/manual-payment-confirmations", ticket), null, confirmationBody(ticket), 401);
+        call(post("/api/participants/{id}/manual-payment-confirmations", ticket), guide, confirmationBody(ticket), 403);
+        call(patch("/api/participants/{id}/attendance", ticket), null, "{\"status\":\"CHECKED_IN\"}", 401);
+        call(patch("/api/participants/{id}/attendance", ticket), customer, "{\"status\":\"CHECKED_IN\"}", 403);
+        for (String body : List.of("{}", "{\"status\":null}", "{\"status\":\"CONFIRMED\"}")) {
+            call(patch("/api/participants/{id}/attendance", ticket), guide, body, 400);
+        }
+        call(patch("/api/participants/{id}/attendance", ticket), guide, null, 400);
+        call(get("/api/participants/{id}/history", ticket), other, null, 403);
+        call(get("/api/schedule-payment-reviews"), customer, null, 403);
+        call(get("/api/schedule-payment-reviews"), guide, null, 403);
+    }
+
+    @Test
+    void canonicalRoutesPreserveStaffBranchIsolationAndReviewContract() throws Exception {
+        String staff = account("STAFF");
+        long staffId = users.getLast();
+        Long foreign = jdbc.queryForObject("INSERT INTO branches(branch_name) VALUES ('Foreign test') RETURNING branch_id", Long.class);
+        extraBranches.add(foreign);
+        jdbc.update("INSERT INTO staff(user_id,branch_id) VALUES (?,?)", staffId, foreign);
+        long schedule = schedule(2);
+        long ticket = id(call(post("/api/schedules/{id}/participants", schedule), customer, "{}", 201));
+        confirm(ticket);
+        call(post("/api/participants/{id}/cancel", ticket), customer, null, 200);
+        assertThat((List<?>) responseData(call(get("/api/participants").param("userId", users.get(1).toString()), staff, null, 200))).isEmpty();
+        call(patch("/api/schedules/{id}", schedule), staff, "{\"maxParticipants\":4}", 403);
+        call(get("/api/schedules/{id}/history", schedule), staff, null, 403);
+        call(get("/api/participants/{id}/history", ticket), staff, null, 403);
+        call(post("/api/participants/{id}/manual-payment-confirmations", ticket), staff, confirmationBody(ticket), 403);
+        call(patch("/api/participants/{id}/attendance", ticket), staff, "{\"status\":\"CHECKED_IN\"}", 403);
+        call(get("/api/schedule-payment-reviews"), staff, null, 400);
+        call(get("/api/schedule-payment-reviews").param("branchId", branchId.toString()), staff, null, 403);
+        assertThat(responseData(call(get("/api/schedule-payment-reviews"), admin, null, 200)))
+                .isEqualTo(responseData(call(get("/api/participants/payment-reviews"), admin, null, 200)));
+        assertThat((List<?>) responseData(call(get("/api/schedule-payment-reviews"), admin, null, 200))).hasSize(1);
+        jdbc.update("UPDATE staff SET branch_id=? WHERE user_id=?", branchId, staffId);
+        assertThat((List<?>) responseData(call(get("/api/participants").param("userId", users.get(1).toString()), staff, null, 200))).hasSize(1);
+        assertThat((List<?>) responseData(call(get("/api/schedule-payment-reviews").param("branchId", branchId.toString()), staff, null, 200))).hasSize(1);
+    }
+
+    @Test
+    void registrationCapacityIsSharedAcrossOldAndNewRoutesUnderConcurrency() throws Exception {
+        long schedule = schedule(1);
+        var results = race(
+                () -> mvc.perform(post("/api/schedules/{id}/participants", schedule).header("Authorization", customer)
+                        .contentType(MediaType.APPLICATION_JSON).content("{}")).andReturn().getResponse().getStatus(),
+                () -> mvc.perform(post("/api/schedules/{id}/register", schedule).header("Authorization", other)
+                        .contentType(MediaType.APPLICATION_JSON).content("{}")).andReturn().getResponse().getStatus());
+        // Either request may win; inspect both statuses without prescribing the winner.
+        assertThat(results).containsExactlyInAnyOrder(201, 409);
+        assertThat(jdbc.queryForObject("SELECT current_participants FROM event_schedules WHERE schedule_id=?", Integer.class, schedule)).isEqualTo(1);
+    }
+
+    private Object responseData(MvcResult result) throws Exception {
+        return JsonPath.read(result.getResponse().getContentAsString(), "$.data");
+    }
+
+    @Test
+    void openApiDeprecatesOnlyLegacyOperationsAndPublishesCanonicalContracts() throws Exception {
+        var result = call(get("/v3/api-docs"), null, null, 200);
+        Map<String, Map<String, Map<String, Object>>> paths = JsonPath.read(result.getResponse().getContentAsString(), "$.paths");
+        for (String[] route : List.of(
+                new String[]{"/api/schedules/{scheduleId}/register", "post", "/api/schedules/{scheduleId}/participants", "post"},
+                new String[]{"/api/schedules/my-assignments", "get", "/api/schedules/assigned-to-me", "get"},
+                new String[]{"/api/schedules/my-assignments/{id}", "get", "/api/schedules/assigned-to-me/{id}", "get"},
+                new String[]{"/api/schedules/{id}/histories", "get", "/api/schedules/{id}/history", "get"},
+                new String[]{"/api/schedules/{id}", "put", "/api/schedules/{id}", "patch"},
+                new String[]{"/api/participants/by-user/{userId}", "get", "/api/participants", "get"},
+                new String[]{"/api/participants/{id}/confirm-payment", "patch", "/api/participants/{id}/manual-payment-confirmations", "post"},
+                new String[]{"/api/participants/{id}/check-in", "patch", "/api/participants/{id}/attendance", "patch"},
+                new String[]{"/api/participants/{id}/no-show", "patch", "/api/participants/{id}/attendance", "patch"},
+                new String[]{"/api/participants/{id}/histories", "get", "/api/participants/{id}/history", "get"},
+                new String[]{"/api/participants/payment-reviews", "get", "/api/schedule-payment-reviews", "get"})) {
+            assertThat(paths.get(route[0]).get(route[1]).get("deprecated")).as("legacy %s", route[0]).isEqualTo(true);
+            assertThat(paths.get(route[2]).get(route[3]).get("deprecated")).as("canonical %s", route[2]).isNotEqualTo(true);
+        }
+        assertThat(paths.get("/api/participants/me").get("get").get("deprecated")).isNotEqualTo(true);
+    }
+
+    @Test
+    void dueScheduleProjectionFiltersStatesCutoffAndPagesById() throws Exception {
+        long open = id(call(post("/api/schedules"), admin, scheduleBody(null, start, 2), 201));
+        long full = id(call(post("/api/schedules"), admin, scheduleBody(null, start.plusDays(1), 2), 201));
+        long closed = id(call(post("/api/schedules"), admin, scheduleBody(null, start.plusDays(2), 2), 201));
+        long future = id(call(post("/api/schedules"), admin, scheduleBody(null, start.plusDays(3), 2), 201));
+        var cutoff = OffsetDateTime.now().withNano(0);
+        jdbc.update("UPDATE event_schedules SET registration_closes_at=? WHERE schedule_id IN (?,?,?)", cutoff, open, full, closed);
+        jdbc.update("UPDATE event_schedules SET status='FULL' WHERE schedule_id=?", full);
+        jdbc.update("UPDATE event_schedules SET status='CLOSED' WHERE schedule_id=?", closed);
+        assertThat(scheduleRepository.findDueToClose(cutoff.minusSeconds(1), PageRequest.of(0, 100))).isEmpty();
+        assertThat(scheduleRepository.findDueToClose(cutoff, PageRequest.of(0, 1))).containsExactly(open);
+        assertThat(scheduleRepository.findDueToClose(cutoff, PageRequest.of(1, 1))).containsExactly(full);
+        assertThat(scheduleRepository.findDueToClose(cutoff, PageRequest.of(2, 1))).isEmpty();
+        assertThat(scheduleRepository.findDueToClose(cutoff, PageRequest.of(0, 100))).doesNotContain(closed, future);
     }
 }

@@ -2,6 +2,7 @@ package com.coc.sba_treektour.modules.schedule.controller;
 
 import com.coc.sba_treektour.common.response.ApiResponse;
 import com.coc.sba_treektour.modules.schedule.dto.request.CreateScheduleRequest;
+import com.coc.sba_treektour.modules.schedule.dto.request.PatchScheduleRequest;
 import com.coc.sba_treektour.modules.schedule.dto.request.RescheduleRequest;
 import com.coc.sba_treektour.modules.schedule.dto.request.UpdateScheduleRequest;
 import com.coc.sba_treektour.modules.schedule.dto.request.UpdateScheduleStatusRequest;
@@ -49,7 +50,7 @@ public class ScheduleController {
         return ApiResponse.success("Lấy danh sách lịch tour thành công", scheduleService.findAll(eventId, branchId, status, page, size));
     }
 
-    @GetMapping("/my-assignments")
+    @GetMapping({"/assigned-to-me", "/my-assignments"})
     public ApiResponse<List<GuideScheduleResponse>> myAssignments(
             @RequestParam(required = false) ScheduleStatus status,
             @RequestParam(defaultValue = "0") int page,
@@ -57,7 +58,7 @@ public class ScheduleController {
         return ApiResponse.success("Lịch được phân công của bạn", scheduleService.findAssigned(status, page, size));
     }
 
-    @GetMapping("/my-assignments/{id}")
+    @GetMapping({"/assigned-to-me/{id}", "/my-assignments/{id}"})
     public ApiResponse<GuideScheduleResponse> myAssignment(@PathVariable Long id) {
         return ApiResponse.success("Chi tiết lịch được phân công", scheduleService.findAssignedById(id));
     }
@@ -73,6 +74,12 @@ public class ScheduleController {
             @Valid @RequestBody UpdateScheduleRequest request
     ) {
         return ApiResponse.success("Cập nhật thông tin lịch tour thành công", scheduleService.update(id, request));
+    }
+
+    @PatchMapping("/{id}")
+    public ApiResponse<ScheduleResponse> patch(@PathVariable Long id,
+            @Valid @RequestBody PatchScheduleRequest request) {
+        return ApiResponse.success("Cập nhật thông tin lịch tour thành công", scheduleService.patch(id, request));
     }
 
     @PostMapping("/{id}/reschedule")
@@ -91,7 +98,7 @@ public class ScheduleController {
         return ApiResponse.success("Cập nhật trạng thái lịch tour thành công", scheduleService.updateStatus(id, request));
     }
 
-    @GetMapping("/{id}/histories")
+    @GetMapping({"/{id}/history", "/{id}/histories"})
     public ApiResponse<List<ScheduleHistoryResponse>> getHistories(@PathVariable Long id,
             @RequestParam(defaultValue = "0") int page, @RequestParam(defaultValue = "50") int size) {
         return ApiResponse.success("Lấy lịch sử thay đổi thành công", scheduleService.getHistories(id, page, size));
