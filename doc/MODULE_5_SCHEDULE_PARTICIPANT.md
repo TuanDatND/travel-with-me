@@ -1,7 +1,9 @@
 # Module 5 — Lịch và đăng ký tham gia
 
-Cập nhật: 2026-10-21. Package: `com.coc.sba_treektour.modules.schedule`.
+Cập nhật: 2026-10-28 (cấu trúc mốc 1–3 và API mốc 4–5). Package: `com.coc.sba_treektour.modules.schedule`.
 Tài liệu này thay thế contract lịch/vé trong các tài liệu demo ngày 2026-10-10.
+API canonical, request PATCH/attendance và danh sách legacy đã xóa theo yêu cầu người dùng:
+[MODULE_5_API_MIGRATION.md](MODULE_5_API_MIGRATION.md). Chỉ các route canonical còn được hỗ trợ; client cũ cần chuyển theo bảng trong tài liệu này.
 Phân tích trước khi sửa: [MODULE_5_ARCHITECTURE_REVIEW.md](MODULE_5_ARCHITECTURE_REVIEW.md).
 
 ## Kiến trúc và phạm vi
@@ -15,8 +17,16 @@ controller → service interface → service/impl → repository → PostgreSQL
 - `service/impl`: transaction, điều phối và kiểm tra quyền trên tài nguyên.
 - `security/ScheduleAccessPolicy`: principal JWT, chủ vé, chi nhánh và guide được phân công.
 - `config/ScheduleSecurityConfig`: filter chain riêng, Order(0), chỉ nhận đường dẫn lịch/vé.
-- `repository/ScheduleIntegrationRepository`: SQL đọc Account/Branch/Payment và khóa guide.
-- `ParticipantLifecycle`: thao tác nội bộ bắt buộc có transaction và đã khóa lịch.
+- Repository module 5 đều là Spring Data interface (`JpaRepository` cho entity CRUD; `Repository` cho query chuyên biệt).
+- `repository/ScheduleIntegrationRepository`: native `@Query` đọc Account/Branch/Payment và advisory transaction lock guide; không dùng JdbcTemplate.
+- `repository/GuideScheduleRepository`: native query với interface projection và Pageable; service chuyển projection thành DTO.
+- Projection native đọc timestamptz dưới dạng Instant; DTO lịch chuyển về OffsetDateTime UTC, so sánh Payment theo instant để giữ đúng thời điểm.
+- `service/impl/ParticipantLifecycle`: thao tác nội bộ bắt buộc có transaction và đã khóa lịch.
+- `dto/request`, `dto/response`: request và response tách riêng; `enums` chứa trạng thái.
+- `validator/ScheduleLifecycleRules`: quy tắc vòng đời thuần; `util/SchedulePageRequests`: kiểm tra phân trang.
+- `scheduler/ScheduleExpiryJob`: worker, giữ cấu hình và lịch chạy hiện có.
+- Constructor injection dùng `@RequiredArgsConstructor`; `ScheduleSettings` giữ constructor cấu hình `@Value` và Clock để bảo toàn validation/testability.
+- Baseline, quy tắc đặt tên và đối chiếu contract: [MODULE_5_STRUCTURE_STANDARDIZATION.md](MODULE_5_STRUCTURE_STANDARDIZATION.md).
 - `HoldExpiryService`: worker nội bộ; `ParticipantPaymentService`: contract Payment nội bộ.
 - `exception`: lỗi nghiệp vụ độc lập HTTP; controller advice chuyển thành ApiResponse.
 
@@ -33,22 +43,23 @@ có `@PreAuthorize`; policy kiểm tra phạm vi tài nguyên trong transaction.
 
 | API | Quyền |
 | --- | --- |
-| GET `/api/schedules`, GET `/api/schedules/{id}` | Công khai; lịch của tour PUBLISHED. ADMIN xem mọi tour; STAFF chỉ xem tour ẩn ở chi nhánh được quản lý |
+| GET `/api/schedules`, GET `/api/schedules/{scheduleId}` | Công khai; lịch của tour PUBLISHED. ADMIN xem mọi tour; STAFF chỉ xem tour ẩn ở chi nhánh được quản lý |
+| GET `/api/guide-assignments`, GET `/api/guide-assignments/{scheduleId}` | GUIDE đang hoạt động, đúng lịch được phân công |
 | POST `/api/schedules` | ADMIN hoặc STAFF đang hoạt động tại branchId được yêu cầu |
-| PUT `/api/schedules/{id}` | ADMIN hoặc STAFF đúng chi nhánh lịch |
-| POST `/api/schedules/{id}/reschedule` | ADMIN hoặc STAFF đúng chi nhánh lịch |
-| PATCH `/api/schedules/{id}/status` | ADMIN hoặc STAFF đúng chi nhánh lịch |
-| GET `/api/schedules/{id}/histories` | ADMIN, STAFF đúng chi nhánh, GUIDE được phân công |
-| POST `/api/schedules/{id}/register` | CUSTOMER hoạt động, đăng ký cho chính JWT |
-| GET `/api/schedules/{id}/participants` | ADMIN, STAFF đúng chi nhánh, GUIDE được phân công |
-| GET `/api/participants/{id}` | Chủ vé, ADMIN, STAFF đúng chi nhánh |
-| GET `/api/participants/by-user/{userId}` | Chính người dùng, ADMIN; STAFF chỉ nhận các vé thuộc chi nhánh được quản lý |
-| POST `/api/participants/{id}/cancel` | Chủ vé, ADMIN, STAFF đúng chi nhánh; hủy thay khách phải có lý do |
-| PATCH `/api/participants/{id}/confirm-payment` | ADMIN, STAFF đúng chi nhánh; chỉ xác nhận thủ công |
-| PATCH `/api/participants/{id}/check-in` | ADMIN, STAFF đúng chi nhánh, GUIDE được phân công |
-| PATCH `/api/participants/{id}/no-show` | ADMIN, STAFF đúng chi nhánh, GUIDE được phân công |
-| GET `/api/participants/{id}/histories` | Chủ vé, ADMIN, STAFF đúng chi nhánh |
-| GET `/api/participants/payment-reviews` | ADMIN; STAFF phải truyền branchId và đúng chi nhánh |
+| PATCH `/api/schedules/{scheduleId}` | ADMIN hoặc STAFF đúng chi nhánh lịch |
+| POST `/api/schedules/{scheduleId}/reschedulings` | ADMIN hoặc STAFF đúng chi nhánh lịch |
+| PATCH `/api/schedules/{scheduleId}/status` | ADMIN hoặc STAFF đúng chi nhánh lịch |
+| GET `/api/schedules/{scheduleId}/history` | ADMIN, STAFF đúng chi nhánh, GUIDE được phân công |
+| POST `/api/schedules/{scheduleId}/participants` | CUSTOMER hoạt động, đăng ký cho chính JWT |
+| GET `/api/schedules/{scheduleId}/participants` | ADMIN, STAFF đúng chi nhánh, GUIDE được phân công |
+| GET `/api/participants/{participantId}` | Chủ vé, ADMIN, STAFF đúng chi nhánh |
+| GET `/api/participants` (mặc định JWT), GET `/api/participants?userId={userId}` | Chính người dùng, ADMIN; STAFF chỉ nhận các vé thuộc chi nhánh được quản lý |
+| POST `/api/participants/{participantId}/cancellations` | Chủ vé, ADMIN, STAFF đúng chi nhánh; hủy thay khách phải có lý do |
+| POST `/api/participants/{participantId}/manual-payment-confirmations` | ADMIN, STAFF đúng chi nhánh; chỉ xác nhận thủ công |
+| PATCH `/api/participants/{participantId}/attendance` với CHECKED_IN | ADMIN, STAFF đúng chi nhánh, GUIDE được phân công |
+| PATCH `/api/participants/{participantId}/attendance` với NO_SHOW | ADMIN, STAFF đúng chi nhánh, GUIDE được phân công |
+| GET `/api/participants/{participantId}/history` | Chủ vé, ADMIN, STAFF đúng chi nhánh |
+| GET `/api/schedule-payment-reviews` | ADMIN; STAFF phải truyền branchId và đúng chi nhánh |
 
 STAFF cần cả hồ sơ staff ACTIVE và branch ACTIVE. GUIDE cần đúng guideId được phân
 công, hồ sơ ACTIVE, tài khoản ACTIVE và role GUIDE. ADMIN không phụ thuộc hồ sơ staff.
@@ -132,10 +143,10 @@ Tạo lịch:
 ```
 
 Dời lịch nhận `newStartDatetime`, `newEndDatetime`, `changeReason` và
-`registrationClosesAt` tùy chọn. PUT thông tin lịch nhận guideId (null để bỏ phân công)
-và maxParticipants như trước.
+`registrationClosesAt` tùy chọn. PATCH thông tin lịch nhận guideId (bỏ trường để giữ guide, null để bỏ phân công)
+và maxParticipants tùy chọn; xem PatchScheduleRequest trong tài liệu chuyển đổi.
 
-Xác nhận thủ công **thay đổi request**: PATCH `/api/participants/{id}/confirm-payment`:
+Xác nhận thủ công **thay đổi request**: POST `/api/participants/{participantId}/manual-payment-confirmations`:
 
 ```json
 {
@@ -173,8 +184,11 @@ hay status từ client. Kết quả:
   giao dịch đã vào hàng đối soát. Không khôi phục vé, không chiếm lại chỗ; lưu review
   chống trùng theo transaction_id. Payment phải tiếp tục quy trình đối soát.
 
-**Callback ZaloPay hiện tại của member 6 chưa gọi contract này.** Đã giữ nguyên code
-Payment theo phạm vi module. Luồng bản đầu có thể dùng xác nhận thủ công.
+Source tại 2026-10-28 đã có `ParticipantPaymentBridgeImpl.confirm` gọi contract này với
+identity `SCHEDULE_PAYMENT`; `TransactionsServiceImpl.confirmParticipant` dùng bridge
+cho giao dịch thành công. Mốc chuẩn hóa chỉ cập nhật import enum bắt buộc ở Payment,
+không sửa luồng callback/query/retry. Việc có đường gọi trong source không thay thế
+kiểm thử provider thật/end-to-end; kết quả kiểm tra riêng xem tài liệu chuẩn hóa.
 
 `schedule_payment_reviews` là hàng yêu cầu đối soát bền vững: mã giao dịch (nếu có),
 UUID lần đăng ký, số tiền snapshot, loại và lý do. Record liên quan giao dịch PENDING
@@ -212,7 +226,7 @@ hold quá hạn trong transaction có khóa lịch. Một lỗi worker được 
 
 ## Kiểm thử
 
-`src/test/java/com/coc/sba_treektour/schedule/ScheduleIntegrationTests.java` kế thừa
+`src/test/java/com/coc/sba_treektour/modules/schedule/ScheduleIntegrationTests.java` kế thừa
 8 tình huống tích hợp cũ và bổ sung quyền chi nhánh, vòng đời/thời gian, hết hạn,
 manual receipt/UUID, callback lặp/muộn/sai tiền, history và các race condition.
 Test module 5 tắt timer để kiểm soát thời gian; gọi worker thật qua service.
@@ -232,6 +246,97 @@ PostgreSQL 17.11 portable dùng trong lần kiểm tra này nằm trong build (g
 Không chạy migration hoặc sửa dữ liệu trên Supabase/database dùng chung.
 Kết quả chạy cuối cùng được ghi tại dòng module 5 trong MODULE_INTEGRATION_STATUS.md.
 
-Kết quả 2026-10-21: `compileJava`, `compileTestJava` và toàn bộ **60 tests PASS**,
+Kết quả lịch sử 2026-10-21: `compileJava`, `compileTestJava` và toàn bộ **60 tests PASS**,
 gồm **21 test module 5**, không có test bị bỏ qua. Migration mới đã chạy thành công
 trên database PostgreSQL 17.11 riêng; các module Account, Catalog và Tour đều pass.
+
+
+## Chuẩn hóa 2026-10-28
+
+Mốc 1–3 giữ nguyên endpoint, tên JSON, mảng danh sách, enum values, PK/FK, JPA mappings,
+transactions và migration. DTO xác nhận thủ công đổi tên Java thành
+`dto.request.ConfirmParticipantPaymentRequest`; response đối soát thành
+`dto.response.SchedulePaymentReviewResponse`. API mốc 4–5 ban đầu có alias; theo yêu cầu tiếp theo, 11 operation legacy đã xóa.
+Chỉ dùng canonical routes trong tài liệu chuyển đổi.
+
+Kết quả kiểm tra mới nhất và bảng đổi tên: [MODULE_5_STRUCTURE_STANDARDIZATION.md](MODULE_5_STRUCTURE_STANDARDIZATION.md).
+
+
+## Repository Spring Data (2026-10-28)
+
+GuideScheduleRepository và ScheduleIntegrationRepository đã chuyển từ class JDBC sang
+interface extends Repository<EventSchedule, Long>. Hai interface chỉ khai báo query cần dùng,
+không mở CRUD cho bảng của module khác, không tạo entity giả hoặc thay schema.
+Khóa guide giữ cùng hash key tour-guide:userId và pg_advisory_xact_lock, bắt buộc có transaction
+đang hoạt động (Propagation.MANDATORY). Hàm lock chạy trong FROM và trả scalar 1 để Spring Data
+mapping được, không dùng Modifying vì đây là SELECT lấy khóa.
+
+Code runtime module 5 không còn JDBC trực tiếp/RowMapper. JdbcTemplate trong integration tests
+chỉ phục vụ seed/cleanup và điều chỉnh fixture thời gian, không phải repository nghiệp vụ.
+Kiểm tra cuối: compileJava + compileTestJava và toàn bộ 181 tests PASS (32 Schedule/59 Payment),
+0 skipped trên PostgreSQL 17.11 riêng module5_spring_data_20261028; Flyway validate 9 migrations
+và Hibernate validate bật. Các test phân trang/quyền assignment, xác nhận Payment/review,
+tranh chấp guide cùng userId và giữ chỗ đều PASS. API/schema/migration không đổi.
+Chi tiết trạng thái: MODULE_INTEGRATION_STATUS.md.
+
+
+## Rà soát cách dùng Spring Data (2026-10-28)
+
+- Hai lookup khóa theo ID dùng derived `findLockedById` + `@Lock(PESSIMISTIC_WRITE)`,
+  bỏ JPQL `select ... where id=:id`. Giữ adapter `findForUpdate` để không đổi contract
+  repository đang được Payment gọi. Không gắn lock lên findById thông thường.
+- Worker lấy lịch đến hạn qua derived query cutoff <= now + status IN OPEN/FULL,
+  closed projection chỉ ID và Pageable/order by ID. Giữ adapter findDueToClose.
+- Bỏ 5 khai báo không có caller trong source: danh sách lịch theo event/branch/status,
+  lịch sử lịch không phân trang, danh sách vé theo user không phân trang.
+- Giữ JPQL lấy scheduleId của vé để khóa lịch trước vé mà không tải entity; giữ query
+  distinct schedule IDs của vé quá hạn để phân trang theo lịch, không theo từng vé.
+- Query lọc scope/đọc dữ liệu liên module, projection assignment/Payment và advisory
+  lock PostgreSQL không có CRUD/derived method tương đương trên entity Schedule hiện tại.
+  @Query không phải API deprecated; không ép thành method name rất dài hoặc tạo entity giả.
+- Kiểm tra các lớp controller/service/entity/DTO/security/scheduler: đang dùng Jakarta,
+  java.time, constructor injection và SecurityFilterChain lambda. Không thấy các API cũ
+  getOne/getById, javax, Date/SimpleDateFormat hay WebSecurityConfigurerAdapter trong module 5.
+  @Autowired ở ScheduleSettings dùng để chọn giữa hai constructor, vẫn hợp lệ.
+- Không nâng dependency toàn dự án hoặc sửa module khác cho thay đổi này.
+
+Nguồn đối chiếu: [Spring Data query methods](https://docs.spring.io/spring-data/jpa/reference/repositories/query-methods-details.html),
+[Spring Data locking](https://docs.spring.io/spring-data/jpa/reference/4.0/jpa/locking.html).
+Compile được bật thêm -Xlint:deprecation/-Xlint:removal trong init script local (build, git ignored);
+kết quả cuối cập nhật tại MODULE_INTEGRATION_STATUS.md.
+
+Kết quả lint biên dịch: không có cảnh báo deprecated/removal thuộc module 5. Có cảnh báo
+ngoài phạm vi: common/config/JwtAuthenticationFilter dùng org.springframework.lang.NonNull;
+TourExceptionHandler/ImageValidator và ImageValidatorTests dùng HttpStatus.PAYLOAD_TOO_LARGE.
+Giữ nguyên source các owner khác; không coi những cảnh báo này là lỗi đã sửa.
+
+Kết quả sau rà soát: compileJava + compileTestJava với lint và toàn bộ **182 tests PASS**,
+0 skipped (33 Schedule/59 Payment); PostgreSQL 17.11 module5_review_20261028 riêng,
+Flyway áp dụng/validate 9 migrations và Hibernate validate bật. Không đổi API/JSON/schema
+hoặc migration; không sửa source ngoài module 5 và các tài liệu trạng thái của nó.
+
+
+## Xóa API legacy theo yêu cầu người dùng (2026-10-28)
+
+Đã xóa 11 operation cũ bị gạch trên Swagger, security rule tương ứng của module 5,
+ScheduleApiDocumentationConfig và DTO/service chỉ phục vụ PUT lịch. Các test nghiệp vụ
+đều gọi canonical endpoints. Có kiểm tra riêng OpenAPI và request legacy không thực thi
+nghiệp vụ; không sửa schema/migration/Payment contract hoặc frontend source.
+Kiểm tra sau xóa: compileJava + compileTestJava và 182 tests PASS (33 Schedule/59 Payment),
+0 skipped trên PostgreSQL 17.11 riêng/Flyway/Hibernate validate; FE 20 tests/lint/build PASS
+(cảnh báo bundle lớn). Không kiểm thử browser/provider thật hoặc deploy backend.
+Kết quả cuối ghi trong MODULE_INTEGRATION_STATUS.md.
+
+
+## Quy ước URI tài nguyên không có me (2026-10-28)
+
+Theo yêu cầu người dùng: GET /api/guide-assignments và /{scheduleId} dùng JWT guide,
+GET /api/participants mặc định dùng JWT user; userId tùy chọn vẫn kiểm quyền.
+POST dời lịch/hủy vé dùng reschedulings/cancellations; path variables ghi rõ
+scheduleId/participantId. Swagger có tag/summary theo tài nguyên, không alias/deprecated.
+Đây là thay đổi HTTP có chủ đích; JSON/schema/Payment contract không đổi.
+Bảng API và ví dụ hiện hành: MODULE_5_API_MIGRATION.md.
+
+Kết quả naming API mới: compileJava + compileTestJava và 183 tests PASS (34 Schedule/59 Payment),
+0 skipped trên PostgreSQL 17.11 riêng/Flyway/Hibernate validate; FE 21 tests/lint/build PASS
+(cảnh báo bundle lớn). Body/response/schema/Payment contract giữ nguyên.

@@ -17,14 +17,14 @@ Content-Type: application/json
 {"eventId":1,"branchId":1,"guideId":1,"startDatetime":"2026-12-20T07:00:00+07:00","endDatetime":"2026-12-20T17:00:00+07:00","maxParticipants":20,"registrationClosesAt":"2026-12-19T17:00:00+07:00"}
 
 ### Register for self; copy participant ID and registrationReference from response
-POST {{baseUrl}}/api/schedules/{{scheduleId}}/register
+POST {{baseUrl}}/api/schedules/{{scheduleId}}/participants
 Authorization: Bearer {{customerToken}}
 Content-Type: application/json
 
 {"note":"Ăn chay"}
 
 ### Manual confirmation within hold expiry (not for tickets with Payment transactions)
-PATCH {{baseUrl}}/api/participants/{{participantId}}/confirm-payment
+POST {{baseUrl}}/api/participants/{{participantId}}/manual-payment-confirmations
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
 
@@ -38,20 +38,58 @@ Content-Type: application/json
 {"status":"CLOSED","changeReason":"Chốt danh sách bảo hiểm"}
 
 ### Only during the configured attendance window
-PATCH {{baseUrl}}/api/participants/{{participantId}}/check-in
+PATCH {{baseUrl}}/api/participants/{{participantId}}/attendance
 Authorization: Bearer {{guideToken}}
+Content-Type: application/json
+
+{"status":"CHECKED_IN"}
 
 ### Cancel before departure, before check-in
-POST {{baseUrl}}/api/participants/{{participantId}}/cancel
+POST {{baseUrl}}/api/participants/{{participantId}}/cancellations
 Authorization: Bearer {{customerToken}}
 Content-Type: application/json
 
 {"reason":"Không thể tham gia"}
 
 ### Participant audit
-GET {{baseUrl}}/api/participants/{{participantId}}/histories?page=0&size=20
+GET {{baseUrl}}/api/participants/{{participantId}}/history?page=0&size=20
 Authorization: Bearer {{customerToken}}
 
 ### Durable reconciliation requests, not completed refunds
-GET {{baseUrl}}/api/participants/payment-reviews?branchId=1&page=0&size=20
+GET {{baseUrl}}/api/schedule-payment-reviews?branchId=1&page=0&size=20
 Authorization: Bearer {{adminToken}}
+
+
+### My tickets: principal from JWT
+GET {{baseUrl}}/api/participants?page=0&size=20
+Authorization: Bearer {{customerToken}}
+
+### Assigned guide schedules
+GET {{baseUrl}}/api/guide-assignments?page=0&size=20
+Authorization: Bearer {{guideToken}}
+
+### Capacity-only partial update (keep guide)
+PATCH {{baseUrl}}/api/schedules/{{scheduleId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{"maxParticipants":20}
+
+### Unassign guide (keep capacity)
+PATCH {{baseUrl}}/api/schedules/{{scheduleId}}
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{"guideId":null}
+
+### Schedule audit
+GET {{baseUrl}}/api/schedules/{{scheduleId}}/history?page=0&size=20
+Authorization: Bearer {{adminToken}}
+
+
+### Reschedule: noun resource, same validation/history
+POST {{baseUrl}}/api/schedules/{{scheduleId}}/reschedulings
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{"newStartDatetime":"2026-12-21T07:00:00+07:00","newEndDatetime":"2026-12-21T17:00:00+07:00","changeReason":"Weather"}

@@ -1,7 +1,8 @@
-package com.coc.sba_treektour.modules.schedule.dto;
+package com.coc.sba_treektour.modules.schedule.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import java.time.OffsetDateTime;
 
 public record RescheduleRequest(
@@ -12,7 +13,7 @@ public record RescheduleRequest(
         OffsetDateTime newEndDatetime,
 
         @NotBlank(message = "changeReason must not be blank")
-        @jakarta.validation.constraints.Size(max = 2000) String changeReason,
+        @Size(max = 2000) String changeReason,
 
         OffsetDateTime registrationClosesAt
 ) {}

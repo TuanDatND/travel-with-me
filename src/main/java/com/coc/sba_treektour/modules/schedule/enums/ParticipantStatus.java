@@ -1,4 +1,4 @@
-package com.coc.sba_treektour.modules.schedule.entity;
+package com.coc.sba_treektour.modules.schedule.enums;
 
 public enum ParticipantStatus {
     PENDING,

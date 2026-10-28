@@ -1,6 +1,6 @@
-package com.coc.sba_treektour.modules.schedule.dto;
+package com.coc.sba_treektour.modules.schedule.dto.response;
 
-import com.coc.sba_treektour.modules.schedule.entity.ScheduleStatus;
+import com.coc.sba_treektour.modules.schedule.enums.ScheduleStatus;
 import java.time.OffsetDateTime;
 
 /** Thông tin lịch được phân công; không phụ thuộc khả năng xem tour công khai. */

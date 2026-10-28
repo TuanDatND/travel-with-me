@@ -15,7 +15,7 @@ import com.coc.sba_treektour.modules.payment.service.ParticipantPaymentBridge;
 import com.coc.sba_treektour.modules.payment.service.PaymentReconciliationService;
 import com.coc.sba_treektour.modules.payment.service.TransactionsService;
 import com.coc.sba_treektour.modules.schedule.entity.EventParticipant;
-import com.coc.sba_treektour.modules.schedule.entity.ParticipantStatus;
+import com.coc.sba_treektour.modules.schedule.enums.ParticipantStatus;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import java.math.BigDecimal;

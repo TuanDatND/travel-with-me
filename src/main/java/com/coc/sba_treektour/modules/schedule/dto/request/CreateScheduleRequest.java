@@ -1,4 +1,4 @@
-package com.coc.sba_treektour.modules.schedule.dto;
+package com.coc.sba_treektour.modules.schedule.dto.request;
 
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.Min;

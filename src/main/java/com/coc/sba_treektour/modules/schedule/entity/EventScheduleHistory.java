@@ -1,10 +1,23 @@
 package com.coc.sba_treektour.modules.schedule.entity;
 
-import jakarta.persistence.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
 import java.time.OffsetDateTime;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "event_schedule_history")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class EventScheduleHistory {
 
     @Id
@@ -43,8 +56,6 @@ public class EventScheduleHistory {
     @Column(name = "changed_by")
     private Long changedBy;
 
-    protected EventScheduleHistory() {}
-
     public EventScheduleHistory(EventSchedule schedule,
                                 OffsetDateTime oldStartDatetime, OffsetDateTime newStartDatetime,
                                 OffsetDateTime oldEndDatetime, OffsetDateTime newEndDatetime,
@@ -61,16 +72,5 @@ public class EventScheduleHistory {
         this.changedAt = OffsetDateTime.now();
     }
 
-    public Long getId() { return id; }
-    public EventSchedule getSchedule() { return schedule; }
-    public OffsetDateTime getOldStartDatetime() { return oldStartDatetime; }
-    public OffsetDateTime getNewStartDatetime() { return newStartDatetime; }
-    public OffsetDateTime getOldEndDatetime() { return oldEndDatetime; }
-    public OffsetDateTime getNewEndDatetime() { return newEndDatetime; }
-    public String getOldStatus() { return oldStatus; }
-    public String getNewStatus() { return newStatus; }
-    public String getChangeReason() { return changeReason; }
-    public OffsetDateTime getChangedAt() { return changedAt; }
-    public Long getChangedBy() { return changedBy; }
     public void setChangedBy(Long userId) { this.changedBy = userId; }
 }

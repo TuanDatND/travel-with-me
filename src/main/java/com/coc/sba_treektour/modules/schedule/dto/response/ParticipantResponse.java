@@ -1,9 +1,10 @@
-package com.coc.sba_treektour.modules.schedule.dto;
+package com.coc.sba_treektour.modules.schedule.dto.response;
 
-import com.coc.sba_treektour.modules.schedule.entity.CheckInStatus;
-import com.coc.sba_treektour.modules.schedule.entity.ParticipantStatus;
+import com.coc.sba_treektour.modules.schedule.enums.CheckInStatus;
+import com.coc.sba_treektour.modules.schedule.enums.ParticipantStatus;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 public record ParticipantResponse(
         Long id,
@@ -14,6 +15,6 @@ public record ParticipantResponse(
         CheckInStatus checkInStatus,
         BigDecimal registeredPrice,
         String note,
-        java.util.UUID registrationReference,
+        UUID registrationReference,
         OffsetDateTime expiresAt
 ) {}

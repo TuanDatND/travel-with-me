@@ -1,6 +1,6 @@
-package com.coc.sba_treektour.modules.schedule.dto;
+package com.coc.sba_treektour.modules.schedule.dto.response;
 
-import com.coc.sba_treektour.modules.schedule.entity.ScheduleStatus;
+import com.coc.sba_treektour.modules.schedule.enums.ScheduleStatus;
 import java.time.OffsetDateTime;
 
 public record ScheduleResponse(

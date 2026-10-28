@@ -1,10 +1,24 @@
 package com.coc.sba_treektour.modules.schedule.entity;
 
-import jakarta.persistence.*;
+import com.coc.sba_treektour.modules.schedule.enums.ScheduleStatus;
+import com.coc.sba_treektour.modules.schedule.exception.ScheduleNotAvailableException;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import java.time.OffsetDateTime;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "event_schedules")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class EventSchedule {
 
     @Id
@@ -43,8 +57,6 @@ public class EventSchedule {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
-
-    protected EventSchedule() {}
 
     public EventSchedule(Long eventId, Long branchId, Long guideId,
                          OffsetDateTime startDatetime, OffsetDateTime endDatetime,
@@ -91,7 +103,7 @@ public class EventSchedule {
     /** Caller must hold the schedule write lock for the whole transaction. */
     public void reserve(OffsetDateTime now) {
         if (status != ScheduleStatus.OPEN || !now.isBefore(registrationClosesAt) || currentParticipants >= maxParticipants)
-            throw new com.coc.sba_treektour.modules.schedule.exception.ScheduleNotAvailableException("Lịch đã đóng đăng ký hoặc hết chỗ");
+            throw new ScheduleNotAvailableException("Lịch đã đóng đăng ký hoặc hết chỗ");
         currentParticipants++;
         if (currentParticipants.equals(maxParticipants)) status = ScheduleStatus.FULL;
     }
@@ -102,16 +114,4 @@ public class EventSchedule {
         if (status == ScheduleStatus.FULL) status = ScheduleStatus.OPEN;
     }
 
-    public OffsetDateTime getRegistrationClosesAt() { return registrationClosesAt; }
-
-    public Long getId() { return id; }
-    public Long getEventId() { return eventId; }
-    public Long getBranchId() { return branchId; }
-    public Long getGuideId() { return guideId; }
-    public OffsetDateTime getStartDatetime() { return startDatetime; }
-    public OffsetDateTime getEndDatetime() { return endDatetime; }
-    public Integer getMaxParticipants() { return maxParticipants; }
-    public Integer getCurrentParticipants() { return currentParticipants; }
-    public ScheduleStatus getStatus() { return status; }
-    public OffsetDateTime getCreatedAt() { return createdAt; }
 }

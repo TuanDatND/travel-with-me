@@ -1,45 +1,45 @@
 package com.coc.sba_treektour.modules.schedule.repository;
 
+import com.coc.sba_treektour.modules.schedule.entity.EventSchedule;
 import java.math.BigDecimal;
-import java.time.OffsetDateTime;
+import java.time.Instant;
 import java.util.List;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.stereotype.Repository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.Repository;
+import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
-/** Adapter đọc contract ngoài module; không sửa bảng của Account/Branch/Payment. */
-@Repository
-public class ScheduleIntegrationRepository {
-    private final JdbcTemplate jdbc;
-    public ScheduleIntegrationRepository(JdbcTemplate jdbc) { this.jdbc = jdbc; }
+/** Spring Data integration queries anchored to the Schedule aggregate; no external entity copies or CRUD. */
+public interface ScheduleIntegrationRepository extends Repository<EventSchedule, Long> {
+    @Query(value = "SELECT EXISTS(SELECT 1 FROM branches WHERE branch_id=:branchId AND status='ACTIVE')", nativeQuery = true)
+    boolean branchActive(@Param("branchId") Long branchId);
 
-    public boolean branchActive(Long branchId) {
-        return Boolean.TRUE.equals(jdbc.queryForObject(
-                "SELECT EXISTS(SELECT 1 FROM branches WHERE branch_id=? AND status='ACTIVE')", Boolean.class, branchId));
+    @Query(value = """
+            SELECT EXISTS(SELECT 1 FROM staff s JOIN branches b ON b.branch_id=s.branch_id
+            WHERE s.user_id=:userId AND s.branch_id=:branchId AND s.status='ACTIVE' AND b.status='ACTIVE')
+            """, nativeQuery = true)
+    boolean staffAssigned(@Param("userId") Long userId, @Param("branchId") Long branchId);
+
+    /** Evaluate the PostgreSQL lock function in FROM, returning a scalar Spring Data can map. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    @Query(value = "SELECT 1 FROM pg_advisory_xact_lock(hashtextextended('tour-guide:' || CAST(:userId AS text), 0))", nativeQuery = true)
+    int lockGuide(@Param("userId") Long userId);
+
+    @Query(value = "SELECT EXISTS(SELECT 1 FROM transactions WHERE participant_id=:participantId)", nativeQuery = true)
+    boolean hasTransactions(@Param("participantId") Long participantId);
+
+    @Query(value = """
+            SELECT transaction_id AS "id", amount AS "amount", status AS "status", created_at AS "createdAt"
+            FROM transactions WHERE participant_id=:participantId AND transaction_type='PAYMENT'
+            ORDER BY transaction_id
+            """, nativeQuery = true)
+    List<PaymentRecord> payments(@Param("participantId") Long participantId);
+
+    interface PaymentRecord {
+        Long getId();
+        BigDecimal getAmount();
+        String getStatus();
+        Instant getCreatedAt();
     }
-
-    public boolean staffAssigned(Long userId, Long branchId) {
-        return Boolean.TRUE.equals(jdbc.queryForObject("""
-                SELECT EXISTS(SELECT 1 FROM staff s JOIN branches b ON b.branch_id=s.branch_id
-                WHERE s.user_id=? AND s.branch_id=? AND s.status='ACTIVE' AND b.status='ACTIVE')
-                """, Boolean.class, userId, branchId));
-    }
-
-    public void lockGuide(Long userId) {
-        jdbc.queryForList("SELECT pg_advisory_xact_lock(hashtextextended('tour-guide:' || CAST(? AS text), 0))", userId);
-    }
-
-    public boolean hasTransactions(Long participantId) {
-        return Boolean.TRUE.equals(jdbc.queryForObject(
-                "SELECT EXISTS(SELECT 1 FROM transactions WHERE participant_id=?)", Boolean.class, participantId));
-    }
-
-    public List<PaymentRecord> payments(Long participantId) {
-        return jdbc.query("""
-                SELECT transaction_id,amount,status,created_at FROM transactions
-                WHERE participant_id=? AND transaction_type='PAYMENT' ORDER BY transaction_id
-                """, (rs, row) -> new PaymentRecord(rs.getLong(1), rs.getBigDecimal(2), rs.getString(3),
-                        rs.getObject(4, OffsetDateTime.class)), participantId);
-    }
-
-    public record PaymentRecord(Long id, BigDecimal amount, String status, OffsetDateTime createdAt) {}
 }
