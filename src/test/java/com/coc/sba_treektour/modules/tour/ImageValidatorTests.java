@@ -3,7 +3,7 @@ package com.coc.sba_treektour.modules.tour;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.coc.sba_treektour.modules.event.validator.ImageValidator;
+import com.coc.sba_treektour.modules.tour.validator.ImageValidator;
 import com.coc.sba_treektour.modules.tour.exception.TourException;
 
 import org.junit.jupiter.api.Test;
