@@ -64,6 +64,15 @@ public class Transaction {
     @Column(name = "refund_reason", length = 2000)
     private String refundReason;
 
+    @Column(name = "refund_confirmed_by")
+    private Long refundConfirmedBy;
+
+    @Column(name = "refund_transfer_reference", length = 200)
+    private String refundTransferReference;
+
+    @Column(name = "refund_confirmation_note", length = 2000)
+    private String refundConfirmationNote;
+
     @Size(max = 30)
     @NotNull
     @Column(name = "transaction_type", nullable = false, length = 30)

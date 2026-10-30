@@ -180,11 +180,11 @@ public class OrderServiceImpl implements OrderService {
                 item.getRentalStartDate(), item.getRentalEndDate(), item.getStatus())).toList(),
                 balance.status(order.getTotalAmount()), balance.net(),
                 order.getTotalAmount().subtract(balance.net()).max(BigDecimal.ZERO),
-                pending && balance.paid(order.getTotalAmount()), pending && balance.cancellable(),
+                pending && !balance.refundPending() && balance.paid(order.getTotalAmount()), pending && balance.cancellable(),
                 order.getCustomerReceivedAt(),
                 order.getStatus() == OrderStatus.IN_PROGRESS && order.getCustomerReceivedAt() == null,
                 order.getStatus() == OrderStatus.IN_PROGRESS && order.getCustomerReceivedAt() != null
-                        && order.getItems().stream().anyMatch(item -> item.getStatus() == OrderItemStatus.RENTED));
+                        && order.getItems().stream().anyMatch(item -> item.getStatus() == OrderItemStatus.RENTED), balance.refundPending());
     }
 
     @Override
@@ -227,6 +227,8 @@ public class OrderServiceImpl implements OrderService {
         };
         if (order.getStatus() != expected) throw new InvalidOrderException("Order must be " + expected);
         var items = order.getItems().stream().sorted(Comparator.comparing(OrderItem::getProductId)).toList();
+        if (orderPaymentQueryService.read(id).refundPending())
+            throw new InvalidOrderException("Refund is pending; approval and handover are blocked");
         if (action.equals("confirm")) {
             if (!orderPaymentQueryService.read(id).paid(order.getTotalAmount()))
                 throw new InvalidOrderException("Order must be fully paid before admin approval");

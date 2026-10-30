@@ -43,6 +43,23 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class OrderServiceImplTests {
+    @Test void pendingRefundBlocksApprovalAndHandoverEvenWhenFullyPaid() {
+        Order order = mock(Order.class);
+        when(order.getId()).thenReturn(9L);
+        when(order.getStatus()).thenReturn(OrderStatus.PENDING);
+        when(order.getTotalAmount()).thenReturn(new BigDecimal("100000"));
+        when(order.getItems()).thenReturn(List.of());
+        when(orders.lockById(9L)).thenReturn(Optional.of(order));
+        when(orders.findById(9L)).thenReturn(Optional.of(order));
+        when(payments.read(9L)).thenReturn(new OrderPaymentBalance(new BigDecimal("100000"), BigDecimal.ZERO, 0, 1));
+        assertThat(service.findById(9L).refundPending()).isTrue();
+        assertThat(service.findById(9L).canApprove()).isFalse();
+        assertThatThrownBy(() -> service.operate(9L, "confirm")).isInstanceOf(InvalidOrderException.class);
+        when(order.getStatus()).thenReturn(OrderStatus.CONFIRMED);
+        assertThatThrownBy(() -> service.operate(9L, "hand-over")).isInstanceOf(InvalidOrderException.class);
+        verify(order, never()).setStatus(any());
+        verifyNoInteractions(inventory);
+    }
     @Test void listUsesBatchedPaymentBalances() {
         Order order = mock(Order.class);
         when(order.getId()).thenReturn(9L);

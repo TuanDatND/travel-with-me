@@ -10,5 +10,5 @@ public record OrderResponse(
         BigDecimal totalAmount, OffsetDateTime orderDate, List<OrderItemResponse> items,
         String paymentStatus, BigDecimal paidAmount, BigDecimal remainingAmount,
         boolean canApprove, boolean canCancel,
-        OffsetDateTime customerReceivedAt, boolean canConfirmReceipt, boolean canReturn) {
+        OffsetDateTime customerReceivedAt, boolean canConfirmReceipt, boolean canReturn, boolean refundPending) {
 }
