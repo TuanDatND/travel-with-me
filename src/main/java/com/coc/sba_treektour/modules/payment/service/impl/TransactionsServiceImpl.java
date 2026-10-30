@@ -353,7 +353,8 @@ public class TransactionsServiceImpl implements TransactionsService, PaymentReco
                 transaction.getAmount(),
                 transaction.getPaymentMethod(),
                 transaction.getStatus(),
-                transaction.getCreatedAt(), transaction.getRefundReason(), transaction.getSucceededAt());
+                transaction.getCreatedAt(), transaction.getRefundReason(), transaction.getSucceededAt(),
+                transaction.getRefundConfirmedBy(), transaction.getRefundTransferReference(), transaction.getRefundConfirmationNote());
     }
 
     private Transaction findZaloPayTransaction(Long transactionId) {
@@ -386,6 +387,8 @@ public class TransactionsServiceImpl implements TransactionsService, PaymentReco
         requireOrderOwner(order);
         if (order.getStatus() != OrderStatus.PENDING)
             throw new ResponseStatusException(BAD_REQUEST, "Only PENDING orders can be paid");
+        if (transactionRepository.existsByOrder_IdAndTransactionTypeAndStatus(orderId, "REFUND", PENDING))
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Refund is pending; no additional payment is allowed");
         return order;
     }
 
