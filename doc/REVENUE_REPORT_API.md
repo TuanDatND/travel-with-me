@@ -143,3 +143,16 @@ truyền biến thì các test DB sẽ bị skip, không được báo rằng đ
 ## Local fixture check — 2026-10-30
 
 Bộ SQL và README ngoài repo: Desktop/TreekTour-AdminReport-LocalDB. Đã restore vào DB local mới, Flyway validate 11 migrations, Hibernate ddl-auto=validate, login admin demo và 5 API overview/products/tours/transactions/export trả HTTP 200. Phát hiện/sửa HV000151 bằng cách đặt @Valid trên tham số interface RevenueReportService, không khai báo lại constraint ở impl. Test method-validation proxy đã bổ sung; 89 tests PASS. Supabase chỉ đọc metadata, không copy dữ liệu hoặc chạy migration.
+
+## Frontend integration — 2026-10-30
+
+AdminReportsPage tại /admin/reports đã nối API thật (features/reports/reportApi.ts), dùng shared JWT.
+Ba tab Tổng quan/Sản phẩm/Tour & khởi hành; bộ lọc có nút Áp dụng, tách filter theo contract từng endpoint.
+Biểu đồ theo ngày/tháng, zero-fill, thu/hoàn/ròng, chi nhánh, donut tiền thu, so sánh sản phẩm/tour
+và nhiều đường có chọn tối đa 6 đối tượng; bảng item/schedule, transaction phân trang 20 dòng.
+CSV chỉ hiện cho báo cáo tiền (Overview/Tour), Tour luôn thêm sector=TOUR cho detail/export.
+Sản phẩm hiển thị giá trị item trong đơn đủ tiền trước hoàn, không gắn nhãn thu ròng.
+Hiển thị cảnh báo legacy missing timestamp và pending refund là backlog hiện tại ngoài kỳ.
+Dữ liệu lỗi/loading/empty không thay bằng số mock; request cũ bị abort khi đổi filter/tab.
+Lint/build và 6 FE tests PASS. Browser local admin xác nhận tổng tháng 10 khớp dữ liệu demo, các
+tab Product/Tour có dữ liệu thật, tải CSV Tour 71 dòng và chỉ chứa participant targets.
