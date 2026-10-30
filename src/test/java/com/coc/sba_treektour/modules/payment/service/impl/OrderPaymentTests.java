@@ -138,7 +138,10 @@ class OrderPaymentTests {
         var verified = service.queryZaloPayPayment(11L);
         assertEquals(SUCCEEDED, verified.status());
         assertEquals(5L, verified.orderId());
+        var succeededAt = transaction.getSucceededAt();
+        assertNotNull(succeededAt);
         assertEquals(SUCCEEDED,service.queryZaloPayPayment(11L).status());
+        assertEquals(succeededAt, transaction.getSucceededAt());
         verify(repository,times(1)).saveAndFlush(transaction);
         var locks = inOrder(orders,repository);
         locks.verify(orders).lockById(5L);

@@ -353,7 +353,7 @@ public class TransactionsServiceImpl implements TransactionsService, PaymentReco
                 transaction.getAmount(),
                 transaction.getPaymentMethod(),
                 transaction.getStatus(),
-                transaction.getCreatedAt(), transaction.getRefundReason());
+                transaction.getCreatedAt(), transaction.getRefundReason(), transaction.getSucceededAt());
     }
 
     private Transaction findZaloPayTransaction(Long transactionId) {
@@ -404,6 +404,8 @@ public class TransactionsServiceImpl implements TransactionsService, PaymentReco
                 throw new ResponseStatusException(BAD_REQUEST, "Not a ZaloPay payment");
             if (current.getStatus() != SUCCEEDED && current.getStatus() != TransactionStatus.CANCELLED) {
                 current.setStatus(status);
+                if (status == SUCCEEDED && current.getSucceededAt() == null)
+                    current.setSucceededAt(OffsetDateTime.now(VIETNAM_ZONE));
                 transactionRepository.saveAndFlush(current);
             }
             return current;

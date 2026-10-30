@@ -58,6 +58,9 @@ public class Transaction {
 
     public Long getParticipantId() { return participant == null ? null : participant.getId(); }
 
+    @Column(name = "succeeded_at")
+    private OffsetDateTime succeededAt;
+
     @Column(name = "refund_reason", length = 2000)
     private String refundReason;
 

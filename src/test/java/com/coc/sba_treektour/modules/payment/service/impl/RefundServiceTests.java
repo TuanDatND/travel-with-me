@@ -33,6 +33,7 @@ import static com.coc.sba_treektour.modules.payment.enums.TransactionStatus.PEND
 import static com.coc.sba_treektour.modules.payment.enums.TransactionStatus.SUCCEEDED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -171,7 +172,10 @@ class RefundServiceTests {
         login("ADMIN");
         var refund = refund(); find(refund);
         assertEquals(SUCCEEDED, service.confirm(11L).status());
+        var succeededAt = refund.getSucceededAt();
+        assertNotNull(succeededAt);
         assertEquals(SUCCEEDED, service.confirm(11L).status());
+        assertEquals(succeededAt, refund.getSucceededAt());
         verify(transactions, times(1)).saveAndFlush(refund);
         var locks = inOrder(orders, transactions);
         locks.verify(orders).lockById(5L);
