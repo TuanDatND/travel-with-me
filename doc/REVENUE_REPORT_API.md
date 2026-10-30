@@ -139,3 +139,7 @@ chưa nối trang report FE và chưa thử ZaloPay live hoặc migration trên 
 
 Repository tests yêu cầu REPORT_TEST_DB_URL local:55438 để tránh chạy nhầm database chung; nếu không
 truyền biến thì các test DB sẽ bị skip, không được báo rằng đã kiểm chứng SQL chỉ từ test mock.
+
+## Local fixture check — 2026-10-30
+
+Bộ SQL và README ngoài repo: Desktop/TreekTour-AdminReport-LocalDB. Đã restore vào DB local mới, Flyway validate 11 migrations, Hibernate ddl-auto=validate, login admin demo và 5 API overview/products/tours/transactions/export trả HTTP 200. Phát hiện/sửa HV000151 bằng cách đặt @Valid trên tham số interface RevenueReportService, không khai báo lại constraint ở impl. Test method-validation proxy đã bổ sung; 89 tests PASS. Supabase chỉ đọc metadata, không copy dữ liệu hoặc chạy migration.

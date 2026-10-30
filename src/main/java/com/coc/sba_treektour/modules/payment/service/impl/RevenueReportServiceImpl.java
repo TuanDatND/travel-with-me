@@ -11,7 +11,6 @@ import com.coc.sba_treektour.modules.payment.enums.RevenueSector;
 import com.coc.sba_treektour.modules.payment.repository.RevenueReportRepository;
 import com.coc.sba_treektour.modules.payment.service.RevenueReportService;
 import com.coc.sba_treektour.modules.account.repository.UserRepository;
-import jakarta.validation.Valid;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -53,7 +52,7 @@ public class RevenueReportServiceImpl implements RevenueReportService {
     }
 
     @Override
-    public RevenueOverviewResponse overview(@Valid RevenueReportRequest request) {
+    public RevenueOverviewResponse overview(RevenueReportRequest request) {
         requireAdmin(); moneyFilters(request);
         var totals = reports.totals(request);
         var pending = reports.pendingRefunds(request);
@@ -71,7 +70,7 @@ public class RevenueReportServiceImpl implements RevenueReportService {
     }
 
     @Override
-    public ProductReportResponse products(@Valid RevenueReportRequest request) {
+    public ProductReportResponse products(RevenueReportRequest request) {
         requireAdmin();
         if (request.getTourId() != null || request.getScheduleId() != null || request.getSector() == RevenueSector.TOUR
                 || (request.getPaymentMethod() != null && !request.getPaymentMethod().isBlank()))
@@ -81,14 +80,14 @@ public class RevenueReportServiceImpl implements RevenueReportService {
     }
 
     @Override
-    public TourReportResponse tours(@Valid RevenueReportRequest request) {
+    public TourReportResponse tours(RevenueReportRequest request) {
         requireAdmin(); moneyFilters(request);
         if (request.getSector() == RevenueSector.EQUIPMENT) throw new ResponseStatusException(BAD_REQUEST, "Tour report cannot filter EQUIPMENT");
         return new TourReportResponse(reports.tours(request), reports.tourSeries(request), reports.schedules(request));
     }
 
     @Override
-    public ReportTransactionPage transactions(@Valid RevenueReportRequest request, int page, int size) {
+    public ReportTransactionPage transactions(RevenueReportRequest request, int page, int size) {
         requireAdmin(); moneyFilters(request);
         if (page < 0 || size < 1 || size > 100) throw new ResponseStatusException(BAD_REQUEST, "page >= 0; size 1-100");
         long count = reports.transactionCount(request);
@@ -96,7 +95,7 @@ public class RevenueReportServiceImpl implements RevenueReportService {
     }
 
     @Override
-    public String csv(@Valid RevenueReportRequest request) {
+    public String csv(RevenueReportRequest request) {
         requireAdmin(); moneyFilters(request);
         long count = reports.transactionCount(request);
         if (count > 10000) throw new ResponseStatusException(BAD_REQUEST, "CSV export is limited to 10000 transactions; narrow filters");

@@ -13,6 +13,9 @@ import com.coc.sba_treektour.modules.payment.enums.RevenueSector;
 import com.coc.sba_treektour.modules.payment.repository.RevenueReportRepository;
 import com.coc.sba_treektour.modules.payment.service.RevenueReportService;
 import jakarta.validation.Validation;
+import jakarta.validation.ConstraintViolationException;
+import org.springframework.validation.beanvalidation.MethodValidationPostProcessor;
+import org.springframework.context.annotation.Bean;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -128,7 +131,9 @@ class RevenueReportServiceTests {
         mvc.perform(get("/api/reports/revenue").param("from", "2026-10-01").param("to", "2026-10-05").param("period", "INVALID"))
                 .andExpect(status().isBadRequest());
     }
-    @Configuration @EnableMethodSecurity static class Security {}
+    @Configuration @EnableMethodSecurity static class Security {
+        @Bean static MethodValidationPostProcessor methodValidation() { return new MethodValidationPostProcessor(); }
+    }
     @Test void realMethodSecurityRejectsEveryReportForCustomer() {
         try (var context = new AnnotationConfigApplicationContext()) {
             context.register(Security.class); context.registerBean(RevenueReportService.class, () -> service); context.refresh();
@@ -141,6 +146,7 @@ class RevenueReportServiceTests {
             assertThrows(AccessDeniedException.class, () -> secured.csv(request));
             login("ADMIN");
             assertEquals(3, secured.overview(request).series().size());
+            assertThrows(ConstraintViolationException.class, () -> secured.overview(new RevenueReportRequest()));
             admin.setStatus("BLOCKED");
             assertThrows(ResponseStatusException.class, () -> secured.overview(request));
         }
