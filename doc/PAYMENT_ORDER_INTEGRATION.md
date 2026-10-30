@@ -215,3 +215,22 @@ Không gọi ZaloPay; ADMIN ACTIVE xác nhận chỉ sau khi đã chuyển tiề
 - Không tự xử lý/đóng schedule_payment_reviews: hàng đối soát thuộc lifecycle vé; consumer và quy trình đóng review cần phối hợp Member 5.
 
 Verification: compileJava + compileTestJava và 71 tests Payment/Order PASS (11 tests hoàn tiền, bao gồm kiểm tra method security thật qua Spring proxy; phần repository dùng mock). FE lint/build PASS. Chưa chạy HTTP/JPQL/concurrency trên PostgreSQL thật; chưa thao tác database dùng chung hoặc chuyển tiền.
+
+## Refund context and reason — 2026-10-30
+
+POST /api/payments/refunds yêu cầu reason không rỗng, tối đa 2000 ký tự, kèm đúng một orderId/participantId.
+Backend lưu reason.trim() trong transactions.refund_reason VARCHAR(2000), trả refundReason trong lịch sử/yêu cầu;
+yêu cầu cũ có thể NULL. Query lặp trả yêu cầu đã có, không ghi đè lý do cũ. Migration mới
+V2026103001__transaction_refund_reason.sql; giữ nguyên PK/FK/enum và lifecycle hoàn thủ công.
+Cần áp migration trước khi khởi động entity mapping mới. Chưa áp dụng vào DB dùng chung trong mốc này.
+
+GET /api/payments/refunds/preview?orderId=... hoặc participantId=... yêu cầu CUSTOMER ACTIVE/owner;
+trả receivedAmount, refundedAmount, refundableAmount tính từ transactions SUCCEEDED, không gọi provider.
+Đây là số dư xem trước, không đảm bảo đủ điều kiện hoàn; service request/confirm vẫn kiểm tra lại số dư,
+trạng thái đơn/vé, PAYMENT PENDING dưới khóa. Không nhận số tiền do client quyết định.
+
+FE hiển thị chi tiết gear (số lượng, đơn giá, ngày thuê) hoặc tour (tên, lịch khởi hành, giá vé),
+bảng tiền từ preview, lý do bắt buộc và lý do đã lưu cho cả khách/admin. Chỉ thêm code Payment;
+FE đọc API Order/Schedule/Event/Product hiện có, không sửa nghiệp vụ module sở hữu.
+
+Admin refund filters (2026-10-30): GET /api/payments/refunds?status=PENDING hoặc SUCCEEDED&page=0&size=20; mặc định PENDING giữ tương thích. Chỉ ADMIN ACTIVE; giá trị khác bị từ chối. FE có hai ô Chờ xử lý / Đã hoàn tiền, đổi lọc reset trang 0 và kiểm tra trang kế tiếp theo cùng filter. Phiếu SUCCEEDED không hiện nút xác nhận lần nữa. Không đổi schema; compileJava/compileTestJava + 74 tests Payment/Order và FE lint/build PASS, chưa thử DB/HTTP thật.

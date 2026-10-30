@@ -12,6 +12,7 @@ public record TransactionHistoryResponse(
         BigDecimal amount,
         String paymentMethod,
         TransactionStatus status,
-        OffsetDateTime createdAt
+        OffsetDateTime createdAt,
+        String refundReason
 ) {
 }

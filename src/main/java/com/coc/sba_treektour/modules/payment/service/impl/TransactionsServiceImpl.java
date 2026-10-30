@@ -353,7 +353,7 @@ public class TransactionsServiceImpl implements TransactionsService, PaymentReco
                 transaction.getAmount(),
                 transaction.getPaymentMethod(),
                 transaction.getStatus(),
-                transaction.getCreatedAt());
+                transaction.getCreatedAt(), transaction.getRefundReason());
     }
 
     private Transaction findZaloPayTransaction(Long transactionId) {
