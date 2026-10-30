@@ -92,6 +92,7 @@ public class RefundServiceImpl implements RefundService {
             throw new ResponseStatusException(CONFLICT, "Refund exceeds remaining received money");
         // Admin attests that money was transferred manually outside this application.
         refund.setStatus(SUCCEEDED);
+        if (refund.getSucceededAt() == null) refund.setSucceededAt(OffsetDateTime.now());
         return response(transactions.saveAndFlush(refund));
     }
 
@@ -178,6 +179,6 @@ public class RefundServiceImpl implements RefundService {
     private TransactionHistoryResponse response(Transaction transaction) {
         return new TransactionHistoryResponse(transaction.getId(), transaction.getOrderId(), transaction.getParticipantId(),
                 transaction.getTransactionType(), transaction.getAmount(), transaction.getPaymentMethod(),
-                transaction.getStatus(), transaction.getCreatedAt(), transaction.getRefundReason());
+                transaction.getStatus(), transaction.getCreatedAt(), transaction.getRefundReason(), transaction.getSucceededAt());
     }
 }

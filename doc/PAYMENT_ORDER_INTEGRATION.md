@@ -234,3 +234,7 @@ bảng tiền từ preview, lý do bắt buộc và lý do đã lưu cho cả kh
 FE đọc API Order/Schedule/Event/Product hiện có, không sửa nghiệp vụ module sở hữu.
 
 Admin refund filters (2026-10-30): GET /api/payments/refunds?status=PENDING hoặc SUCCEEDED&page=0&size=20; mặc định PENDING giữ tương thích. Chỉ ADMIN ACTIVE; giá trị khác bị từ chối. FE có hai ô Chờ xử lý / Đã hoàn tiền, đổi lọc reset trang 0 và kiểm tra trang kế tiếp theo cùng filter. Phiếu SUCCEEDED không hiện nút xác nhận lần nữa. Không đổi schema; compileJava/compileTestJava + 74 tests Payment/Order và FE lint/build PASS, chưa thử DB/HTTP thật.
+
+## Revenue reporting — 2026-10-30
+
+Backend báo cáo và succeeded_at: xem [REVENUE_REPORT_API.md](REVENUE_REPORT_API.md). History thêm succeededAt. V2026103002 thêm timestamp nullable và partial index, không backfill hoặc chạy Supabase. Ghi lần đầu backend xác minh PAYMENT thành công / ADMIN xác nhận hoàn thủ công, không sửa khi query/confirm lặp. 89 tests PASS gồm 7 SQL tests PostgreSQL 18 local riêng; chưa nối FE report.

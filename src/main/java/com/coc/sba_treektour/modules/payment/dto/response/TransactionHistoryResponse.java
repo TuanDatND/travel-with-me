@@ -13,6 +13,7 @@ public record TransactionHistoryResponse(
         String paymentMethod,
         TransactionStatus status,
         OffsetDateTime createdAt,
-        String refundReason
+        String refundReason,
+        OffsetDateTime succeededAt
 ) {
 }

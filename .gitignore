@@ -37,6 +37,7 @@ out/
 .vscode/
 
 .env
+.env.local
 
 # Local runtimes, database and machine-specific Gradle settings
 .local/
