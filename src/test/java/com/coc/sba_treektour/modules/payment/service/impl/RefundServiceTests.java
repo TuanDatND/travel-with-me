@@ -13,6 +13,7 @@ import com.coc.sba_treektour.modules.payment.service.RefundService;
 import com.coc.sba_treektour.modules.schedule.entity.EventParticipant;
 import com.coc.sba_treektour.modules.schedule.enums.ParticipantStatus;
 import jakarta.persistence.EntityManager;
+import com.coc.sba_treektour.modules.schedule.repository.EventParticipantRepository;
 import jakarta.validation.Validation;
 import java.math.BigDecimal;
 import java.util.List;
@@ -50,7 +51,8 @@ class RefundServiceTests {
     ParticipantPaymentBridge participants = mock(ParticipantPaymentBridge.class);
     UserRepository users = mock(UserRepository.class);
     EntityManager entities = mock(EntityManager.class);
-    RefundServiceImpl service = new RefundServiceImpl(transactions, orders, participants, users, entities);
+    EventParticipantRepository participantRepository = mock(EventParticipantRepository.class);
+    RefundServiceImpl service = new RefundServiceImpl(transactions, orders, participants, users, entities, participantRepository);
     Order order = mock(Order.class);
     User user = User.builder().id(9L).email("owner@test").status("ACTIVE").build();
 
@@ -85,39 +87,72 @@ class RefundServiceTests {
 
     @Test void requestUsesServerBalanceAndDoesNotReturnMoneyYet() {
         when(transactions.totalAmount(5L, "REFUND", SUCCEEDED)).thenReturn(new BigDecimal("200"));
-        var response = service.request(new RequestRefund(5L, null));
+        var response = service.request(new RequestRefund(5L, null, "Không còn nhu cầu"));
         assertEquals(new BigDecimal("800"), response.amount());
         assertEquals(PENDING, response.status());
         assertEquals("MANUAL", response.paymentMethod());
+        assertEquals("Không còn nhu cầu", response.refundReason());
         assertEquals("REFUND", response.transactionType());
         verify(order, never()).setStatus(any());
     }
+    @Test void adminFiltersPendingAndCompletedRefundsAtRepository() {
+        login("ADMIN");
+        service.list(PENDING, 0, 20);
+        service.list(SUCCEEDED, 0, 20);
+        verify(transactions).findByTransactionTypeAndPaymentMethodAndStatusOrderByIdDesc(eq("REFUND"), eq("MANUAL"), eq(PENDING), any());
+        verify(transactions).findByTransactionTypeAndPaymentMethodAndStatusOrderByIdDesc(eq("REFUND"), eq("MANUAL"), eq(SUCCEEDED), any());
+        assertThrows(ResponseStatusException.class, () -> service.list(null, 0, 20));
+    }
+
+    @Test void previewUsesServerBalanceAndRejectsAnotherOwner() {
+        when(orders.findById(5L)).thenReturn(Optional.of(order));
+        when(transactions.totalAmount(5L, "REFUND", SUCCEEDED)).thenReturn(new BigDecimal("200"));
+        var preview = service.preview(5L, null);
+        assertEquals(new BigDecimal("1000"), preview.receivedAmount());
+        assertEquals(new BigDecimal("200"), preview.refundedAmount());
+        assertEquals(new BigDecimal("800"), preview.refundableAmount());
+        when(order.getUserId()).thenReturn(10L);
+        assertEquals(403, assertThrows(ResponseStatusException.class, () -> service.preview(5L, null)).getStatusCode().value());
+        verify(transactions, never()).saveAndFlush(any());
+    }
+
+    @Test void previewRejectsAmbiguousTargetsAndReadsCancelledTour() {
+        assertThrows(ResponseStatusException.class, () -> service.preview(null, null));
+        assertThrows(ResponseStatusException.class, () -> service.preview(5L, 7L));
+        var ticket = mock(EventParticipant.class);
+        when(participantRepository.findById(7L)).thenReturn(Optional.of(ticket));
+        when(ticket.getUserId()).thenReturn(9L);
+        when(transactions.participantTotal(7L, "PAYMENT", SUCCEEDED)).thenReturn(BigDecimal.TEN);
+        when(transactions.participantTotal(7L, "REFUND", SUCCEEDED)).thenReturn(BigDecimal.ONE);
+        assertEquals(new BigDecimal("9"), service.preview(null, 7L).refundableAmount());
+    }
+
     @Test void duplicateRequestReturnsSamePendingRefund() {
         var refund = refund();
         when(transactions.findFirstByOrder_IdAndPaymentMethodAndTransactionTypeAndStatusOrderByIdDesc(5L, "MANUAL", "REFUND", PENDING))
                 .thenReturn(Optional.of(refund));
-        assertEquals(11L, service.request(new RequestRefund(5L, null)).transactionId());
+        assertEquals(11L, service.request(new RequestRefund(5L, null, "Không còn nhu cầu")).transactionId());
         verify(transactions, never()).saveAndFlush(any());
     }
     @Test void wrongOwnerAndBlockedAccountCannotRequest() {
         when(order.getUserId()).thenReturn(10L);
         assertEquals(403, assertThrows(ResponseStatusException.class,
-                () -> service.request(new RequestRefund(5L, null))).getStatusCode().value());
+                () -> service.request(new RequestRefund(5L, null, "Không còn nhu cầu"))).getStatusCode().value());
         user.setStatus("BLOCKED");
-        assertThrows(ResponseStatusException.class, () -> service.request(new RequestRefund(5L, null)));
+        assertThrows(ResponseStatusException.class, () -> service.request(new RequestRefund(5L, null, "Không còn nhu cầu")));
         verify(transactions, never()).saveAndFlush(any());
     }
     @Test void pendingPaymentOrZeroBalanceBlocksRequest() {
         when(transactions.existsByOrder_IdAndTransactionTypeAndStatus(5L, "PAYMENT", PENDING)).thenReturn(true);
-        assertThrows(ResponseStatusException.class, () -> service.request(new RequestRefund(5L, null)));
+        assertThrows(ResponseStatusException.class, () -> service.request(new RequestRefund(5L, null, "Không còn nhu cầu")));
         when(transactions.existsByOrder_IdAndTransactionTypeAndStatus(5L, "PAYMENT", PENDING)).thenReturn(false);
         when(transactions.totalAmount(5L, "REFUND", SUCCEEDED)).thenReturn(new BigDecimal("1000"));
-        assertThrows(ResponseStatusException.class, () -> service.request(new RequestRefund(5L, null)));
+        assertThrows(ResponseStatusException.class, () -> service.request(new RequestRefund(5L, null, "Không còn nhu cầu")));
         verify(transactions, never()).saveAndFlush(any());
     }
     @Test void approvedOrDeliveredOrderRequiresSeparateReturnFlow() {
         when(order.getStatus()).thenReturn(OrderStatus.CONFIRMED);
-        assertThrows(ResponseStatusException.class, () -> service.request(new RequestRefund(5L, null)));
+        assertThrows(ResponseStatusException.class, () -> service.request(new RequestRefund(5L, null, "Không còn nhu cầu")));
         verify(transactions, never()).saveAndFlush(any());
     }
     @Test void cancelledTicketCanRequestAndActiveTicketCannot() {
@@ -126,11 +161,11 @@ class RefundServiceTests {
         when(ticket.getId()).thenReturn(7L);
         when(ticket.getUserId()).thenReturn(9L);
         when(ticket.getParticipantStatus()).thenReturn(ParticipantStatus.CONFIRMED);
-        assertThrows(ResponseStatusException.class, () -> service.request(new RequestRefund(null, 7L)));
+        assertThrows(ResponseStatusException.class, () -> service.request(new RequestRefund(null, 7L, "Không còn nhu cầu")));
         when(ticket.getParticipantStatus()).thenReturn(ParticipantStatus.CANCELLED);
         when(transactions.participantTotal(7L, "PAYMENT", SUCCEEDED)).thenReturn(BigDecimal.TEN);
         when(transactions.participantTotal(7L, "REFUND", SUCCEEDED)).thenReturn(BigDecimal.ZERO);
-        assertEquals(7L, service.request(new RequestRefund(null, 7L)).participantId());
+        assertEquals(7L, service.request(new RequestRefund(null, 7L, "Không còn nhu cầu")).participantId());
     }
     @Test void confirmationIsIdempotentAndKeepsOriginalPaymentSeparate() {
         login("ADMIN");
@@ -166,10 +201,11 @@ class RefundServiceTests {
             context.refresh();
             var secured = context.getBean(RefundService.class);
             assertThrows(AccessDeniedException.class, () -> secured.confirm(11L));
-            assertThrows(AccessDeniedException.class, () -> secured.pending(0, 20));
+            assertThrows(AccessDeniedException.class, () -> secured.list(PENDING, 0, 20));
             login("STAFF");
-            assertThrows(AccessDeniedException.class, () -> secured.request(new RequestRefund(5L, null)));
+            assertThrows(AccessDeniedException.class, () -> secured.request(new RequestRefund(5L, null, "Không còn nhu cầu")));
             assertThrows(AccessDeniedException.class, () -> secured.mine(0, 20));
+            assertThrows(AccessDeniedException.class, () -> secured.preview(5L, null));
             login("ADMIN");
             var refund = refund(); find(refund);
             assertEquals(SUCCEEDED, secured.confirm(11L).status());
@@ -178,9 +214,11 @@ class RefundServiceTests {
     @Test void dtoRejectsBothTargetsMissingTargetsAndNonpositiveIds() {
         try (var factory = Validation.buildDefaultValidatorFactory()) {
             var validator = factory.getValidator();
-            assertFalse(validator.validate(new RequestRefund(null, null)).isEmpty());
-            assertFalse(validator.validate(new RequestRefund(5L, 7L)).isEmpty());
-            assertFalse(validator.validate(new RequestRefund(-1L, null)).isEmpty());
+            assertFalse(validator.validate(new RequestRefund(5L, null, "  ")).isEmpty());
+            assertFalse(validator.validate(new RequestRefund(5L, null, "x".repeat(2001))).isEmpty());
+            assertFalse(validator.validate(new RequestRefund(null, null, "Không còn nhu cầu")).isEmpty());
+            assertFalse(validator.validate(new RequestRefund(5L, 7L, "Không còn nhu cầu")).isEmpty());
+            assertFalse(validator.validate(new RequestRefund(-1L, null, "Không còn nhu cầu")).isEmpty());
         }
     }
 }

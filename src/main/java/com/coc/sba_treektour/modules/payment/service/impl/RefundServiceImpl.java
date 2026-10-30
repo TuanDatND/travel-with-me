@@ -13,9 +13,12 @@ import com.coc.sba_treektour.modules.payment.service.ParticipantPaymentBridge;
 import com.coc.sba_treektour.modules.payment.service.RefundService;
 import com.coc.sba_treektour.modules.schedule.entity.EventParticipant;
 import com.coc.sba_treektour.modules.schedule.enums.ParticipantStatus;
+import com.coc.sba_treektour.modules.schedule.repository.EventParticipantRepository;
+import com.coc.sba_treektour.modules.payment.dto.response.RefundPreviewResponse;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import java.math.BigDecimal;
+import com.coc.sba_treektour.modules.payment.enums.TransactionStatus;
 import java.time.OffsetDateTime;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -40,6 +43,7 @@ public class RefundServiceImpl implements RefundService {
     private final ParticipantPaymentBridge participants;
     private final UserRepository users;
     private final EntityManager entities;
+    private final EventParticipantRepository participantRepository;
 
     @Override
     @Transactional
@@ -62,7 +66,7 @@ public class RefundServiceImpl implements RefundService {
         BigDecimal balance = balance(orderId, participantId);
         if (balance.signum() <= 0) throw new ResponseStatusException(CONFLICT, "No received money remaining to refund");
         return response(transactions.saveAndFlush(Transaction.builder().order(order).participant(ticket)
-                .transactionType("REFUND").paymentMethod("MANUAL").amount(balance)
+                .transactionType("REFUND").paymentMethod("MANUAL").amount(balance).refundReason(request.reason().trim())
                 .status(PENDING).createdAt(OffsetDateTime.now()).build()));
     }
 
@@ -101,10 +105,28 @@ public class RefundServiceImpl implements RefundService {
     @Override
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('ADMIN')")
-    public List<TransactionHistoryResponse> pending(int page, int size) {
+    public List<TransactionHistoryResponse> list(TransactionStatus status, int page, int size) {
         activeUser();
-        return transactions.findByTransactionTypeAndPaymentMethodAndStatusOrderByIdDesc("REFUND", "MANUAL", PENDING,
+        if (status != PENDING && status != SUCCEEDED) throw new ResponseStatusException(BAD_REQUEST, "Refund filter must be PENDING or SUCCEEDED");
+        return transactions.findByTransactionTypeAndPaymentMethodAndStatusOrderByIdDesc("REFUND", "MANUAL", status,
                 page(page, size)).stream().map(this::response).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasAuthority('CUSTOMER')")
+    public RefundPreviewResponse preview(Long orderId, Long participantId) {
+        if ((orderId == null) == (participantId == null)) throw new ResponseStatusException(BAD_REQUEST, "Provide exactly one target");
+        User user = activeUser();
+        Order order = orderId == null ? null : orders.findById(orderId)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Order not found"));
+        EventParticipant ticket = participantId == null ? null : participantRepository.findById(participantId)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Ticket not found"));
+        if (!user.getId().equals(order != null ? order.getUserId() : ticket.getUserId()))
+            throw new ResponseStatusException(FORBIDDEN, "Not your order or ticket");
+        BigDecimal received = total(orderId, participantId, "PAYMENT");
+        BigDecimal refunded = total(orderId, participantId, "REFUND");
+        return new RefundPreviewResponse(orderId, participantId, received, refunded, received.subtract(refunded).max(BigDecimal.ZERO));
     }
 
     private User activeUser() {
@@ -156,6 +178,6 @@ public class RefundServiceImpl implements RefundService {
     private TransactionHistoryResponse response(Transaction transaction) {
         return new TransactionHistoryResponse(transaction.getId(), transaction.getOrderId(), transaction.getParticipantId(),
                 transaction.getTransactionType(), transaction.getAmount(), transaction.getPaymentMethod(),
-                transaction.getStatus(), transaction.getCreatedAt());
+                transaction.getStatus(), transaction.getCreatedAt(), transaction.getRefundReason());
     }
 }

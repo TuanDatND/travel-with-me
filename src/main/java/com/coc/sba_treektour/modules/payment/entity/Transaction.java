@@ -58,6 +58,9 @@ public class Transaction {
 
     public Long getParticipantId() { return participant == null ? null : participant.getId(); }
 
+    @Column(name = "refund_reason", length = 2000)
+    private String refundReason;
+
     @Size(max = 30)
     @NotNull
     @Column(name = "transaction_type", nullable = false, length = 30)

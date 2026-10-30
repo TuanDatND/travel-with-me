@@ -5,6 +5,8 @@ import com.coc.sba_treektour.modules.payment.dto.request.RequestRefund;
 import com.coc.sba_treektour.modules.payment.dto.response.TransactionHistoryResponse;
 import com.coc.sba_treektour.modules.payment.service.RefundService;
 import jakarta.validation.Valid;
+import com.coc.sba_treektour.modules.payment.enums.TransactionStatus;
+import com.coc.sba_treektour.modules.payment.dto.response.RefundPreviewResponse;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -21,6 +23,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class RefundController {
     private final RefundService refunds;
 
+    @GetMapping("/preview")
+    public ApiResponse<RefundPreviewResponse> preview(@RequestParam(required = false) Long orderId,
+            @RequestParam(required = false) Long participantId) {
+        return ApiResponse.success(refunds.preview(orderId, participantId));
+    }
+
     @PostMapping
     public ApiResponse<TransactionHistoryResponse> request(@Valid @RequestBody RequestRefund request) {
         return ApiResponse.success("Refund requested; money has not been returned yet", refunds.request(request));
@@ -33,9 +41,10 @@ public class RefundController {
     }
 
     @GetMapping
-    public ApiResponse<List<TransactionHistoryResponse>> pending(@RequestParam(defaultValue = "0") int page,
+    public ApiResponse<List<TransactionHistoryResponse>> list(@RequestParam(defaultValue = "PENDING") TransactionStatus status,
+            @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
-        return ApiResponse.success(refunds.pending(page, size));
+        return ApiResponse.success(refunds.list(status, page, size));
     }
 
     @PostMapping("/{id}/confirm")
