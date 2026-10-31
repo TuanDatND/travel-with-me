@@ -31,19 +31,19 @@ public class AccountExceptionHandler {
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ApiResponse<Void>> handleBadCredentials(BadCredentialsException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(ApiResponse.error(HttpStatus.UNAUTHORIZED.value(), "Email hoặc mật khẩu không chính xác!"));
+                .body(ApiResponse.error(HttpStatus.UNAUTHORIZED.value(), "Invalid email or password!"));
     }
 
     @ExceptionHandler({DisabledException.class, LockedException.class})
     public ResponseEntity<ApiResponse<Void>> handleAccountLockedOrDisabled(AuthenticationException ex) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(ApiResponse.error(HttpStatus.FORBIDDEN.value(), "Tài khoản của bạn đã bị khóa hoặc ngừng hoạt động!"));
+                .body(ApiResponse.error(HttpStatus.FORBIDDEN.value(), "Your account has been locked or deactivated!"));
     }
 
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<ApiResponse<Void>> handleAuthenticationException(AuthenticationException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(ApiResponse.error(HttpStatus.UNAUTHORIZED.value(), "Xác thực không thành công: " + ex.getMessage()));
+                .body(ApiResponse.error(HttpStatus.UNAUTHORIZED.value(), "Authentication failed: " + ex.getMessage()));
     }
 
     @ExceptionHandler(AccessDeniedException.class)

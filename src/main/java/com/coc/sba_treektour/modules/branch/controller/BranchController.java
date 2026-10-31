@@ -42,7 +42,7 @@ public class BranchController {
     @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<ApiResponse<BranchResponse>> createBranch(@Valid @RequestBody BranchRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.created("Tạo chi nhánh thành công", branchService.createBranch(request)));
+                .body(ApiResponse.created("Branch created successfully", branchService.createBranch(request)));
     }
 
     @PutMapping("/{id}")
@@ -50,7 +50,7 @@ public class BranchController {
     public ResponseEntity<ApiResponse<BranchResponse>> updateBranch(
             @PathVariable Long id,
             @Valid @RequestBody BranchRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Cập nhật chi nhánh thành công", branchService.updateBranch(id, request)));
+        return ResponseEntity.ok(ApiResponse.success("Branch updated successfully", branchService.updateBranch(id, request)));
     }
 
     @PutMapping("/{id}/status")
@@ -58,13 +58,13 @@ public class BranchController {
     public ResponseEntity<ApiResponse<BranchResponse>> updateBranchStatus(
             @PathVariable Long id,
             @RequestParam String status) {
-        return ResponseEntity.ok(ApiResponse.success("Cập nhật trạng thái thành công", branchService.updateBranchStatus(id, status)));
+        return ResponseEntity.ok(ApiResponse.success("Branch status updated successfully", branchService.updateBranchStatus(id, status)));
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deleteBranch(@PathVariable Long id) {
         branchService.deleteBranch(id);
-        return ResponseEntity.ok(ApiResponse.success("Xóa chi nhánh thành công", null));
+        return ResponseEntity.ok(ApiResponse.success("Branch deleted successfully", null));
     }
 }

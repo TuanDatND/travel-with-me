@@ -58,7 +58,7 @@ public class UserController {
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<UserResponse>> getCurrentUser(Principal principal) {
         if (principal == null) {
-            throw new InvalidAccountException("Chưa đăng nhập");
+            throw new InvalidAccountException("Not authenticated");
         }
         return ResponseEntity.ok(ApiResponse.success(userService.getUserByEmail(principal.getName())));
     }
@@ -68,9 +68,9 @@ public class UserController {
             Principal principal, 
             @Valid @RequestBody UserProfileRequest request) {
         if (principal == null) {
-            throw new InvalidAccountException("Chưa đăng nhập");
+            throw new InvalidAccountException("Not authenticated");
         }
-        return ResponseEntity.ok(ApiResponse.success("Cập nhật hồ sơ thành công", userService.updateProfile(principal.getName(), request)));
+        return ResponseEntity.ok(ApiResponse.success("Profile updated successfully", userService.updateProfile(principal.getName(), request)));
     }
 
     @PutMapping("/change-password")
@@ -78,10 +78,10 @@ public class UserController {
             Principal principal,
             @Valid @RequestBody ChangePasswordRequest request) {
         if (principal == null) {
-            throw new InvalidAccountException("Chưa đăng nhập");
+            throw new InvalidAccountException("Not authenticated");
         }
         userService.changePassword(principal.getName(), request);
-        return ResponseEntity.ok(ApiResponse.success("Đổi mật khẩu thành công!", null));
+        return ResponseEntity.ok(ApiResponse.success("Password changed successfully!", null));
     }
 
     @PutMapping("/{id}")
@@ -89,7 +89,7 @@ public class UserController {
     public ResponseEntity<ApiResponse<UserResponse>> updateUserByAdmin(
             @PathVariable Long id,
             @Valid @RequestBody AdminUpdateUserRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Cập nhật thông tin người dùng thành công", userService.updateUserByAdmin(id, request)));
+        return ResponseEntity.ok(ApiResponse.success("User updated successfully", userService.updateUserByAdmin(id, request)));
     }
 
     @PutMapping("/{id}/status")
@@ -97,13 +97,13 @@ public class UserController {
     public ResponseEntity<ApiResponse<UserResponse>> updateUserStatus(
             @PathVariable Long id,
             @RequestParam String status) {
-        return ResponseEntity.ok(ApiResponse.success("Cập nhật trạng thái người dùng thành công", userService.updateUserStatus(id, status)));
+        return ResponseEntity.ok(ApiResponse.success("User status updated successfully", userService.updateUserStatus(id, status)));
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deleteUser(@PathVariable Long id) {
         userService.deleteUser(id);
-        return ResponseEntity.ok(ApiResponse.success("Xóa người dùng thành công", null));
+        return ResponseEntity.ok(ApiResponse.success("User deactivated successfully", null));
     }
 }

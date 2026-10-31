@@ -55,7 +55,7 @@ public class AdminInternalUserTests {
     @Test
     void testCreateInternalUser_SuccessForStaff() {
         CreateInternalUserRequest request = CreateInternalUserRequest.builder()
-                .fullName("Nguyễn Văn Nhân Viên")
+                .fullName("John Staff")
                 .email("  Staff.Test@TreekTour.com  ")
                 .phone("0987654321")
                 .role("STAFF")
@@ -94,7 +94,7 @@ public class AdminInternalUserTests {
     @Test
     void testCreateInternalUser_ReassignExistingInactiveOrUnassignedUser() {
         CreateInternalUserRequest request = CreateInternalUserRequest.builder()
-                .fullName("Đạt Trần")
+                .fullName("Dat Tran")
                 .email("datgalaxy0704@gmail.com")
                 .phone("0912345678")
                 .role("STAFF")
@@ -103,7 +103,7 @@ public class AdminInternalUserTests {
         Role staffRole = Role.builder().id(2L).name("STAFF").build();
         User existingUser = User.builder()
                 .id(55L)
-                .fullName("Tên Cũ")
+                .fullName("Old Name")
                 .email("datgalaxy0704@gmail.com")
                 .role(staffRole)
                 .status("INACTIVE")
@@ -120,14 +120,14 @@ public class AdminInternalUserTests {
 
         assertNotNull(response);
         assertEquals(55L, response.getId());
-        assertEquals("Đạt Trần", response.getFullName());
+        assertEquals("Dat Tran", response.getFullName());
         assertEquals("ACTIVE", response.getStatus());
     }
 
     @Test
     void testCreateInternalUser_ActiveGuideCannotBecomeStaff_ThrowsException() {
         CreateInternalUserRequest request = CreateInternalUserRequest.builder()
-                .fullName("Guide Đang Hoạt Động")
+                .fullName("Active Guide")
                 .email("guide.active@treektour.com")
                 .phone("0912345678")
                 .role("STAFF")
@@ -137,7 +137,7 @@ public class AdminInternalUserTests {
         Role guideRole = Role.builder().id(3L).name("GUIDE").build();
         User activeGuideUser = User.builder()
                 .id(77L)
-                .fullName("Guide Đang Hoạt Động")
+                .fullName("Active Guide")
                 .email("guide.active@treektour.com")
                 .role(guideRole)
                 .status("ACTIVE")
@@ -149,19 +149,19 @@ public class AdminInternalUserTests {
 
         InvalidAccountException ex = assertThrows(InvalidAccountException.class,
                 () -> userService.createInternalUser(request));
-        assertTrue(ex.getMessage().contains("Hướng dẫn viên (GUIDE) đang hoạt động"));
+        assertTrue(ex.getMessage().contains("active Tour Guide (GUIDE)"));
 
         // Even if the user's role in users table was previously changed to STAFF, active tour_guides still blocks it
         activeGuideUser.setRole(staffRole);
         InvalidAccountException ex2 = assertThrows(InvalidAccountException.class,
                 () -> userService.createInternalUser(request));
-        assertTrue(ex2.getMessage().contains("Hướng dẫn viên (GUIDE) đang hoạt động"));
+        assertTrue(ex2.getMessage().contains("active Tour Guide (GUIDE)"));
     }
 
     @Test
     void testCreateInternalUser_LockedGuideCanBecomeStaff_Success() {
         CreateInternalUserRequest request = CreateInternalUserRequest.builder()
-                .fullName("Guide Đã Khóa")
+                .fullName("Locked Guide")
                 .email("guide.locked@treektour.com")
                 .phone("0912345678")
                 .role("STAFF")
@@ -171,7 +171,7 @@ public class AdminInternalUserTests {
         Role guideRole = Role.builder().id(3L).name("GUIDE").build();
         User lockedGuideUser = User.builder()
                 .id(78L)
-                .fullName("Guide Đã Khóa")
+                .fullName("Locked Guide")
                 .email("guide.locked@treektour.com")
                 .role(guideRole)
                 .status("ACTIVE") // User table still ACTIVE, but tour_guides table is INACTIVE (locked on UI)
@@ -194,7 +194,7 @@ public class AdminInternalUserTests {
 
         // Creating another GUIDE profile for a user who already has a guide profile (even if locked) is blocked before sending email
         CreateInternalUserRequest guideRequest = CreateInternalUserRequest.builder()
-                .fullName("Guide Đã Khóa")
+                .fullName("Locked Guide")
                 .email("guide.locked@treektour.com")
                 .phone("0912345678")
                 .role("GUIDE")
@@ -204,7 +204,7 @@ public class AdminInternalUserTests {
 
         InvalidAccountException exGuide = assertThrows(InvalidAccountException.class,
                 () -> userService.createInternalUser(guideRequest));
-        assertTrue(exGuide.getMessage().contains("đã có hồ sơ Hướng dẫn viên"));
+        assertTrue(exGuide.getMessage().contains("already has a Tour Guide profile"));
     }
 
     @Test
@@ -216,6 +216,6 @@ public class AdminInternalUserTests {
                 .build();
 
         RuntimeException ex = assertThrows(RuntimeException.class, () -> userService.createInternalUser(request));
-        assertTrue(ex.getMessage().contains("Chỉ được phép tạo tài khoản nội bộ cho vai trò STAFF hoặc GUIDE"));
+        assertTrue(ex.getMessage().contains("Internal accounts can only be created for STAFF or GUIDE roles"));
     }
 }
