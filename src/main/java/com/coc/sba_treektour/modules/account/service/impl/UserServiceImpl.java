@@ -77,29 +77,24 @@ public class UserServiceImpl implements UserService {
                 if (Roles.STAFF.equals(roleName)) {
                     if (activeGuide) {
                         throw new InvalidAccountException(
-                                "This email belongs to an active Tour Guide (GUIDE)! Please lock/deactivate the guide profile before assigning as STAFF."
-                        );
+                                "This email belongs to an active Tour Guide (GUIDE)! Please lock/deactivate the guide profile before assigning as STAFF.");
                     }
                     if (activeStaff) {
                         throw new InvalidAccountException(
-                                "This email is already assigned to an active branch Staff (STAFF) member!"
-                        );
+                                "This email is already assigned to an active branch Staff (STAFF) member!");
                     }
                 } else if (Roles.GUIDE.equals(roleName)) {
                     if (activeStaff) {
                         throw new InvalidAccountException(
-                                "This email belongs to an active branch Staff (STAFF) member! Please remove/lock the staff member before assigning as GUIDE."
-                        );
+                                "This email belongs to an active branch Staff (STAFF) member! Please remove/lock the staff member before assigning as GUIDE.");
                     }
                     if (activeGuide) {
                         throw new InvalidAccountException(
-                                "This email belongs to an active Tour Guide (GUIDE) in the system!"
-                        );
+                                "This email belongs to an active Tour Guide (GUIDE) in the system!");
                     }
                     if (userRepository.hasAnyGuideProfile(existingUserId)) {
                         throw new InvalidAccountException(
-                                "This email already has a Tour Guide profile (currently locked). Please unlock it directly in the Tour Guides list instead of creating a new one!"
-                        );
+                                "This email already has a Tour Guide profile (currently locked). Please unlock it directly in the Tour Guides list instead of creating a new one!");
                     }
                 }
             }
@@ -128,8 +123,7 @@ public class UserServiceImpl implements UserService {
                 savedUser.getEmail(),
                 savedUser.getFullName(),
                 role.getName(),
-                rawPassword
-        );
+                rawPassword);
 
         String message = emailSent
                 ? "Internal account created successfully and temporary password sent to the user's email."
@@ -221,6 +215,14 @@ public class UserServiceImpl implements UserService {
             if (isSelf && !Roles.ADMIN.equals(upperRole)) {
                 throw new InvalidAccountException("Administrators cannot demote their own role!");
             }
+            if (user.getId() != null) {
+                if (Roles.STAFF.equals(upperRole) && userRepository.hasActiveGuideProfile(user.getId())) {
+                    throw new InvalidAccountException("This user is currently an active Tour Guide (GUIDE)! Please lock/deactivate the guide profile before changing role to STAFF.");
+                }
+                if (Roles.GUIDE.equals(upperRole) && userRepository.hasActiveStaffProfile(user.getId())) {
+                    throw new InvalidAccountException("This user is currently an active branch Staff (STAFF) member! Please remove/lock the staff assignment before changing role to GUIDE.");
+                }
+            }
             Role role = roleRepository.findByName(upperRole)
                     .orElseThrow(() -> new InvalidAccountException("Role not found: " + request.getRole()));
             user.setRole(role);
@@ -265,7 +267,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public void deleteUser(Long id) {
+    public boolean deleteUser(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
 
@@ -273,8 +275,22 @@ public class UserServiceImpl implements UserService {
             throw new InvalidAccountException("Administrators cannot delete their own account!");
         }
 
-        user.setStatus(UserStatus.INACTIVE.name());
-        userRepository.save(user);
+        if (userRepository.hasActiveStaffProfile(id)) {
+            throw new InvalidAccountException("Cannot delete user while they are an active branch Staff member! Please remove the staff member first.");
+        }
+        if (userRepository.hasActiveGuideProfile(id)) {
+            throw new InvalidAccountException("Cannot delete user while they are an active Tour Guide! Please deactivate the guide profile first.");
+        }
+
+        if (userRepository.hasLinkedBusinessRecords(id)) {
+            user.setStatus(UserStatus.INACTIVE.name());
+            userRepository.save(user);
+            return false;
+        } else {
+            userRepository.delete(user);
+            userRepository.flush();
+            return true;
+        }
     }
 
     private boolean isCurrentAuthenticatedUser(User targetUser) {
