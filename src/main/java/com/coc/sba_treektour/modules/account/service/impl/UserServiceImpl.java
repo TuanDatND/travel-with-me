@@ -46,11 +46,11 @@ public class UserServiceImpl implements UserService {
 
         String roleName = request.getRole().trim().toUpperCase(Locale.ROOT);
         if (!Roles.STAFF.equals(roleName) && !Roles.GUIDE.equals(roleName)) {
-            throw new InvalidAccountException("Chỉ được phép tạo tài khoản nội bộ cho vai trò STAFF hoặc GUIDE!");
+            throw new InvalidAccountException("Internal accounts can only be created for STAFF or GUIDE roles!");
         }
 
         Role role = roleRepository.findByName(roleName)
-                .orElseThrow(() -> new InvalidAccountException("Không tìm thấy vai trò: " + roleName));
+                .orElseThrow(() -> new InvalidAccountException("Role not found: " + roleName));
 
         String rawPassword = PasswordGenerator.generateRandomPassword(10);
 
@@ -62,11 +62,11 @@ public class UserServiceImpl implements UserService {
             String existingRole = existingUser.getRole() != null ? existingUser.getRole().getName() : "";
 
             if (Roles.ADMIN.equals(existingRole)) {
-                throw new InvalidAccountException("Email này đang thuộc về tài khoản Quản trị viên (ADMIN)!");
+                throw new InvalidAccountException("This email belongs to an Administrator (ADMIN) account!");
             }
 
             if (Roles.CUSTOMER.equals(existingRole) && UserStatus.ACTIVE.name().equals(existingUser.getStatus())) {
-                throw new InvalidAccountException("Email này đang thuộc về tài khoản Khách hàng (CUSTOMER) đang hoạt động!");
+                throw new InvalidAccountException("This email belongs to an active Customer (CUSTOMER) account!");
             }
 
             Long existingUserId = existingUser.getId();
@@ -77,28 +77,28 @@ public class UserServiceImpl implements UserService {
                 if (Roles.STAFF.equals(roleName)) {
                     if (activeGuide) {
                         throw new InvalidAccountException(
-                                "Email này đang là Hướng dẫn viên (GUIDE) đang hoạt động! Hãy khóa/ngừng hoạt động Hướng dẫn viên trước khi cấp làm STAFF."
+                                "This email belongs to an active Tour Guide (GUIDE)! Please lock/deactivate the guide profile before assigning as STAFF."
                         );
                     }
                     if (activeStaff) {
                         throw new InvalidAccountException(
-                                "Email này đang được phân công làm Nhân viên chi nhánh (STAFF) đang hoạt động!"
+                                "This email is already assigned to an active branch Staff (STAFF) member!"
                         );
                     }
                 } else if (Roles.GUIDE.equals(roleName)) {
                     if (activeStaff) {
                         throw new InvalidAccountException(
-                                "Email này đang là Nhân viên chi nhánh (STAFF) đang hoạt động! Hãy xóa/khóa nhân viên chi nhánh trước khi cấp làm GUIDE."
+                                "This email belongs to an active branch Staff (STAFF) member! Please remove/lock the staff member before assigning as GUIDE."
                         );
                     }
                     if (activeGuide) {
                         throw new InvalidAccountException(
-                                "Email này đang là Hướng dẫn viên (GUIDE) đang hoạt động trong hệ thống!"
+                                "This email belongs to an active Tour Guide (GUIDE) in the system!"
                         );
                     }
                     if (userRepository.hasAnyGuideProfile(existingUserId)) {
                         throw new InvalidAccountException(
-                                "Email này đã có hồ sơ Hướng dẫn viên (đang bị khóa). Vui lòng mở khóa trực tiếp trên danh sách Hướng dẫn viên thay vì tạo mới!"
+                                "This email already has a Tour Guide profile (currently locked). Please unlock it directly in the Tour Guides list instead of creating a new one!"
                         );
                     }
                 }
@@ -132,8 +132,8 @@ public class UserServiceImpl implements UserService {
         );
 
         String message = emailSent
-                ? "Tạo tài khoản thành công và đã gửi mật khẩu về email của nhân viên."
-                : "Tạo tài khoản thành công nhưng gửi email thất bại (hãy kiểm tra cấu hình SMTP). Mật khẩu tạm thời được cung cấp bên dưới.";
+                ? "Internal account created successfully and temporary password sent to the user's email."
+                : "Internal account created successfully, but email delivery failed (please check SMTP configuration). The temporary password is provided below.";
 
         return InternalUserResponse.builder()
                 .id(savedUser.getId())
@@ -189,7 +189,7 @@ public class UserServiceImpl implements UserService {
     @Override
     public void changePassword(String email, ChangePasswordRequest request) {
         if (!request.getNewPassword().equals(request.getConfirmPassword())) {
-            throw new InvalidAccountException("Mật khẩu mới và xác nhận mật khẩu không trùng khớp!");
+            throw new InvalidAccountException("New password and confirmation password do not match!");
         }
 
         String normalizedEmail = normalizeEmail(email);
@@ -197,7 +197,7 @@ public class UserServiceImpl implements UserService {
                 .orElseThrow(() -> new UserNotFoundException("User not found with email: " + normalizedEmail));
 
         if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPassword())) {
-            throw new InvalidAccountException("Mật khẩu hiện tại không chính xác!");
+            throw new InvalidAccountException("Current password is incorrect!");
         }
 
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
@@ -219,10 +219,10 @@ public class UserServiceImpl implements UserService {
         if (request.getRole() != null && !request.getRole().isBlank()) {
             String upperRole = request.getRole().trim().toUpperCase(Locale.ROOT);
             if (isSelf && !Roles.ADMIN.equals(upperRole)) {
-                throw new InvalidAccountException("Quản trị viên không thể tự hạ quyền của chính mình!");
+                throw new InvalidAccountException("Administrators cannot demote their own role!");
             }
             Role role = roleRepository.findByName(upperRole)
-                    .orElseThrow(() -> new InvalidAccountException("Không tìm thấy vai trò: " + request.getRole()));
+                    .orElseThrow(() -> new InvalidAccountException("Role not found: " + request.getRole()));
             user.setRole(role);
         }
 
@@ -231,10 +231,10 @@ public class UserServiceImpl implements UserService {
             try {
                 UserStatus.valueOf(status);
             } catch (IllegalArgumentException e) {
-                throw new InvalidAccountException("Trạng thái không hợp lệ. Phải là ACTIVE, INACTIVE hoặc BLOCKED");
+                throw new InvalidAccountException("Invalid status. Must be ACTIVE, INACTIVE, or BLOCKED");
             }
             if (isSelf && !UserStatus.ACTIVE.name().equals(status)) {
-                throw new InvalidAccountException("Quản trị viên không thể tự khóa hoặc vô hiệu hóa tài khoản của chính mình!");
+                throw new InvalidAccountException("Administrators cannot lock or deactivate their own account!");
             }
             user.setStatus(status);
         }
@@ -252,11 +252,11 @@ public class UserServiceImpl implements UserService {
         try {
             UserStatus.valueOf(upperStatus);
         } catch (IllegalArgumentException e) {
-            throw new InvalidAccountException("Trạng thái không hợp lệ. Phải là ACTIVE, INACTIVE hoặc BLOCKED");
+            throw new InvalidAccountException("Invalid status. Must be ACTIVE, INACTIVE, or BLOCKED");
         }
 
         if (isCurrentAuthenticatedUser(user) && !UserStatus.ACTIVE.name().equals(upperStatus)) {
-            throw new InvalidAccountException("Quản trị viên không thể tự khóa hoặc vô hiệu hóa tài khoản của chính mình!");
+            throw new InvalidAccountException("Administrators cannot lock or deactivate their own account!");
         }
 
         user.setStatus(upperStatus);
@@ -270,7 +270,7 @@ public class UserServiceImpl implements UserService {
                 .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
 
         if (isCurrentAuthenticatedUser(user)) {
-            throw new InvalidAccountException("Quản trị viên không thể tự xóa tài khoản của chính mình!");
+            throw new InvalidAccountException("Administrators cannot delete their own account!");
         }
 
         user.setStatus(UserStatus.INACTIVE.name());

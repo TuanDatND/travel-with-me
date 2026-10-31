@@ -10,8 +10,11 @@ import java.util.Optional;
 
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
-    Optional<User> findByEmail(String email);
-    boolean existsByEmail(String email);
+    @Query("SELECT u FROM User u WHERE LOWER(u.email) = LOWER(:email)")
+    Optional<User> findByEmail(@Param("email") String email);
+
+    @Query("SELECT CASE WHEN COUNT(u) > 0 THEN true ELSE false END FROM User u WHERE LOWER(u.email) = LOWER(:email)")
+    boolean existsByEmail(@Param("email") String email);
 
     @Query(value = "SELECT EXISTS(SELECT 1 FROM tour_guides WHERE user_id = :userId AND status = 'ACTIVE')", nativeQuery = true)
     boolean hasActiveGuideProfile(@Param("userId") Long userId);

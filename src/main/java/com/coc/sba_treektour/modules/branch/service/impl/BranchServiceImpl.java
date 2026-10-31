@@ -92,7 +92,7 @@ public class BranchServiceImpl implements BranchService {
                 .orElseThrow(() -> new BranchNotFoundException("Branch not found with id: " + id));
 
         if (staffRepository.existsByBranchId(id)) {
-            throw new InvalidBranchOperationException("Không thể xóa chi nhánh vì vẫn còn nhân viên đang trực thuộc!");
+            throw new InvalidBranchOperationException("Cannot delete branch while staff members are still assigned to it!");
         }
 
         branch.setStatus(BranchStatus.INACTIVE.name());

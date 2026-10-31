@@ -39,21 +39,37 @@ public class AuthServiceImpl implements AuthService {
     public AuthResponse register(RegisterRequest request) {
         String normalizedEmail = normalizeEmail(request.getEmail());
 
-        if (userRepository.existsByEmail(normalizedEmail)) {
-            throw new InvalidAccountException("Email đã được sử dụng trong hệ thống!");
-        }
-
         Role userRole = roleRepository.findByName(Roles.CUSTOMER)
-                .orElseThrow(() -> new InvalidAccountException("Không tìm thấy vai trò mặc định CUSTOMER"));
+                .orElseThrow(() -> new InvalidAccountException("Default role CUSTOMER not found"));
 
-        User user = User.builder()
-                .fullName(request.getFullName().trim())
-                .email(normalizedEmail)
-                .phone(request.getPhone() != null ? request.getPhone().trim() : null)
-                .password(passwordEncoder.encode(request.getPassword()))
-                .role(userRole)
-                .status(UserStatus.ACTIVE.name())
-                .build();
+        User existingUser = userRepository.findByEmail(normalizedEmail).orElse(null);
+        User user;
+
+        if (existingUser != null) {
+            if (!UserStatus.INACTIVE.name().equals(existingUser.getStatus())) {
+                throw new InvalidAccountException("Email is already in use in the system!");
+            }
+            Long existingId = existingUser.getId();
+            if (existingId != null && (userRepository.hasActiveGuideProfile(existingId) || userRepository.hasActiveStaffProfile(existingId))) {
+                throw new InvalidAccountException("This email belongs to an active staff member or tour guide!");
+            }
+            existingUser.setFullName(request.getFullName().trim());
+            existingUser.setEmail(normalizedEmail);
+            existingUser.setPhone(request.getPhone() != null && !request.getPhone().isBlank() ? request.getPhone().trim() : null);
+            existingUser.setPassword(passwordEncoder.encode(request.getPassword()));
+            existingUser.setRole(userRole);
+            existingUser.setStatus(UserStatus.ACTIVE.name());
+            user = existingUser;
+        } else {
+            user = User.builder()
+                    .fullName(request.getFullName().trim())
+                    .email(normalizedEmail)
+                    .phone(request.getPhone() != null && !request.getPhone().isBlank() ? request.getPhone().trim() : null)
+                    .password(passwordEncoder.encode(request.getPassword()))
+                    .role(userRole)
+                    .status(UserStatus.ACTIVE.name())
+                    .build();
+        }
 
         User savedUser = userRepository.save(user);
         String jwtToken = jwtService.generateToken(savedUser);
@@ -76,10 +92,10 @@ public class AuthServiceImpl implements AuthService {
         );
 
         User user = userRepository.findByEmail(normalizedEmail)
-                .orElseThrow(() -> new UserNotFoundException("Không tìm thấy tài khoản người dùng"));
+                .orElseThrow(() -> new UserNotFoundException("User account not found"));
 
         if (!UserStatus.ACTIVE.name().equals(user.getStatus())) {
-            throw new InvalidAccountException("Tài khoản đã bị khóa hoặc ngừng hoạt động");
+            throw new InvalidAccountException("Account has been locked or deactivated");
         }
 
         String jwtToken = jwtService.generateToken(user);
