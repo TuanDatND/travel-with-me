@@ -59,22 +59,22 @@ public class StaffServiceImpl implements StaffService {
                 .orElseThrow(() -> new BranchNotFoundException("Branch not found with id: " + request.getBranchId()));
 
         if (branch.getStatus() != null && !BranchStatus.ACTIVE.name().equals(branch.getStatus())) {
-            throw new InvalidBranchOperationException("Không thể gán nhân viên vào chi nhánh đang ngừng hoạt động!");
+            throw new InvalidBranchOperationException("Cannot assign staff to an inactive branch!");
         }
 
         User user = userRepository.findById(request.getUserId())
                 .orElseThrow(() -> new UserNotFoundException("User not found with id: " + request.getUserId()));
 
         if (user.getRole() == null || !Roles.STAFF.equals(user.getRole().getName())) {
-            throw new InvalidBranchOperationException("Chỉ được gán người dùng có vai trò STAFF vào chi nhánh!");
+            throw new InvalidBranchOperationException("Only users with the STAFF role can be assigned to a branch!");
         }
 
         if (user.getStatus() != null && !UserStatus.ACTIVE.name().equals(user.getStatus())) {
-            throw new InvalidBranchOperationException("Không thể gán tài khoản người dùng đang bị khóa hoặc ngừng hoạt động!");
+            throw new InvalidBranchOperationException("Cannot assign a blocked or inactive user account!");
         }
 
         if (user.getId() != null && userRepository.hasActiveGuideProfile(user.getId())) {
-            throw new InvalidBranchOperationException("Người dùng này đang là Hướng dẫn viên (GUIDE) đang hoạt động, không thể gán làm nhân viên chi nhánh!");
+            throw new InvalidBranchOperationException("This user is currently an active Tour Guide (GUIDE) and cannot be assigned as branch staff!");
         }
 
         String status = StaffStatus.ACTIVE.name();
@@ -102,7 +102,7 @@ public class StaffServiceImpl implements StaffService {
             Branch branch = branchRepository.findById(request.getBranchId())
                     .orElseThrow(() -> new BranchNotFoundException("Branch not found with id: " + request.getBranchId()));
             if (branch.getStatus() != null && !BranchStatus.ACTIVE.name().equals(branch.getStatus())) {
-                throw new InvalidBranchOperationException("Không thể chuyển nhân viên sang chi nhánh đang ngừng hoạt động!");
+                throw new InvalidBranchOperationException("Cannot transfer staff to an inactive branch!");
             }
             staff.setBranch(branch);
         }

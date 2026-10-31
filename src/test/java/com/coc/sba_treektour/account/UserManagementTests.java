@@ -97,7 +97,7 @@ public class UserManagementTests {
 
         RuntimeException ex = assertThrows(RuntimeException.class, () ->
                 userService.changePassword("test@example.com", request));
-        assertTrue(ex.getMessage().contains("Mật khẩu hiện tại không chính xác"));
+        assertTrue(ex.getMessage().contains("Current password is incorrect"));
     }
 
     @Test
@@ -107,14 +107,14 @@ public class UserManagementTests {
         User user = User.builder()
                 .id(10L)
                 .email("staff@example.com")
-                .fullName("Cũ")
+                .fullName("Old")
                 .phone("0123")
                 .role(staffRole)
                 .status("ACTIVE")
                 .build();
 
         AdminUpdateUserRequest request = AdminUpdateUserRequest.builder()
-                .fullName("Mới")
+                .fullName("New")
                 .phone("0999")
                 .role("ADMIN")
                 .status("BLOCKED")
@@ -126,7 +126,7 @@ public class UserManagementTests {
 
         UserResponse response = userService.updateUserByAdmin(10L, request);
 
-        assertEquals("Mới", response.getFullName());
+        assertEquals("New", response.getFullName());
         assertEquals("0999", response.getPhone());
         assertEquals("ADMIN", response.getRole());
         assertEquals("BLOCKED", response.getStatus());
