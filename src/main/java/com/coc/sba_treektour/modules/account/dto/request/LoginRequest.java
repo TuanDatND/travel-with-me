@@ -14,11 +14,11 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class LoginRequest {
 
-    @NotBlank(message = "Email không được để trống")
-    @Email(message = "Email không hợp lệ")
-    @Size(max = 255, message = "Email không được vượt quá 255 ký tự")
+    @NotBlank(message = "Email is required")
+    @Email(message = "Invalid email format")
+    @Size(max = 255, message = "Email must not exceed 255 characters")
     private String email;
 
-    @NotBlank(message = "Mật khẩu không được để trống")
+    @NotBlank(message = "Password is required")
     private String password;
 }

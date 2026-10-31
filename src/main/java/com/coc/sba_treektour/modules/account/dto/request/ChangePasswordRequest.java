@@ -13,13 +13,13 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class ChangePasswordRequest {
 
-    @NotBlank(message = "Mật khẩu hiện tại không được để trống")
+    @NotBlank(message = "Current password is required")
     private String currentPassword;
 
-    @NotBlank(message = "Mật khẩu mới không được để trống")
-    @Size(min = 6, message = "Mật khẩu mới phải từ 6 ký tự trở lên")
+    @NotBlank(message = "New password is required")
+    @Size(min = 6, message = "New password must be at least 6 characters")
     private String newPassword;
 
-    @NotBlank(message = "Xác nhận mật khẩu mới không được để trống")
+    @NotBlank(message = "Confirm password is required")
     private String confirmPassword;
 }
