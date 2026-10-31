@@ -8,7 +8,6 @@ import com.coc.sba_treektour.modules.inventory.repository.InventoryRepository;
 import com.coc.sba_treektour.modules.inventory.service.InventoryService;
 import com.coc.sba_treektour.modules.order.dto.request.CreateOrderItemRequest;
 import com.coc.sba_treektour.modules.order.dto.request.CreateOrderRequest;
-import com.coc.sba_treektour.modules.order.dto.response.OrderItemResponse;
 import com.coc.sba_treektour.modules.order.dto.response.OrderResponse;
 import com.coc.sba_treektour.modules.order.entity.Order;
 import com.coc.sba_treektour.modules.order.entity.OrderItem;
@@ -89,7 +88,7 @@ public class OrderServiceImpl implements OrderService {
         List<Order> orders = userId == null ? orderRepository.findAll() : orderRepository.findByUser_IdOrderByOrderDateDesc(userId);
         var balances = orderPaymentQueryService.readMany(orders.stream().map(Order::getId).toList());
         var unpaid = OrderPaymentBalance.EMPTY;
-        return orders.stream().map(order -> toResponse(order, balances.getOrDefault(order.getId(), unpaid))).toList();
+        return orders.stream().map(order -> OrderResponse.from(order, balances.getOrDefault(order.getId(), unpaid))).toList();
     }
 
     @Override
@@ -169,22 +168,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private OrderResponse toResponse(Order order) {
-        return toResponse(order, orderPaymentQueryService.read(order.getId()));
-    }
-
-    private OrderResponse toResponse(Order order, OrderPaymentBalance balance) {
-        boolean pending = order.getStatus() == OrderStatus.PENDING;
-        return new OrderResponse(order.getId(), order.getUserId(), order.getBranchId(), order.getStatus(),
-                order.getTotalAmount(), order.getOrderDate(), order.getItems().stream().map(item -> new OrderItemResponse(
-                item.getId(), item.getProductId(), item.getItemType(), item.getQuantity(), item.getUnitPrice(),
-                item.getRentalStartDate(), item.getRentalEndDate(), item.getStatus())).toList(),
-                balance.status(order.getTotalAmount()), balance.net(),
-                order.getTotalAmount().subtract(balance.net()).max(BigDecimal.ZERO),
-                pending && !balance.refundPending() && balance.paid(order.getTotalAmount()), pending && balance.cancellable(),
-                order.getCustomerReceivedAt(),
-                order.getStatus() == OrderStatus.IN_PROGRESS && order.getCustomerReceivedAt() == null,
-                order.getStatus() == OrderStatus.IN_PROGRESS && order.getCustomerReceivedAt() != null
-                        && order.getItems().stream().anyMatch(item -> item.getStatus() == OrderItemStatus.RENTED), balance.refundPending());
+        return OrderResponse.from(order, orderPaymentQueryService.read(order.getId()));
     }
 
     @Override

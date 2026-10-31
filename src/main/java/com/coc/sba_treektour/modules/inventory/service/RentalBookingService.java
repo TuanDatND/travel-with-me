@@ -1,13 +1,13 @@
 package com.coc.sba_treektour.modules.inventory.service;
-import com.coc.sba_treektour.modules.order.enums.OrderStatus;
-import com.coc.sba_treektour.modules.order.enums.OrderItemType;
-import com.coc.sba_treektour.modules.order.enums.OrderItemStatus;
 
 import com.coc.sba_treektour.modules.account.entity.User;
 import com.coc.sba_treektour.modules.inventory.dto.InventoryDtos.RentalBookingRequest;
 import com.coc.sba_treektour.modules.order.dto.request.CreateOrderItemRequest;
 import com.coc.sba_treektour.modules.order.dto.request.CreateOrderRequest;
 import com.coc.sba_treektour.modules.order.dto.response.OrderResponse;
+import com.coc.sba_treektour.modules.order.enums.OrderItemStatus;
+import com.coc.sba_treektour.modules.order.enums.OrderItemType;
+import com.coc.sba_treektour.modules.order.enums.OrderStatus;
 import com.coc.sba_treektour.modules.order.service.OrderService;
 import com.coc.sba_treektour.modules.product.repository.ProductRepository;
 import com.coc.sba_treektour.modules.product.service.CatalogException;
@@ -16,11 +16,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.math.BigDecimal;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 
-@Service @RequiredArgsConstructor
+@Service
+@RequiredArgsConstructor
 public class RentalBookingService {
     private final ProductRepository products;
     private final InventoryService inventory;
