@@ -24,4 +24,19 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query(value = "SELECT EXISTS(SELECT 1 FROM staff WHERE user_id = :userId AND status = 'ACTIVE')", nativeQuery = true)
     boolean hasActiveStaffProfile(@Param("userId") Long userId);
+
+    @Query(value = """
+            SELECT EXISTS(
+                SELECT 1 FROM orders WHERE user_id = :userId
+                UNION ALL
+                SELECT 1 FROM event_participants WHERE user_id = :userId
+                UNION ALL
+                SELECT 1 FROM staff WHERE user_id = :userId
+                UNION ALL
+                SELECT 1 FROM tour_guides WHERE user_id = :userId
+                UNION ALL
+                SELECT 1 FROM transactions WHERE refund_confirmed_by = :userId
+            )
+            """, nativeQuery = true)
+    boolean hasLinkedBusinessRecords(@Param("userId") Long userId);
 }

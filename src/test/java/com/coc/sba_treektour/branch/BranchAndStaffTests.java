@@ -174,6 +174,7 @@ public class BranchAndStaffTests {
         when(staffRepository.existsByUserId(10L)).thenReturn(false);
         when(branchRepository.findById(1L)).thenReturn(Optional.of(branch));
         when(userRepository.findById(10L)).thenReturn(Optional.of(user));
+        when(userRepository.hasActiveGuideProfile(10L)).thenReturn(false);
         when(staffRepository.save(any(Staff.class))).thenReturn(savedStaff);
 
         StaffResponse response = staffService.assignStaff(request);
@@ -183,6 +184,47 @@ public class BranchAndStaffTests {
         assertEquals("HCM Branch", response.getBranchName());
         assertEquals("John Doe", response.getUserName());
         assertEquals("Warehouse Manager", response.getPosition());
+    }
+
+    @Test
+    void testAssignStaff_FailsWhenActiveGuideProfileExists() {
+        StaffRequest request = StaffRequest.builder()
+                .branchId(1L)
+                .userId(10L)
+                .position("Warehouse Manager")
+                .build();
+
+        Branch branch = Branch.builder().id(1L).name("HCM Branch").status("ACTIVE").build();
+        Role staffRole = Role.builder().id(2L).name("STAFF").build();
+        User user = User.builder().id(10L).fullName("John Doe").role(staffRole).status("ACTIVE").build();
+
+        when(staffRepository.existsByUserId(10L)).thenReturn(false);
+        when(branchRepository.findById(1L)).thenReturn(Optional.of(branch));
+        when(userRepository.findById(10L)).thenReturn(Optional.of(user));
+        when(userRepository.hasActiveGuideProfile(10L)).thenReturn(true);
+
+        InvalidBranchOperationException ex = assertThrows(
+                InvalidBranchOperationException.class,
+                () -> staffService.assignStaff(request)
+        );
+        assertTrue(ex.getMessage().contains("active Tour Guide"));
+    }
+
+    @Test
+    void testUpdateStaffStatus_FailsWhenActiveGuideProfileExists() {
+        Branch branch = Branch.builder().id(1L).name("HCM Branch").status("ACTIVE").build();
+        Role staffRole = Role.builder().id(2L).name("STAFF").build();
+        User user = User.builder().id(10L).fullName("John Doe").role(staffRole).status("ACTIVE").build();
+        Staff staff = Staff.builder().id(100L).branch(branch).user(user).status("INACTIVE").build();
+
+        when(staffRepository.findById(100L)).thenReturn(Optional.of(staff));
+        when(userRepository.hasActiveGuideProfile(10L)).thenReturn(true);
+
+        InvalidBranchOperationException ex = assertThrows(
+                InvalidBranchOperationException.class,
+                () -> staffService.updateStaffStatus(100L, "ACTIVE")
+        );
+        assertTrue(ex.getMessage().contains("active Tour Guide"));
     }
 
     @Test

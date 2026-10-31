@@ -19,6 +19,6 @@ public interface UserService {
     void changePassword(String email, ChangePasswordRequest request);
     UserResponse updateUserByAdmin(Long id, AdminUpdateUserRequest request);
     UserResponse updateUserStatus(Long id, String status);
-    void deleteUser(Long id);
+    boolean deleteUser(Long id);
     UserResponse mapToUserResponse(User user);
 }

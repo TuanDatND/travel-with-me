@@ -1,6 +1,7 @@
 package com.coc.sba_treektour.modules.tour.service.impl;
 
 import com.coc.sba_treektour.modules.tour.dto.request.EventInput;
+import com.coc.sba_treektour.modules.tour.dto.request.ImageLayoutInput;
 import com.coc.sba_treektour.modules.tour.dto.request.ItineraryDayInput;
 import com.coc.sba_treektour.modules.tour.dto.response.ActivityResponse;
 import com.coc.sba_treektour.modules.tour.dto.response.DetailsResponse;
@@ -10,6 +11,7 @@ import com.coc.sba_treektour.modules.tour.dto.response.EventSummary;
 import com.coc.sba_treektour.modules.tour.dto.response.ImageResponse;
 import com.coc.sba_treektour.modules.tour.dto.response.ItineraryDayResponse;
 import com.coc.sba_treektour.modules.tour.dto.response.PackingItemResponse;
+import com.coc.sba_treektour.modules.tour.dto.response.PageResponse;
 import com.coc.sba_treektour.modules.tour.entity.EventDetail;
 import com.coc.sba_treektour.modules.tour.entity.EventImage;
 import com.coc.sba_treektour.modules.tour.entity.ItineraryDay;
@@ -18,14 +20,13 @@ import com.coc.sba_treektour.modules.tour.entity.TourEvent;
 import com.coc.sba_treektour.modules.tour.enums.DifficultyLevel;
 import com.coc.sba_treektour.modules.tour.enums.EventStatus;
 import com.coc.sba_treektour.modules.tour.enums.EventType;
+import com.coc.sba_treektour.modules.tour.exception.TourException;
 import com.coc.sba_treektour.modules.tour.repository.EventRepository;
 import com.coc.sba_treektour.modules.tour.repository.ImageRepository;
 import com.coc.sba_treektour.modules.tour.service.EventService;
 import com.coc.sba_treektour.modules.tour.storage.CloudinaryImageStorage;
-import com.coc.sba_treektour.modules.tour.validator.ImageValidator;
-import com.coc.sba_treektour.modules.tour.dto.response.PageResponse;
-import com.coc.sba_treektour.modules.tour.exception.TourException;
 import com.coc.sba_treektour.modules.tour.util.TourQueries;
+import com.coc.sba_treektour.modules.tour.validator.ImageValidator;
 
 import lombok.RequiredArgsConstructor;
 
@@ -39,6 +40,9 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 
 @Service
@@ -173,6 +177,7 @@ public class EventServiceImpl implements EventService {
                 });
         EventImage image =
                 new EventImage(event, uploaded.secureUrl(), uploaded.publicId(), description);
+        image.place(event.getImages().stream().mapToInt(EventImage::getSortOrder).max().orElse(-1) + 1, null);
         event.getImages().add(image);
         event.touch();
         images.saveAndFlush(image);
@@ -190,6 +195,34 @@ public class EventServiceImpl implements EventService {
         event.touch();
         events.flush();
         return imageResponse(image);
+    }
+
+    /** Khóa tour, kiểm tra toàn bộ danh sách trước khi thay đổi; không nhận ảnh của tour khác. */
+    @Transactional
+    @Override
+    public List<ImageResponse> layout(Long id, ImageLayoutInput input) {
+        TourEvent event = editable(id);
+        var requested = input.images();
+        var ids = new HashSet<Long>();
+        for (var placement : requested) {
+            if (!ids.add(placement.imageId()))
+                throw TourException.invalid("Each image must appear exactly once");
+            image(event, placement.imageId());
+            if (placement.dayNumber() != null
+                    && (event.getDetails() == null || event.getDetails().getItinerary().stream()
+                    .noneMatch(day -> Objects.equals(day.day(), placement.dayNumber()))))
+                throw TourException.invalid("The selected itinerary day does not exist in this tour");
+        }
+        if (requested.size() != event.getImages().size())
+            throw TourException.conflict("The image library changed. Reload and include every current image");
+        for (int index = 0; index < requested.size(); index++) {
+            var placement = requested.get(index);
+            image(event, placement.imageId()).place(index, placement.dayNumber());
+        }
+        event.getImages().sort(Comparator.comparingInt(EventImage::getSortOrder));
+        event.touch();
+        events.flush();
+        return event.getImages().stream().map(this::imageResponse).toList();
     }
 
     /** Xóa ảnh trên Cloudinary rồi xóa metadata; giữ ít nhất một ảnh cho tour đã công bố. */
@@ -247,6 +280,7 @@ public class EventServiceImpl implements EventService {
         e.setBasePrice(i.basePrice());
         e.touch();
         if (i.details() == null) {
+            e.getImages().forEach(image -> image.place(image.getSortOrder(), null));
             e.attachDetails(null);
             return;
         }
@@ -265,6 +299,9 @@ public class EventServiceImpl implements EventService {
         d.setMeetingPoint(i.details().meetingPoint());
         d.setRequirements(i.details().requirements());
         d.setItinerary(days.stream().map(this::dayEntity).toList());
+        e.getImages().stream().filter(image -> image.getDayNumber() != null
+                && image.getDayNumber() > days.size())
+                .forEach(image -> image.place(image.getSortOrder(), null));
         d.setPackingItems(
                 i.details().packingItems().stream()
                         .map(item -> new PackingItem(item.text().trim(), item.required()))
@@ -338,10 +375,13 @@ public class EventServiceImpl implements EventService {
 
     /** Chuyển entity ảnh thành response, không tiết lộ publicId nội bộ của Cloudinary. */
     private ImageResponse imageResponse(EventImage i) {
-        return new ImageResponse(i.getId(), i.getImageUrl(), i.getDescription());
+        return new ImageResponse(i.getId(), i.getImageUrl(), i.getDescription(),
+                i.getSortOrder(), i.getDayNumber(),
+                !i.getEvent().getImages().isEmpty()
+                        && i.getEvent().getImages().getFirst() == i);
     }
 
-    /** Tạo thông tin tóm tắt; dùng ảnh có ID nhỏ nhất làm ảnh đại diện. */
+    /** Tạo thông tin tóm tắt; dùng ảnh đứng đầu gallery làm ảnh đại diện. */
     private EventSummary summary(TourEvent e) {
         return new EventSummary(
                 e.getId(),

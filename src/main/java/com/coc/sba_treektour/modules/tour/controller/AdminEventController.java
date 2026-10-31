@@ -4,14 +4,15 @@ import com.coc.sba_treektour.common.response.ApiResponse;
 import com.coc.sba_treektour.modules.tour.dto.request.EventInput;
 import com.coc.sba_treektour.modules.tour.dto.request.EventStatusInput;
 import com.coc.sba_treektour.modules.tour.dto.request.ImageDescriptionInput;
+import com.coc.sba_treektour.modules.tour.dto.request.ImageLayoutInput;
 import com.coc.sba_treektour.modules.tour.dto.response.EventResponse;
 import com.coc.sba_treektour.modules.tour.dto.response.EventSummary;
 import com.coc.sba_treektour.modules.tour.dto.response.ImageResponse;
+import com.coc.sba_treektour.modules.tour.dto.response.PageResponse;
 import com.coc.sba_treektour.modules.tour.enums.DifficultyLevel;
 import com.coc.sba_treektour.modules.tour.enums.EventStatus;
 import com.coc.sba_treektour.modules.tour.enums.EventType;
 import com.coc.sba_treektour.modules.tour.service.EventService;
-import com.coc.sba_treektour.modules.tour.dto.response.PageResponse;
 
 import jakarta.validation.Valid;
 
@@ -34,6 +35,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -109,6 +111,13 @@ public class AdminEventController {
             @PathVariable Long imageId,
             @Valid @RequestBody ImageDescriptionInput input) {
         return ApiResponse.success(events.describe(eventId, imageId, input.description()));
+    }
+
+    /** Lưu bố cục ảnh của tour; giữ nguyên endpoint upload/xóa/mô tả trước đây. */
+    @PutMapping("/events/{eventId}/images/layout")
+    public ApiResponse<List<ImageResponse>> layout(
+            @PathVariable Long eventId, @Valid @RequestBody ImageLayoutInput input) {
+        return ApiResponse.success(events.layout(eventId, input));
     }
 
     /** Xóa ảnh thuộc tour chỉ định; trả HTTP 204 khi thành công. */
