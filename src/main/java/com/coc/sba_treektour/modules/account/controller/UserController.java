@@ -65,12 +65,13 @@ public class UserController {
 
     @PutMapping("/me")
     public ResponseEntity<ApiResponse<UserResponse>> updateProfile(
-            Principal principal, 
+            Principal principal,
             @Valid @RequestBody UserProfileRequest request) {
         if (principal == null) {
             throw new InvalidAccountException("Not authenticated");
         }
-        return ResponseEntity.ok(ApiResponse.success("Profile updated successfully", userService.updateProfile(principal.getName(), request)));
+        return ResponseEntity.ok(ApiResponse.success("Profile updated successfully",
+                userService.updateProfile(principal.getName(), request)));
     }
 
     @PutMapping("/change-password")
@@ -89,7 +90,8 @@ public class UserController {
     public ResponseEntity<ApiResponse<UserResponse>> updateUserByAdmin(
             @PathVariable Long id,
             @Valid @RequestBody AdminUpdateUserRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("User updated successfully", userService.updateUserByAdmin(id, request)));
+        return ResponseEntity
+                .ok(ApiResponse.success("User updated successfully", userService.updateUserByAdmin(id, request)));
     }
 
     @PutMapping("/{id}/status")
@@ -97,13 +99,17 @@ public class UserController {
     public ResponseEntity<ApiResponse<UserResponse>> updateUserStatus(
             @PathVariable Long id,
             @RequestParam String status) {
-        return ResponseEntity.ok(ApiResponse.success("User status updated successfully", userService.updateUserStatus(id, status)));
+        return ResponseEntity
+                .ok(ApiResponse.success("User status updated successfully", userService.updateUserStatus(id, status)));
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('ADMIN')")
-    public ResponseEntity<ApiResponse<Void>> deleteUser(@PathVariable Long id) {
-        userService.deleteUser(id);
-        return ResponseEntity.ok(ApiResponse.success("User deactivated successfully", null));
+    public ResponseEntity<ApiResponse<Boolean>> deleteUser(@PathVariable Long id) {
+        boolean permanentlyDeleted = userService.deleteUser(id);
+        String message = permanentlyDeleted
+                ? "User account deleted successfully."
+                : "User account has linked order/booking history and has been deactivated to preserve audit records.";
+        return ResponseEntity.ok(ApiResponse.success(message, permanentlyDeleted));
     }
 }

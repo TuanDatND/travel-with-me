@@ -267,7 +267,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public void deleteUser(Long id) {
+    public boolean deleteUser(Long id) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
 
@@ -275,8 +275,22 @@ public class UserServiceImpl implements UserService {
             throw new InvalidAccountException("Administrators cannot delete their own account!");
         }
 
-        user.setStatus(UserStatus.INACTIVE.name());
-        userRepository.save(user);
+        if (userRepository.hasActiveStaffProfile(id)) {
+            throw new InvalidAccountException("Cannot delete user while they are an active branch Staff member! Please remove the staff member first.");
+        }
+        if (userRepository.hasActiveGuideProfile(id)) {
+            throw new InvalidAccountException("Cannot delete user while they are an active Tour Guide! Please deactivate the guide profile first.");
+        }
+
+        if (userRepository.hasLinkedBusinessRecords(id)) {
+            user.setStatus(UserStatus.INACTIVE.name());
+            userRepository.save(user);
+            return false;
+        } else {
+            userRepository.delete(user);
+            userRepository.flush();
+            return true;
+        }
     }
 
     private boolean isCurrentAuthenticatedUser(User targetUser) {
