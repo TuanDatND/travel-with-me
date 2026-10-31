@@ -101,6 +101,7 @@ public class GuideServiceImpl implements GuideService {
     @Override
     public AdminGuideResponse create(GuideCreateInput input) {
         var user = requireActiveAccount(input.userId());
+        accounts.syncGuideRole(input.userId());
         // ponytail: unique index chặn chuyên môn trùng, kể cả khi ghi đồng thời.
         TourGuide g =
                 new TourGuide(
@@ -130,6 +131,9 @@ public class GuideServiceImpl implements GuideService {
                 status == GuideStatus.ACTIVE
                         ? requireActiveAccount(g.getUserId())
                         : account(g.getUserId());
+        if (status == GuideStatus.ACTIVE) {
+            accounts.syncGuideRole(g.getUserId());
+        }
         g.setStatus(status);
         guides.flush();
         return adminResponse(g, user);
@@ -142,10 +146,14 @@ public class GuideServiceImpl implements GuideService {
         return account;
     }
 
-    /** Chỉ cho tạo hoặc kích hoạt hồ sơ khi tài khoản đang hoạt động. */
+    /** Chỉ cho tạo hoặc kích hoạt hồ sơ khi tài khoản đang hoạt động và không phải nhân viên chi nhánh đang hoạt động. */
     private AccountReadRepository.Account requireActiveAccount(Long id) {
         var account = account(id);
         if (!account.active()) throw TourException.conflict("Account is inactive");
+        if (account.activeStaff()) {
+            throw TourException.conflict(
+                    "This account is currently an active branch Staff (STAFF) member! Please remove or lock the staff member before activating the Tour Guide profile.");
+        }
         return account;
     }
 

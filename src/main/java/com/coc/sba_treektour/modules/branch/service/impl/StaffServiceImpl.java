@@ -110,7 +110,13 @@ public class StaffServiceImpl implements StaffService {
         staff.setPosition(request.getPosition());
 
         if (request.getStatus() != null && !request.getStatus().isBlank()) {
-            staff.setStatus(validateStaffStatus(request.getStatus()));
+            String upperStatus = validateStaffStatus(request.getStatus());
+            if (StaffStatus.ACTIVE.name().equals(upperStatus) && staff.getUser().getId() != null) {
+                if (userRepository.hasActiveGuideProfile(staff.getUser().getId())) {
+                    throw new InvalidBranchOperationException("This user is currently an active Tour Guide (GUIDE) and cannot be assigned as branch staff!");
+                }
+            }
+            staff.setStatus(upperStatus);
         }
 
         Staff updatedStaff = staffRepository.save(staff);
@@ -123,6 +129,19 @@ public class StaffServiceImpl implements StaffService {
                 .orElseThrow(() -> new StaffNotFoundException("Staff not found with id: " + id));
 
         String upperStatus = validateStaffStatus(status);
+        if (StaffStatus.ACTIVE.name().equals(upperStatus)) {
+            Branch branch = staff.getBranch();
+            if (branch.getStatus() != null && !BranchStatus.ACTIVE.name().equals(branch.getStatus())) {
+                throw new InvalidBranchOperationException("Cannot activate staff member in an inactive branch!");
+            }
+            User user = staff.getUser();
+            if (user.getStatus() != null && !UserStatus.ACTIVE.name().equals(user.getStatus())) {
+                throw new InvalidBranchOperationException("Cannot activate staff member with a locked or inactive user account!");
+            }
+            if (user.getId() != null && userRepository.hasActiveGuideProfile(user.getId())) {
+                throw new InvalidBranchOperationException("This user is currently an active Tour Guide (GUIDE) and cannot be activated as branch staff!");
+            }
+        }
         staff.setStatus(upperStatus);
         Staff updatedStaff = staffRepository.save(staff);
         return mapToStaffResponse(updatedStaff);

@@ -221,6 +221,14 @@ public class UserServiceImpl implements UserService {
             if (isSelf && !Roles.ADMIN.equals(upperRole)) {
                 throw new InvalidAccountException("Administrators cannot demote their own role!");
             }
+            if (user.getId() != null) {
+                if (Roles.STAFF.equals(upperRole) && userRepository.hasActiveGuideProfile(user.getId())) {
+                    throw new InvalidAccountException("This user is currently an active Tour Guide (GUIDE)! Please lock/deactivate the guide profile before changing role to STAFF.");
+                }
+                if (Roles.GUIDE.equals(upperRole) && userRepository.hasActiveStaffProfile(user.getId())) {
+                    throw new InvalidAccountException("This user is currently an active branch Staff (STAFF) member! Please remove/lock the staff assignment before changing role to GUIDE.");
+                }
+            }
             Role role = roleRepository.findByName(upperRole)
                     .orElseThrow(() -> new InvalidAccountException("Role not found: " + request.getRole()));
             user.setRole(role);
