@@ -20,7 +20,7 @@ import com.coc.sba_treektour.modules.product.entity.Product;
 import com.coc.sba_treektour.modules.product.repository.ProductRepository;
 import com.coc.sba_treektour.modules.inventory.repository.InventoryRepository;
 import com.coc.sba_treektour.modules.inventory.service.InventoryService;
-import com.coc.sba_treektour.modules.inventory.dto.InventoryDtos.AvailabilityResponse;
+import com.coc.sba_treektour.modules.inventory.dto.response.AvailabilityResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.security.access.AccessDeniedException;
