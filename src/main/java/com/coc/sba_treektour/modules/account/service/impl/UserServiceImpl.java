@@ -77,29 +77,24 @@ public class UserServiceImpl implements UserService {
                 if (Roles.STAFF.equals(roleName)) {
                     if (activeGuide) {
                         throw new InvalidAccountException(
-                                "This email belongs to an active Tour Guide (GUIDE)! Please lock/deactivate the guide profile before assigning as STAFF."
-                        );
+                                "This email belongs to an active Tour Guide (GUIDE)! Please lock/deactivate the guide profile before assigning as STAFF.");
                     }
                     if (activeStaff) {
                         throw new InvalidAccountException(
-                                "This email is already assigned to an active branch Staff (STAFF) member!"
-                        );
+                                "This email is already assigned to an active branch Staff (STAFF) member!");
                     }
                 } else if (Roles.GUIDE.equals(roleName)) {
                     if (activeStaff) {
                         throw new InvalidAccountException(
-                                "This email belongs to an active branch Staff (STAFF) member! Please remove/lock the staff member before assigning as GUIDE."
-                        );
+                                "This email belongs to an active branch Staff (STAFF) member! Please remove/lock the staff member before assigning as GUIDE.");
                     }
                     if (activeGuide) {
                         throw new InvalidAccountException(
-                                "This email belongs to an active Tour Guide (GUIDE) in the system!"
-                        );
+                                "This email belongs to an active Tour Guide (GUIDE) in the system!");
                     }
                     if (userRepository.hasAnyGuideProfile(existingUserId)) {
                         throw new InvalidAccountException(
-                                "This email already has a Tour Guide profile (currently locked). Please unlock it directly in the Tour Guides list instead of creating a new one!"
-                        );
+                                "This email already has a Tour Guide profile (currently locked). Please unlock it directly in the Tour Guides list instead of creating a new one!");
                     }
                 }
             }
@@ -128,8 +123,7 @@ public class UserServiceImpl implements UserService {
                 savedUser.getEmail(),
                 savedUser.getFullName(),
                 role.getName(),
-                rawPassword
-        );
+                rawPassword);
 
         String message = emailSent
                 ? "Internal account created successfully and temporary password sent to the user's email."

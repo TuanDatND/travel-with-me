@@ -122,7 +122,7 @@ public class GuideServiceImpl implements GuideService {
         return adminResponse(g, account(g.getUserId()));
     }
 
-    /** Kích hoạt hoặc ngừng hồ sơ; chỉ kích hoạt khi tài khoản liên kết đang hoạt động. */
+    /** Kích hoạt hoặc ngừng hồ sơ; chỉ kích hoạt khi tài khoản liên kết không bị cấm và không phải nhân viên chi nhánh đang hoạt động. */
     @Transactional
     @Override
     public AdminGuideResponse status(Long id, GuideStatus status) {
@@ -133,6 +133,8 @@ public class GuideServiceImpl implements GuideService {
                         : account(g.getUserId());
         if (status == GuideStatus.ACTIVE) {
             accounts.syncGuideRole(g.getUserId());
+        } else {
+            accounts.deactivateGuideUser(g.getUserId());
         }
         g.setStatus(status);
         guides.flush();
@@ -146,15 +148,17 @@ public class GuideServiceImpl implements GuideService {
         return account;
     }
 
-    /** Chỉ cho tạo hoặc kích hoạt hồ sơ khi tài khoản đang hoạt động và không phải nhân viên chi nhánh đang hoạt động. */
+    /** Chỉ cho tạo hoặc kích hoạt hồ sơ khi tài khoản không bị cấm (BLOCKED) và không phải nhân viên chi nhánh đang hoạt động. */
     private AccountReadRepository.Account requireActiveAccount(Long id) {
         var account = account(id);
-        if (!account.active()) throw TourException.conflict("Account is inactive");
+        if (account.blocked()) {
+            throw TourException.conflict("This user account is blocked and cannot be activated.");
+        }
         if (account.activeStaff()) {
             throw TourException.conflict(
                     "This account is currently an active branch Staff (STAFF) member! Please remove or lock the staff member before activating the Tour Guide profile.");
         }
-        return account;
+        return new AccountReadRepository.Account(account.userId(), account.displayName(), true, false, false);
     }
 
     /** Chuẩn hóa giới thiệu và ngôn ngữ; request cũ không gửi trường mới vẫn được chấp nhận. */

@@ -15,9 +15,18 @@ import java.util.Map;
 public class AccountReadRepository {
     private final NamedParameterJdbcTemplate jdbc;
 
-    public record Account(Long userId, String displayName, boolean active, boolean activeStaff) {
+    public record Account(
+            Long userId,
+            String displayName,
+            boolean active,
+            boolean activeStaff,
+            boolean blocked) {
         public Account(Long userId, String displayName, boolean active) {
-            this(userId, displayName, active, false);
+            this(userId, displayName, active, false, false);
+        }
+
+        public Account(Long userId, String displayName, boolean active, boolean activeStaff) {
+            this(userId, displayName, active, activeStaff, false);
         }
     }
 
@@ -32,21 +41,38 @@ public class AccountReadRepository {
                 Map.of("ids", ids),
                 rs -> {
                     Long id = rs.getLong("user_id");
+                    String rawStatus = rs.getString("status");
+                    boolean isBlocked = "BLOCKED".equalsIgnoreCase(rawStatus);
+                    boolean isActive = "ACTIVE".equalsIgnoreCase(rawStatus);
                     result.put(
                             id,
                             new Account(
                                     id,
                                     rs.getString("full_name"),
-                                    "ACTIVE".equals(rs.getString("status")),
-                                    rs.getBoolean("is_active_staff")));
+                                    isActive,
+                                    rs.getBoolean("is_active_staff"),
+                                    isBlocked));
                 });
         return result;
     }
 
-    /** Đồng bộ role của tài khoản sang GUIDE khi kích hoạt hồ sơ hướng dẫn viên. */
+    /** Đồng bộ role của tài khoản sang GUIDE và kích hoạt tài khoản khi kích hoạt hồ sơ hướng dẫn viên. */
     public void syncGuideRole(Long userId) {
         jdbc.update(
-                "UPDATE users SET role_id = (SELECT role_id FROM roles WHERE role_name = 'GUIDE') WHERE user_id = :userId",
+                "UPDATE users SET role_id = (SELECT role_id FROM roles WHERE role_name = 'GUIDE'), "
+                        + "status = 'ACTIVE' "
+                        + "WHERE user_id = :userId AND status != 'BLOCKED'",
+                Map.of("userId", userId));
+    }
+
+    /** Khóa tài khoản người dùng nếu vai trò chỉ là GUIDE khi ngừng hoạt động hồ sơ hướng dẫn viên. */
+    public void deactivateGuideUser(Long userId) {
+        jdbc.update(
+                "UPDATE users SET status = 'INACTIVE' "
+                        + "WHERE user_id = :userId "
+                        + "AND role_id = (SELECT role_id FROM roles WHERE role_name = 'GUIDE') "
+                        + "AND status = 'ACTIVE' "
+                        + "AND NOT EXISTS (SELECT 1 FROM staff s WHERE s.user_id = :userId AND s.status = 'ACTIVE')",
                 Map.of("userId", userId));
     }
 }

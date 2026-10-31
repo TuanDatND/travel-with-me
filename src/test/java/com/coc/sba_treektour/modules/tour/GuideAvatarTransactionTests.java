@@ -117,7 +117,7 @@ class GuideAvatarTransactionTests {
     void activateGuideFailsWhenAccountIsActiveStaff() {
         var accounts = mock(AccountReadRepository.class);
         when(accounts.findAll(List.of(2L)))
-                .thenReturn(Map.of(2L, new AccountReadRepository.Account(2L, "Staff User", true, true)));
+                .thenReturn(Map.of(2L, new AccountReadRepository.Account(2L, "Staff User", true, true, false)));
         var svc = new GuideServiceImpl(guides, accounts, storage, mock(ImageValidator.class));
         guide.setStatus(GuideStatus.INACTIVE);
 
@@ -127,15 +127,40 @@ class GuideAvatarTransactionTests {
     }
 
     @Test
-    void activateGuideSyncsRoleWhenNotActiveStaff() {
+    void activateGuideFailsWhenAccountIsBlocked() {
         var accounts = mock(AccountReadRepository.class);
         when(accounts.findAll(List.of(2L)))
-                .thenReturn(Map.of(2L, new AccountReadRepository.Account(2L, "Guide User", true, false)));
+                .thenReturn(Map.of(2L, new AccountReadRepository.Account(2L, "Blocked User", false, false, true)));
+        var svc = new GuideServiceImpl(guides, accounts, storage, mock(ImageValidator.class));
+        guide.setStatus(GuideStatus.INACTIVE);
+
+        assertThatThrownBy(() -> svc.status(1L, GuideStatus.ACTIVE))
+                .isInstanceOf(TourException.class)
+                .hasMessageContaining("blocked");
+    }
+
+    @Test
+    void activateGuideSucceedsAndSyncsRoleEvenIfAccountWasInactive() {
+        var accounts = mock(AccountReadRepository.class);
+        when(accounts.findAll(List.of(2L)))
+                .thenReturn(Map.of(2L, new AccountReadRepository.Account(2L, "Inactive Guide User", false, false, false)));
         var svc = new GuideServiceImpl(guides, accounts, storage, mock(ImageValidator.class));
         guide.setStatus(GuideStatus.INACTIVE);
 
         svc.status(1L, GuideStatus.ACTIVE);
         verify(accounts).syncGuideRole(2L);
         assertThat(guide.getStatus()).isEqualTo(GuideStatus.ACTIVE);
+    }
+
+    @Test
+    void deactivateGuideCallsDeactivateGuideUser() {
+        var accounts = mock(AccountReadRepository.class);
+        when(accounts.findAll(List.of(2L)))
+                .thenReturn(Map.of(2L, new AccountReadRepository.Account(2L, "Guide User", true, false, false)));
+        var svc = new GuideServiceImpl(guides, accounts, storage, mock(ImageValidator.class));
+
+        svc.status(1L, GuideStatus.INACTIVE);
+        verify(accounts).deactivateGuideUser(2L);
+        assertThat(guide.getStatus()).isEqualTo(GuideStatus.INACTIVE);
     }
 }

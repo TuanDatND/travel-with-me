@@ -74,7 +74,8 @@ public class StaffServiceImpl implements StaffService {
         }
 
         if (user.getId() != null && userRepository.hasActiveGuideProfile(user.getId())) {
-            throw new InvalidBranchOperationException("This user is currently an active Tour Guide (GUIDE) and cannot be assigned as branch staff!");
+            throw new InvalidBranchOperationException(
+                    "This user is currently an active Tour Guide (GUIDE) and cannot be assigned as branch staff!");
         }
 
         String status = StaffStatus.ACTIVE.name();
@@ -100,7 +101,8 @@ public class StaffServiceImpl implements StaffService {
 
         if (!staff.getBranch().getId().equals(request.getBranchId())) {
             Branch branch = branchRepository.findById(request.getBranchId())
-                    .orElseThrow(() -> new BranchNotFoundException("Branch not found with id: " + request.getBranchId()));
+                    .orElseThrow(
+                            () -> new BranchNotFoundException("Branch not found with id: " + request.getBranchId()));
             if (branch.getStatus() != null && !BranchStatus.ACTIVE.name().equals(branch.getStatus())) {
                 throw new InvalidBranchOperationException("Cannot transfer staff to an inactive branch!");
             }
