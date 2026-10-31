@@ -793,4 +793,127 @@ class TourApiIntegrationTests {
                 .andExpect(status().isNotFound());
         verifyNoInteractions(storage);
     }
+    /** Tạo fixture ảnh bằng SQL local, không gọi Cloudinary thật trong kiểm thử bố cục. */
+    private long layoutImage(long eventId, String suffix, int order) {
+        return jdbc.queryForObject(
+                "INSERT INTO event_images(event_id,image_url,sort_order) VALUES (?,?,?) RETURNING image_id",
+                Long.class, eventId, "https://example.test/" + suffix + ".png", order);
+    }
+
+    /** Tạo tour có hai ngày để kiểm ảnh gắn đúng lịch trình, không phải lịch khởi hành. */
+    private long layoutTour() throws Exception {
+        return id(mvc.perform(post("/api/admin/events").contentType(MediaType.APPLICATION_JSON)
+                .content(contentRequest(richDetails))).andExpect(status().isCreated()).andReturn(), "eventId");
+    }
+
+    /** Ảnh bìa, thứ tự và ngày phải tồn tại sau khi clear persistence context và đọc công khai. */
+    @Test
+    @WithMockUser(authorities = "ADMIN")
+    void imageLayoutPersistsCoverOrderAndDayForPublicReaders() throws Exception {
+        long eventId = layoutTour();
+        long first = layoutImage(eventId, "first", 0);
+        long second = layoutImage(eventId, "second", 1);
+        entityManager.clear();
+        mvc.perform(put("/api/admin/events/{id}/images/layout", eventId)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"images\":[{\"imageId\":" + second
+                                + ",\"dayNumber\":2},{\"imageId\":" + first + ",\"dayNumber\":1}]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].imageId").value(second))
+                .andExpect(jsonPath("$.data[0].cover").value(true))
+                .andExpect(jsonPath("$.data[1].cover").value(false));
+        entityManager.clear();
+        mvc.perform(patch("/api/admin/events/{id}/status", eventId).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"PUBLISHED\"}")).andExpect(status().isOk());
+        entityManager.clear();
+        mvc.perform(get("/api/events/{id}", eventId))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.images[0].imageId").value(second))
+                .andExpect(jsonPath("$.data.images[0].sortOrder").value(0))
+                .andExpect(jsonPath("$.data.images[0].dayNumber").value(2));
+        mvc.perform(get("/api/events").param("keyword", "Tour nội dung"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].coverImageUrl")
+                        .value("https://example.test/second.png"));
+    }
+
+    /** Request sai không được sửa một phần bố cục; ảnh ngoài tour và ngày không tồn tại bị từ chối. */
+    @Test
+    @WithMockUser(authorities = "ADMIN")
+    void imageLayoutRejectsDuplicatesForeignImagesMissingImagesAndInvalidDays() throws Exception {
+        long eventId = layoutTour();
+        long first = layoutImage(eventId, "first", 0);
+        long second = layoutImage(eventId, "second", 1);
+        long foreign = layoutImage(layoutTour(), "foreign", 0);
+        entityManager.clear();
+        for (String body : List.of(
+                "{\"images\":[{\"imageId\":" + second + "},{\"imageId\":" + second + "}]}",
+                "{\"images\":[{\"imageId\":" + second + "},{\"imageId\":" + first + ",\"dayNumber\":3}]}",
+                "{\"images\":[{\"imageId\":" + second + ",\"dayNumber\":0},{\"imageId\":" + first + "}]}",
+                "{\"images\":[null]}", "{}")) {
+            mvc.perform(put("/api/admin/events/{id}/images/layout", eventId)
+                    .contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isBadRequest());
+        }
+        mvc.perform(put("/api/admin/events/{id}/images/layout", eventId).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"images\":[{\"imageId\":" + first + "}]}"))
+                .andExpect(status().isConflict());
+        mvc.perform(put("/api/admin/events/{id}/images/layout", eventId).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"images\":[{\"imageId\":" + second + "},{\"imageId\":" + foreign + "}]}"))
+                .andExpect(status().isNotFound());
+        assertThat(jdbc.queryForObject("SELECT sort_order FROM event_images WHERE image_id=?", Integer.class, first)).isZero();
+        assertThat(jdbc.queryForObject("SELECT day_number FROM event_images WHERE image_id=?", Integer.class, second)).isNull();
+    }
+
+    /** Bỏ lịch trình chỉ gỡ liên kết ngày, không xóa ảnh hoặc làm đổi ảnh bìa. */
+    @Test
+    @WithMockUser(authorities = "ADMIN")
+    void removingItineraryClearsDayAssignmentAndKeepsImages() throws Exception {
+        long eventId = layoutTour();
+        long image = layoutImage(eventId, "day", 0);
+        entityManager.clear();
+        mvc.perform(put("/api/admin/events/{id}/images/layout", eventId).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"images\":[{\"imageId\":" + image + ",\"dayNumber\":2}]}"))
+                .andExpect(status().isOk());
+        mvc.perform(put("/api/admin/events/{id}", eventId).contentType(MediaType.APPLICATION_JSON)
+                .content(fullEvent)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.images.length()").value(1))
+                .andExpect(jsonPath("$.data.images[0].dayNumber").doesNotExist())
+                .andExpect(jsonPath("$.data.images[0].cover").value(true));
+    }
+
+    /** Upload cũ nối cuối gallery; xóa bìa chuyển sang ảnh kế tiếp và không cần upload lại. */
+    @Test
+    @WithMockUser(authorities = "ADMIN")
+    void oldImageEndpointsPreserveChosenCoverAndPromoteNextAfterDeletion() throws Exception {
+        long eventId = layoutTour();
+        long first = layoutImage(eventId, "first", 0);
+        long second = layoutImage(eventId, "second", 1);
+        entityManager.clear();
+        mvc.perform(put("/api/admin/events/{id}/images/layout", eventId).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"images\":[{\"imageId\":" + second + "},{\"imageId\":" + first + "}]}"))
+                .andExpect(status().isOk());
+        when(storage.upload(any())).thenReturn(new CloudinaryImageStorage.StoredImage("https://example.test/new.png", "new"));
+        mvc.perform(multipart("/api/admin/events/{id}/images", eventId).file(png()))
+                .andExpect(status().isCreated()).andExpect(jsonPath("$.data.sortOrder").value(2))
+                .andExpect(jsonPath("$.data.cover").value(false));
+        mvc.perform(delete("/api/admin/events/{id}/images/{image}", eventId, second)).andExpect(status().isNoContent());
+        entityManager.clear();
+        mvc.perform(get("/api/admin/events/{id}", eventId)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.images[0].imageId").value(first))
+                .andExpect(jsonPath("$.data.images[0].cover").value(true));
+    }
+
+    /** Khách không được sửa ảnh; tour lưu trữ giữ nguyên chính sách chỉ đọc. */
+    @Test
+    @WithMockUser(authorities = "ADMIN")
+    void layoutRequiresAdminAndEditableTour() throws Exception {
+        long eventId = layoutTour();
+        mvc.perform(put("/api/admin/events/{id}/images/layout", eventId)
+                .with(user("customer").authorities(() -> "CUSTOMER"))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"images\":[]}"))
+                .andExpect(status().isForbidden());
+        mvc.perform(patch("/api/admin/events/{id}/status", eventId).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"status\":\"ARCHIVED\"}")).andExpect(status().isOk());
+        mvc.perform(put("/api/admin/events/{id}/images/layout", eventId).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"images\":[]}")).andExpect(status().isConflict());
+    }
+
 }

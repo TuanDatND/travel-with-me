@@ -43,7 +43,7 @@ public class EmailService {
                     </div>
                     <p>Hello <strong>%s</strong>,</p>
                     <p>An administrator has provisioned an internal personnel account for you on <strong>Travel With Me (TerraPeak)</strong> with the following credentials:</p>
-                    
+
                     <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 16px; border-radius: 8px; margin: 20px 0;">
                         <p style="margin: 6px 0;"><strong>Role:</strong> <span style="color: #0284c7; font-weight: bold;">%s</span></p>
                         <p style="margin: 6px 0;"><strong>Login Email:</strong> %s</p>
@@ -51,7 +51,7 @@ public class EmailService {
                     </div>
 
                     <p style="color: #475569; font-size: 14px;"><em>* Please use this temporary password to sign in to the system.</em></p>
-                    
+
                     <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 24px 0;">
                     <p style="font-size: 12px; color: #94a3b8; text-align: center;">For security reasons, please change your password upon your first sign-in. This is an automated email, please do not reply.</p>
                 </div>
@@ -89,7 +89,7 @@ public class EmailService {
                     </div>
                     <p>Hello <strong>%s</strong>,</p>
                     <p>Your customer account has been created via <strong>Google Sign-In</strong>. We have generated a temporary password so you can also sign in directly with your Email or update your password in your <strong>Climber Passport (Account Profile)</strong>:</p>
-                    
+
                     <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; padding: 16px; border-radius: 8px; margin: 20px 0;">
                         <p style="margin: 6px 0;"><strong>Role:</strong> <span style="color: #152A20; font-weight: bold;">CUSTOMER (Explorer Member)</span></p>
                         <p style="margin: 6px 0;"><strong>Login Email:</strong> %s</p>
@@ -97,7 +97,7 @@ public class EmailService {
                     </div>
 
                     <p style="color: #475569; font-size: 14px;"><em>* To change your password on your Account Profile page, enter the temporary password above into the <strong>"Current Password"</strong> field.</em></p>
-                    
+
                     <hr style="border: none; border-top: 1px solid #f1f5f9; margin: 24px 0;">
                     <p style="font-size: 12px; color: #94a3b8; text-align: center;">You can continue signing in with Google at any time. This is an automated email, please do not reply.</p>
                 </div>

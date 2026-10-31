@@ -42,6 +42,12 @@ public class EventImage {
     @Setter
     private String description;
 
+    @Column(name = "sort_order", nullable = false)
+    private int sortOrder;
+
+    @Column(name = "day_number")
+    private Integer dayNumber;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
@@ -52,6 +58,12 @@ public class EventImage {
         this.imageUrl = imageUrl;
         this.cloudinaryPublicId = cloudinaryPublicId;
         this.description = description;
+    }
+
+    /** Gán vị trí gallery và ngày; service xác thực ảnh/ngày thuộc đúng tour trước khi gọi. */
+    public void place(int sortOrder, Integer dayNumber) {
+        this.sortOrder = sortOrder;
+        this.dayNumber = dayNumber;
     }
 
     /** Gán thời điểm tạo metadata khi ảnh được lưu lần đầu. */

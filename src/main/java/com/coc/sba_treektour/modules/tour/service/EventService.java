@@ -1,18 +1,20 @@
 package com.coc.sba_treektour.modules.tour.service;
 
 import com.coc.sba_treektour.modules.tour.dto.request.EventInput;
+import com.coc.sba_treektour.modules.tour.dto.request.ImageLayoutInput;
 import com.coc.sba_treektour.modules.tour.dto.response.EventReference;
 import com.coc.sba_treektour.modules.tour.dto.response.EventResponse;
 import com.coc.sba_treektour.modules.tour.dto.response.EventSummary;
 import com.coc.sba_treektour.modules.tour.dto.response.ImageResponse;
+import com.coc.sba_treektour.modules.tour.dto.response.PageResponse;
 import com.coc.sba_treektour.modules.tour.enums.DifficultyLevel;
 import com.coc.sba_treektour.modules.tour.enums.EventStatus;
 import com.coc.sba_treektour.modules.tour.enums.EventType;
-import com.coc.sba_treektour.modules.tour.dto.response.PageResponse;
 
 import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 public interface EventService {
     /**
@@ -55,6 +57,9 @@ public interface EventService {
 
     /** Sửa mô tả của ảnh thuộc đúng tour; không cho phép sửa tour đã lưu trữ. */
     ImageResponse describe(Long id, Long imageId, String description);
+
+    /** Lưu toàn bộ thứ tự ảnh và ngày liên quan; ảnh đầu danh sách là bìa. */
+    List<ImageResponse> layout(Long id, ImageLayoutInput input);
 
     /** Xóa ảnh trên Cloudinary rồi xóa metadata; giữ ít nhất một ảnh cho tour đã công bố. */
     void deleteImage(Long id, Long imageId);
