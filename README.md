@@ -18,11 +18,7 @@ Request mẫu: [doc/product-inventory.http](doc/product-inventory.http).
 3. Chọn cấu hình **TreekTour Local** rồi bấm **Run**.
 4. Mở http://localhost:8080/swagger-ui/index.html để thử API.
 
-Máy hiện tại dùng JDK 26 tại `C:/Users/dinhv/.jdks/openjdk-26.0.2`.
-File `gradle.properties` local đặt `javaVersion=26`; mặc định project vẫn dùng Java 25.
-PostgreSQL 17.11 portable nằm trong `.local/pgsql`, dữ liệu trong `.local/pgdata`.
-Database `treektour` chạy ở `127.0.0.1:5432`; thông tin kết nối nằm trong `.env`.
-Các file cấu hình máy và dữ liệu local được bỏ qua bởi Git.
+
 
 Tài khoản admin được migration tạo sẵn: `admin@gmail.com` / `admin123`.
 Google OAuth, email và upload Cloudinary cần thông tin dịch vụ thật trong `.env` để sử dụng.
