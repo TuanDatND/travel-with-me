@@ -176,6 +176,7 @@ public class UserServiceImpl implements UserService {
         user.setFullName(request.getFullName().trim());
         user.setPhone(request.getPhone() != null ? request.getPhone().trim() : null);
 
+        if (request.getAddress() != null) user.setAddress(request.getAddress().trim());
         User updatedUser = userRepository.save(user);
         return mapToUserResponse(updatedUser);
     }
@@ -315,6 +316,7 @@ public class UserServiceImpl implements UserService {
                 .fullName(user.getFullName())
                 .email(user.getEmail())
                 .phone(user.getPhone())
+                .address(user.getAddress())
                 .role(user.getRole() != null ? user.getRole().getName() : null)
                 .status(user.getStatus())
                 .build();

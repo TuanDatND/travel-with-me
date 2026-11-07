@@ -19,4 +19,7 @@ public class UserProfileRequest {
 
     @Size(max = 30, message = "Phone number must not exceed 30 characters")
     private String phone;
+
+    @Size(max = 500, message = "Address must not exceed 500 characters")
+    private String address;
 }

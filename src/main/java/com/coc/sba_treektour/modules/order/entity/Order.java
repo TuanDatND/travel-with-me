@@ -50,6 +50,19 @@ public class Order {
     @Column(name = "customer_received_at")
     private OffsetDateTime customerReceivedAt;
 
+    @Column(name = "customer_name", length = 150)
+    private String customerName;
+    @Column(name = "customer_phone", length = 30)
+    private String customerPhone;
+    @Column(name = "customer_address", length = 500)
+    private String customerAddress;
+
+    public void setCustomerContact(String name, String phone, String address) {
+        customerName = name == null ? null : name.trim();
+        customerPhone = phone == null ? null : phone.trim();
+        customerAddress = address == null ? null : address.trim();
+    }
+
     public void confirmCustomerReceipt() {
         if (customerReceivedAt == null) customerReceivedAt = OffsetDateTime.now();
     }
