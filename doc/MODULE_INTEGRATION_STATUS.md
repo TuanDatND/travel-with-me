@@ -1,4 +1,4 @@
-﻿# Module integration status
+# Module integration status
 
 - 2026-10-24 — Member 3 / Structure standard: thêm doc/PROJECT_STRUCTURE.md và root AGENTS.md. Order chuẩn hóa dto.request/response (sửa requset/respone), enums riêng, exception/handler riêng, service interface + service.impl, import tường minh, tên dependency rõ vai trò và @Override. Test Order chuyển sang modules/order/service/impl/OrderServiceImplTests. Đổi import bắt buộc trong Inventory/Payment và test liên quan; không đổi nghiệp vụ/API/schema. compileJava + compileTestJava toàn project PASS; xem ORDER_INTEGRATION.md cho kết quả test cuối.
 

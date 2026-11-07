@@ -36,6 +36,19 @@ public interface ScheduleIntegrationRepository extends Repository<EventSchedule,
             """, nativeQuery = true)
     List<PaymentRecord> payments(@Param("participantId") Long participantId);
 
+    @Query(value = """
+            SELECT user_id AS "id", full_name AS "name", phone AS "phone", email AS "email"
+            FROM users WHERE user_id IN (:userIds)
+            """, nativeQuery = true)
+    List<CustomerContact> customerContacts(@Param("userIds") List<Long> userIds);
+
+    interface CustomerContact {
+        Long getId();
+        String getName();
+        String getPhone();
+        String getEmail();
+    }
+
     interface PaymentRecord {
         Long getId();
         BigDecimal getAmount();
