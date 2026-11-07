@@ -50,6 +50,12 @@ public class OrderServiceImpl implements OrderService {
         Branch branch = activeBranch(request.branchId());
         Order order = new Order(user, branch,
                 OffsetDateTime.now(), OrderStatus.PENDING, BigDecimal.ZERO);
+        if (user.getFullName() == null || user.getFullName().isBlank()
+                || user.getPhone() == null || !user.getPhone().trim().matches("[+0-9\\s().-]{7,30}")
+                || user.getAddress() == null || user.getAddress().isBlank()) {
+            throw new InvalidOrderException("Please update your profile with your full name, phone number and address before placing an order");
+        }
+        order.setCustomerContact(user.getFullName(), user.getPhone(), user.getAddress());
         // Lock products in ID order to serialize reservations and stock changes.
         request.items().stream().map(CreateOrderItemRequest::productId).distinct().sorted()
                 .forEach(id -> productRepository.lockById(id).orElseThrow(() -> new InvalidOrderException("Product not found: " + id)));
@@ -57,15 +63,6 @@ public class OrderServiceImpl implements OrderService {
             throw new InvalidOrderException("Use one line per product in each order");
         for (var line : request.items()) {
             OrderItem item = toEntity(line);
-            if (item.getItemType() == OrderItemType.RENTAL) {
-                if (inventoryService.availability(branch.getId(), item.getProductId(), item.getRentalStartDate(), item.getRentalEndDate()).quantityRentable() < item.getQuantity())
-                    throw new InvalidOrderException("Not enough rental capacity");
-            } else {
-                var stock = inventoryRepository.lock(branch.getId(), item.getProductId())
-                        .orElseThrow(() -> new InvalidOrderException("No stock at selected branch"));
-                if (!"ACTIVE".equals(stock.getStatus()) || stock.getQuantityAvailable() < item.getQuantity())
-                    throw new InvalidOrderException("Not enough stock");
-            }
             order.addItem(item);
         }
         var total = order.getItems().stream().map(i -> i.getUnitPrice().multiply(BigDecimal.valueOf(i.getQuantity()))

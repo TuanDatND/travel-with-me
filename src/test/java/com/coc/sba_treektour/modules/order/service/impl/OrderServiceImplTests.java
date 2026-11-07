@@ -89,7 +89,7 @@ class OrderServiceImplTests {
     }
 
     CreateOrderRequest rental(LocalDate end) {
-        User user = User.builder().id(1L).email("customer@test.local").status("ACTIVE").build();
+        User user = User.builder().id(1L).email("customer@test.local").status("ACTIVE").fullName(" Nguyen Van An ").phone(" 0901234567 ").address(" 12 Nguyen Trai, HCMC ").build();
         Branch branch = Branch.builder().id(2L).status("ACTIVE").build();
         Product product = new Product(); product.setId(3L); product.setRentalPricePerDay(new BigDecimal("100000"));
         when(users.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
@@ -117,11 +117,44 @@ class OrderServiceImplTests {
         verify(orders, never()).save(any());
     }
 
-    @Test void insufficientRentalCapacityDoesNotCreateOrder() {
-        LocalDate date = LocalDate.now(); var request = rental(date);
-        when(inventory.availability(2L, 3L, date, date)).thenReturn(new AvailabilityResponse(2L, 3L, date, date, 1, 0, 1));
-        assertThatThrownBy(() -> service.create(request, "customer@test.local")).isInstanceOf(InvalidOrderException.class);
+    @Test void outOfStockRentalCanBeOrderedWithCustomerContact() {
+        var original = rental(LocalDate.now());
+        var request = original;
+        var result = service.create(request, "customer@test.local");
+        assertThat(result.status()).isEqualTo(OrderStatus.PENDING);
+        assertThat(result.customerName()).isEqualTo("Nguyen Van An");
+        assertThat(result.customerPhone()).isEqualTo("0901234567");
+        assertThat(result.customerAddress()).isEqualTo("12 Nguyen Trai, HCMC");
+        assertThat(result.customerEmail()).isEqualTo("customer@test.local");
+        verifyNoInteractions(inventory, stocks);
+        verify(orders).save(any());
+    }
+
+    @Test void incompleteProfileCannotPlaceOrder() {
+        var request = rental(LocalDate.now());
+        var user = users.findByEmail("customer@test.local").orElseThrow();
+        user.setAddress(null);
+        assertThatThrownBy(() -> service.create(request, user.getEmail()))
+                .isInstanceOf(InvalidOrderException.class).hasMessageContaining("update your profile");
+        user.setAddress("12 Nguyen Trai"); user.setPhone(null);
+        assertThatThrownBy(() -> service.create(request, user.getEmail())).isInstanceOf(InvalidOrderException.class);
+        user.setPhone("abc");
+        assertThatThrownBy(() -> service.create(request, user.getEmail())).isInstanceOf(InvalidOrderException.class);
+        user.setPhone("0901234567"); user.setFullName(" ");
+        assertThatThrownBy(() -> service.create(request, user.getEmail())).isInstanceOf(InvalidOrderException.class);
         verify(orders, never()).save(any());
+    }
+
+    @Test void saleCanBeOrderedWithoutInventoryAtBranch() {
+        rental(LocalDate.now());
+        var product = products.findById(3L).orElseThrow();
+        product.setSalePrice(new BigDecimal("50000"));
+        var request = new CreateOrderRequest(2L, null, null, null,
+                List.of(new CreateOrderItemRequest(3L, OrderItemType.SALE, 5, null, null, null, null)));
+        var result = service.create(request, "customer@test.local");
+        assertThat(result.totalAmount()).isEqualByComparingTo("250000");
+        assertThat(result.status()).isEqualTo(OrderStatus.PENDING);
+        verifyNoInteractions(inventory, stocks);
     }
 
     @Test void repeatedHandOverDoesNotDeductStockTwice() {
@@ -149,7 +182,7 @@ class OrderServiceImplTests {
     }
 
     Order pendingOrder() {
-        var user = User.builder().id(1L).email("customer@test.local").status("ACTIVE").build();
+        var user = User.builder().id(1L).email("customer@test.local").status("ACTIVE").fullName(" Nguyen Van An ").phone(" 0901234567 ").address(" 12 Nguyen Trai, HCMC ").build();
         var branch = Branch.builder().id(2L).status("ACTIVE").build();
         var order = new Order(user, branch, OffsetDateTime.now(), OrderStatus.PENDING, new BigDecimal("100000"));
         when(orders.lockById(9L)).thenReturn(Optional.of(order));
