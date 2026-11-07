@@ -99,6 +99,6 @@ public class ProductServiceImpl implements ProductService {
 
     private ProductResponse response(Product product) {
         return new ProductResponse(product.getId(), product.getName(), product.getCategory(), product.getSalePrice(),
-                product.getRentalPricePerDay(), product.getStatus(), product.getCreatedAt());
+                product.getRentalPricePerDay(), product.getStatus(), product.getCreatedAt(), product.getImageUrl());
     }
 }

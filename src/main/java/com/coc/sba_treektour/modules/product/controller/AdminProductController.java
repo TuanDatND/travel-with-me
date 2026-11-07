@@ -7,6 +7,7 @@ import com.coc.sba_treektour.modules.product.dto.response.ProductPageResponse;
 import com.coc.sba_treektour.modules.product.dto.response.ProductResponse;
 import com.coc.sba_treektour.modules.product.enums.ProductStatus;
 import com.coc.sba_treektour.modules.product.service.ProductService;
+import com.coc.sba_treektour.modules.product.service.ProductImageService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -20,11 +21,21 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.multipart.MultipartFile;
 import java.math.BigDecimal;
 
 @RestController @RequestMapping("/api/admin/products") @RequiredArgsConstructor
 public class AdminProductController {
     private final ProductService products;
+    private final ProductImageService images;
+
+    @PostMapping(value = "/{id}/image", consumes = "multipart/form-data")
+    public ApiResponse<ProductResponse> uploadImage(@PathVariable Long id, @RequestPart("file") MultipartFile file) {
+        images.upload(id, file);
+        return ApiResponse.success(products.get(id, true));
+    }
+
     @GetMapping
     public ApiResponse<ProductPageResponse<ProductResponse>> list(@RequestParam(required = false) String keyword,
             @RequestParam(required = false) String category, @RequestParam(required = false) String mode,
