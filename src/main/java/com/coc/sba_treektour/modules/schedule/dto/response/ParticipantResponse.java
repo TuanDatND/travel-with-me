@@ -16,5 +16,8 @@ public record ParticipantResponse(
         BigDecimal registeredPrice,
         String note,
         UUID registrationReference,
-        OffsetDateTime expiresAt
+        OffsetDateTime expiresAt,
+        String customerName,
+        String customerPhone,
+        String customerEmail
 ) {}

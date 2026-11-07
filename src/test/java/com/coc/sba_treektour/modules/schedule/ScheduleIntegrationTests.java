@@ -346,6 +346,25 @@ class ScheduleIntegrationTests {
         call(post("/api/schedules/{id}/participants", scheduleId), customer, "{}", 409);
     }
 
+    @Test
+    void assignedGuideRosterIncludesCustomerContacts() throws Exception {
+        long scheduleId = schedule(2);
+        jdbc.update("UPDATE users SET full_name=?,phone=? WHERE user_id=?", "Nguyen Van An", "0901234567", users.get(1));
+        long ticket = id(call(post("/api/schedules/{id}/participants", scheduleId), customer, "{}", 201));
+        String body = call(get("/api/schedules/{id}/participants", scheduleId), guide, null, 200).getResponse().getContentAsString();
+        assertThat(((Number) JsonPath.read(body, "$.data[0].id")).longValue()).isEqualTo(ticket);
+        assertThat((String) JsonPath.read(body, "$.data[0].customerName")).isEqualTo("Nguyen Van An");
+        assertThat((String) JsonPath.read(body, "$.data[0].customerPhone")).isEqualTo("0901234567");
+        assertThat((String) JsonPath.read(body, "$.data[0].customerEmail"))
+                .isEqualTo(jdbc.queryForObject("SELECT email FROM users WHERE user_id=?", String.class, users.get(1)));
+        call(get("/api/schedules/{id}/participants", scheduleId), other, null, 403);
+        jdbc.update("UPDATE users SET phone=NULL WHERE user_id=?", users.get(1));
+        body = call(get("/api/schedules/{id}/participants", scheduleId), guide, null, 200).getResponse().getContentAsString();
+        assertThat((Object) JsonPath.read(body, "$.data[0].customerPhone")).isNull();
+        jdbc.update("UPDATE tour_guides SET user_id=? WHERE guide_id=?", users.get(0), guideId);
+        call(get("/api/schedules/{id}/participants", scheduleId), guide, null, 403);
+    }
+
     /** Kiểm tra guide được phân công, xác nhận thủ công và hoàn tất vé đã điểm danh. */
     @Test
     void assignedGuideCanCheckInAfterManagerConfirms() throws Exception {
