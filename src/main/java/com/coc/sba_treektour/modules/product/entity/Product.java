@@ -28,6 +28,10 @@ public class Product {
     private BigDecimal salePrice;
     @Column(name = "rental_price_per_day", precision = 18, scale = 2)
     private BigDecimal rentalPricePerDay;
+    @Column(name = "image_url", columnDefinition = "text")
+    private String imageUrl;
+    @Column(name = "image_public_id", columnDefinition = "text")
+    private String imagePublicId;
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
