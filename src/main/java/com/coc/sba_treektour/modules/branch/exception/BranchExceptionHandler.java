@@ -31,6 +31,12 @@ public class BranchExceptionHandler {
                 .body(ApiResponse.error(HttpStatus.NOT_FOUND.value(), ex.getMessage()));
     }
 
+    @ExceptionHandler(BranchConflictException.class)
+    public ResponseEntity<ApiResponse<Void>> handleBranchConflict(BranchConflictException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(HttpStatus.CONFLICT.value(), ex.getMessage()));
+    }
+
     @ExceptionHandler(InvalidBranchOperationException.class)
     public ResponseEntity<ApiResponse<Void>> handleInvalidBranchOperation(InvalidBranchOperationException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)

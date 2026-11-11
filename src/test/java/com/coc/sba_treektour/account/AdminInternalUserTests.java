@@ -208,6 +208,54 @@ public class AdminInternalUserTests {
     }
 
     @Test
+    void testDeleteUser_NoLinkedRecords_DeletesInactiveStaffAndGuideAndHardDeletesUser() {
+        Role customerRole = Role.builder().id(4L).name("CUSTOMER").build();
+        User newCustomer = User.builder()
+                .id(87L)
+                .fullName("New Customer")
+                .email("new.customer@treektour.com")
+                .role(customerRole)
+                .status("ACTIVE")
+                .build();
+
+        when(userRepository.findById(87L)).thenReturn(Optional.of(newCustomer));
+        when(userRepository.hasActiveStaffProfile(87L)).thenReturn(false);
+        when(userRepository.hasActiveGuideProfile(87L)).thenReturn(false);
+        when(userRepository.hasLinkedBusinessRecords(87L)).thenReturn(false);
+
+        boolean hardDeleted = userService.deleteUser(87L);
+
+        assertTrue(hardDeleted);
+        verify(userRepository).deleteInactiveStaffByUserId(87L);
+        verify(userRepository).deleteUnreferencedInactiveGuidesByUserId(87L);
+        verify(userRepository).delete(newCustomer);
+        verify(userRepository).flush();
+    }
+
+    @Test
+    void testDeleteUser_WithLinkedOrdersOrBookings_SoftDeactivatesToInactive() {
+        Role customerRole = Role.builder().id(4L).name("CUSTOMER").build();
+        User customerWithOrders = User.builder()
+                .id(88L)
+                .fullName("Order Customer")
+                .email("order.customer@treektour.com")
+                .role(customerRole)
+                .status("ACTIVE")
+                .build();
+
+        when(userRepository.findById(88L)).thenReturn(Optional.of(customerWithOrders));
+        when(userRepository.hasActiveStaffProfile(88L)).thenReturn(false);
+        when(userRepository.hasActiveGuideProfile(88L)).thenReturn(false);
+        when(userRepository.hasLinkedBusinessRecords(88L)).thenReturn(true);
+
+        boolean hardDeleted = userService.deleteUser(88L);
+
+        org.junit.jupiter.api.Assertions.assertFalse(hardDeleted);
+        assertEquals("INACTIVE", customerWithOrders.getStatus());
+        verify(userRepository).save(customerWithOrders);
+    }
+
+    @Test
     void testCreateInternalUser_RejectCustomerRole() {
         CreateInternalUserRequest request = CreateInternalUserRequest.builder()
                 .fullName("Test Customer")

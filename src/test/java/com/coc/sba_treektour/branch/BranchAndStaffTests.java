@@ -228,6 +228,25 @@ public class BranchAndStaffTests {
     }
 
     @Test
+    void testUpdateStaffStatus_UnlockStaffWhenUserAccountInactive_ReactivatesUserAccount() {
+        Branch branch = Branch.builder().id(1L).name("HCM Branch").status("ACTIVE").build();
+        Role staffRole = Role.builder().id(2L).name("STAFF").build();
+        User user = User.builder().id(10L).fullName("John Doe").role(staffRole).status("INACTIVE").build();
+        Staff staff = Staff.builder().id(100L).branch(branch).user(user).status("INACTIVE").build();
+
+        when(staffRepository.findById(100L)).thenReturn(Optional.of(staff));
+        when(userRepository.hasActiveGuideProfile(10L)).thenReturn(false);
+        when(staffRepository.save(any(Staff.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        StaffResponse response = staffService.updateStaffStatus(100L, "ACTIVE");
+
+        assertNotNull(response);
+        assertEquals("ACTIVE", response.getStatus());
+        assertEquals("ACTIVE", user.getStatus());
+        verify(userRepository).save(user);
+    }
+
+    @Test
     void testDeleteStaff_Success() {
         Staff staff = Staff.builder().id(50L).build();
         when(staffRepository.findById(50L)).thenReturn(Optional.of(staff));

@@ -139,9 +139,9 @@ public class CustomerRegistrationTests {
     }
 
     @Test
-    void testRegisterCustomer_WhenAccountInactiveOrLocked_ThrowsInvalidAccountException() {
+    void testRegisterCustomer_WhenAccountInactive_ReactivatesAccountSuccessfully() {
         RegisterRequest request = RegisterRequest.builder()
-                .fullName("Customer")
+                .fullName("Reactivated Customer")
                 .email("locked.user@example.com")
                 .phone("0912345678")
                 .password("newpass123")
@@ -157,10 +157,27 @@ public class CustomerRegistrationTests {
 
         when(roleRepository.findByName(Roles.CUSTOMER)).thenReturn(Optional.of(customerRole));
         when(userRepository.findByEmail("locked.user@example.com")).thenReturn(Optional.of(inactiveUser));
+        when(passwordEncoder.encode("newpass123")).thenReturn("hashed_newpass123");
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(jwtService.generateToken(any(User.class))).thenReturn("jwt_reactivated_token");
+        when(userService.mapToUserResponse(any(User.class))).thenAnswer(inv -> {
+            User u = inv.getArgument(0);
+            return UserResponse.builder()
+                    .id(u.getId())
+                    .fullName(u.getFullName())
+                    .email(u.getEmail())
+                    .phone(u.getPhone())
+                    .role(u.getRole().getName())
+                    .status(u.getStatus())
+                    .build();
+        });
 
-        InvalidAccountException ex = assertThrows(InvalidAccountException.class,
-                () -> authService.register(request));
-        assertTrue(ex.getMessage().contains("locked or deactivated"));
+        AuthResponse response = authService.register(request);
+
+        assertNotNull(response);
+        assertEquals("jwt_reactivated_token", response.getToken());
+        assertEquals(UserStatus.ACTIVE.name(), response.getUser().getStatus());
+        assertEquals("Reactivated Customer", response.getUser().getFullName());
     }
 
     @Test
@@ -235,7 +252,9 @@ public class CustomerRegistrationTests {
                 rawPwdCaptor.capture()
         );
         assertEquals(10, rawPwdCaptor.getValue().length());
-        verify(servletResponse).sendRedirect("http://localhost:3000/passport?token=oauth_jwt_token");
+        ArgumentCaptor<String> redirectCaptor = ArgumentCaptor.forClass(String.class);
+        verify(servletResponse).sendRedirect(redirectCaptor.capture());
+        assertTrue(redirectCaptor.getValue().startsWith("http://localhost:3000/passport?token=oauth_jwt_token&googleWelcome=1&tempPwd="));
     }
 
     @Test
@@ -272,7 +291,7 @@ public class CustomerRegistrationTests {
 
         ArgumentCaptor<String> redirectCaptor = ArgumentCaptor.forClass(String.class);
         verify(servletResponse).sendRedirect(redirectCaptor.capture());
-        assertTrue(redirectCaptor.getValue().startsWith("http://localhost:3000/auth?error="));
+        assertTrue(redirectCaptor.getValue().startsWith("http://localhost:3000/login?error="));
         assertEquals(UserStatus.INACTIVE.name(), lockedUser.getStatus());
     }
 }

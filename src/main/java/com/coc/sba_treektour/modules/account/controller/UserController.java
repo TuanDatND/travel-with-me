@@ -85,6 +85,15 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success("Password changed successfully!", null));
     }
 
+    @PostMapping("/me/temporary-password")
+    public ResponseEntity<ApiResponse<InternalUserResponse>> sendTemporaryPassword(Principal principal) {
+        if (principal == null) {
+            throw new InvalidAccountException("Not authenticated");
+        }
+        InternalUserResponse response = userService.sendTemporaryPassword(principal.getName());
+        return ResponseEntity.ok(ApiResponse.success(response.getMessage(), response));
+    }
+
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<ApiResponse<UserResponse>> updateUserByAdmin(

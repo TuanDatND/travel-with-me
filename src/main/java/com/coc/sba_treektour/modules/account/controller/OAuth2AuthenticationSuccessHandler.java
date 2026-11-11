@@ -63,11 +63,12 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
 
         Optional<User> existingUserOpt = userRepository.findByEmail(normalizedEmail);
         User user;
+        String generatedTempPassword = null;
 
         if (existingUserOpt.isPresent()) {
             user = existingUserOpt.get();
             if (!UserStatus.ACTIVE.name().equals(user.getStatus())) {
-                String redirectErrorUrl = "http://localhost:3000/auth?error=" +
+                String redirectErrorUrl = "http://localhost:3000/login?error=" +
                         URLEncoder.encode("Your account has been locked or deactivated. Please contact support.", StandardCharsets.UTF_8);
                 response.sendRedirect(redirectErrorUrl);
                 return;
@@ -75,21 +76,21 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
         } else {
             Role userRole = roleRepository.findByName(Roles.CUSTOMER)
                     .orElseThrow(() -> new RuntimeException("Default role not found"));
-            String rawPassword = PasswordGenerator.generateRandomPassword(10);
+            generatedTempPassword = PasswordGenerator.generateRandomPassword(10);
 
             user = userRepository.save(User.builder()
                     .email(normalizedEmail)
                     .fullName(displayName)
-                    .password(passwordEncoder.encode(rawPassword))
+                    .password(passwordEncoder.encode(generatedTempPassword))
                     .role(userRole)
                     .status(UserStatus.ACTIVE.name())
                     .build());
 
-            emailService.sendCustomerGoogleWelcomeEmail(user.getEmail(), user.getFullName(), rawPassword);
+            emailService.sendCustomerGoogleWelcomeEmail(user.getEmail(), user.getFullName(), generatedTempPassword);
         }
 
         if (!user.isEnabled() || !user.isAccountNonLocked()) {
-            String redirectErrorUrl = "http://localhost:3000/auth?error=" +
+            String redirectErrorUrl = "http://localhost:3000/login?error=" +
                     URLEncoder.encode("Your account has been locked or deactivated. Please contact support.", StandardCharsets.UTF_8);
             response.sendRedirect(redirectErrorUrl);
             return;
@@ -104,6 +105,10 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
             case Roles.GUIDE -> "http://localhost:3000/guide/schedules?token=" + jwtToken;
             default -> "http://localhost:3000/passport?token=" + jwtToken;
         };
+
+        if (generatedTempPassword != null) {
+            targetUrl += "&googleWelcome=1&tempPwd=" + URLEncoder.encode(generatedTempPassword, StandardCharsets.UTF_8);
+        }
 
         response.sendRedirect(targetUrl);
     }

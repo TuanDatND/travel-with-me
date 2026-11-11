@@ -94,14 +94,14 @@ class GuideRegistrationTests {
                 .sendInternalAccountEmail(eq(email), eq("New guide"), eq("GUIDE"), anyString());
     }
 
-    /** Email đã dùng bị từ chối, không tạo thêm user hoặc hồ sơ guide. */
+    /** Email đã dùng bị từ chối (HTTP 409 Conflict), không tạo thêm user hoặc hồ sơ guide. */
     @Test
     @WithMockUser(authorities = "ADMIN")
     void duplicateEmailDoesNotCreateAnotherGuide() throws Exception {
         String email = UUID.randomUUID() + "@example.test";
         create(email).andExpect(status().isCreated());
         long before = guides.count();
-        create(email).andExpect(status().isBadRequest());
+        create(email).andExpect(status().isConflict());
         assertThat(guides.count()).isEqualTo(before);
         verify(emails, times(1))
                 .sendInternalAccountEmail(eq(email), anyString(), anyString(), anyString());
