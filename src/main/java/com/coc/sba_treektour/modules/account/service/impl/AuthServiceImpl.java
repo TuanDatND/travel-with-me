@@ -46,20 +46,10 @@ public class AuthServiceImpl implements AuthService {
         User user;
 
         if (existingUser != null) {
-            if (!UserStatus.INACTIVE.name().equals(existingUser.getStatus())) {
-                throw new InvalidAccountException("Email is already in use in the system!");
+            if (!UserStatus.ACTIVE.name().equals(existingUser.getStatus())) {
+                throw new InvalidAccountException("Your account has been locked or deactivated. Please contact support.");
             }
-            Long existingId = existingUser.getId();
-            if (existingId != null && (userRepository.hasActiveGuideProfile(existingId) || userRepository.hasActiveStaffProfile(existingId))) {
-                throw new InvalidAccountException("This email belongs to an active staff member or tour guide!");
-            }
-            existingUser.setFullName(request.getFullName().trim());
-            existingUser.setEmail(normalizedEmail);
-            existingUser.setPhone(request.getPhone() != null && !request.getPhone().isBlank() ? request.getPhone().trim() : null);
-            existingUser.setPassword(passwordEncoder.encode(request.getPassword()));
-            existingUser.setRole(userRole);
-            existingUser.setStatus(UserStatus.ACTIVE.name());
-            user = existingUser;
+            throw new InvalidAccountException("Email is already in use in the system!");
         } else {
             user = User.builder()
                     .fullName(request.getFullName().trim())

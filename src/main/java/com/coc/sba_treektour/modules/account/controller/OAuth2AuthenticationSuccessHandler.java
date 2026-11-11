@@ -20,6 +20,8 @@ import org.springframework.security.web.authentication.AuthenticationSuccessHand
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Optional;
 
@@ -63,19 +65,12 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
         User user;
 
         if (existingUserOpt.isPresent()) {
-            User existingUser = existingUserOpt.get();
-            if (UserStatus.INACTIVE.name().equals(existingUser.getStatus())) {
-                Role customerRole = roleRepository.findByName(Roles.CUSTOMER)
-                        .orElseThrow(() -> new RuntimeException("Default role not found"));
-                String rawPassword = PasswordGenerator.generateRandomPassword(10);
-                existingUser.setFullName(displayName);
-                existingUser.setPassword(passwordEncoder.encode(rawPassword));
-                existingUser.setRole(customerRole);
-                existingUser.setStatus(UserStatus.ACTIVE.name());
-                user = userRepository.save(existingUser);
-                emailService.sendCustomerGoogleWelcomeEmail(user.getEmail(), user.getFullName(), rawPassword);
-            } else {
-                user = existingUser;
+            user = existingUserOpt.get();
+            if (!UserStatus.ACTIVE.name().equals(user.getStatus())) {
+                String redirectErrorUrl = "http://localhost:3000/auth?error=" +
+                        URLEncoder.encode("Your account has been locked or deactivated. Please contact support.", StandardCharsets.UTF_8);
+                response.sendRedirect(redirectErrorUrl);
+                return;
             }
         } else {
             Role userRole = roleRepository.findByName(Roles.CUSTOMER)
@@ -94,7 +89,9 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
         }
 
         if (!user.isEnabled() || !user.isAccountNonLocked()) {
-            response.sendError(HttpServletResponse.SC_FORBIDDEN, "Your account has been locked or deactivated.");
+            String redirectErrorUrl = "http://localhost:3000/auth?error=" +
+                    URLEncoder.encode("Your account has been locked or deactivated. Please contact support.", StandardCharsets.UTF_8);
+            response.sendRedirect(redirectErrorUrl);
             return;
         }
 
