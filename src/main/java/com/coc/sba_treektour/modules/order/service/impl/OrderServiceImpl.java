@@ -70,6 +70,7 @@ public class OrderServiceImpl implements OrderService {
                                 ? ChronoUnit.DAYS.between(i.getRentalStartDate(), i.getRentalEndDate()) + 1 : 1)))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         order.update(branch, order.getOrderDate(), OrderStatus.PENDING, total);
+        order.setDeliveryInfo(request.deliveryType(), request.scheduleId(), request.deliveryLocation(), request.deliveryNotes());
         return toResponse(orderRepository.save(order));
     }
 
