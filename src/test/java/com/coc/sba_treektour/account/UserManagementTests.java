@@ -3,6 +3,7 @@ package com.coc.sba_treektour.account;
 import com.coc.sba_treektour.common.service.EmailService;
 import com.coc.sba_treektour.modules.account.dto.request.AdminUpdateUserRequest;
 import com.coc.sba_treektour.modules.account.dto.request.ChangePasswordRequest;
+import com.coc.sba_treektour.modules.account.dto.request.UserProfileRequest;
 import com.coc.sba_treektour.modules.account.dto.response.UserResponse;
 import com.coc.sba_treektour.modules.account.entity.Role;
 import com.coc.sba_treektour.modules.account.entity.User;
@@ -49,6 +50,21 @@ public class UserManagementTests {
         @AfterEach
         void tearDown() {
                 SecurityContextHolder.clearContext();
+        }
+
+        @Test
+        void profileUpdatePersistsAndReturnsAddress() {
+                User user = User.builder().id(1L).email("test@example.com").build();
+                when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
+                when(userRepository.save(any())).thenAnswer(call -> call.getArgument(0));
+                var request = UserProfileRequest.builder().fullName(" Nguyen Van An ")
+                        .phone(" 0901234567 ").address(" 12 Nguyen Trai, HCMC ").build();
+                var result = userService.updateProfile("test@example.com", request);
+                assertEquals("Nguyen Van An", result.getFullName());
+                assertEquals("0901234567", result.getPhone());
+                assertEquals("12 Nguyen Trai, HCMC", result.getAddress());
+                assertEquals("12 Nguyen Trai, HCMC", user.getAddress());
+                verify(userRepository).save(user);
         }
 
         @Test
