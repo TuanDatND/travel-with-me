@@ -51,16 +51,16 @@ public class BranchAndStaffTests {
     @Test
     void testCreateBranch_Success() {
         BranchRequest request = BranchRequest.builder()
-                .name("Chi nhánh Hà Nội")
+                .name("Hanoi Branch")
                 .phone("0987654321")
-                .address("123 Cầu Giấy")
+                .address("123 Cau Giay")
                 .build();
 
         Branch savedBranch = Branch.builder()
                 .id(1L)
-                .name("Chi nhánh Hà Nội")
+                .name("Hanoi Branch")
                 .phone("0987654321")
-                .address("123 Cầu Giấy")
+                .address("123 Cau Giay")
                 .status("ACTIVE")
                 .build();
 
@@ -70,7 +70,7 @@ public class BranchAndStaffTests {
 
         assertNotNull(response);
         assertEquals(1L, response.getId());
-        assertEquals("Chi nhánh Hà Nội", response.getName());
+        assertEquals("Hanoi Branch", response.getName());
         assertEquals("ACTIVE", response.getStatus());
     }
 
@@ -83,19 +83,19 @@ public class BranchAndStaffTests {
 
     @Test
     void testDeleteBranch_WithExistingStaff_ThrowsException() {
-        Branch branch = Branch.builder().id(1L).name("Chi nhánh Đà Nẵng").status("ACTIVE").build();
+        Branch branch = Branch.builder().id(1L).name("Da Nang Branch").status("ACTIVE").build();
         when(branchRepository.findById(1L)).thenReturn(Optional.of(branch));
         when(staffRepository.existsByBranchId(1L)).thenReturn(true);
 
         InvalidBranchOperationException ex = assertThrows(InvalidBranchOperationException.class,
                 () -> branchService.deleteBranch(1L));
 
-        assertTrue(ex.getMessage().contains("vẫn còn nhân viên"));
+        assertTrue(ex.getMessage().contains("staff members are still assigned"));
     }
 
     @Test
     void testDeleteBranch_SoftDeletesToInactive() {
-        Branch branch = Branch.builder().id(1L).name("Chi nhánh Đà Nẵng").status("ACTIVE").build();
+        Branch branch = Branch.builder().id(1L).name("Da Nang Branch").status("ACTIVE").build();
         when(branchRepository.findById(1L)).thenReturn(Optional.of(branch));
         when(staffRepository.existsByBranchId(1L)).thenReturn(false);
 
@@ -110,10 +110,10 @@ public class BranchAndStaffTests {
         StaffRequest request = StaffRequest.builder()
                 .branchId(1L)
                 .userId(10L)
-                .position("Quản lý")
+                .position("Manager")
                 .build();
 
-        Branch branch = Branch.builder().id(1L).name("Chi nhánh HCM").status("ACTIVE").build();
+        Branch branch = Branch.builder().id(1L).name("HCM Branch").status("ACTIVE").build();
         Role customerRole = Role.builder().id(4L).name("CUSTOMER").build();
         User user = User.builder().id(10L).role(customerRole).status("ACTIVE").build();
 
@@ -124,7 +124,7 @@ public class BranchAndStaffTests {
         InvalidBranchOperationException ex = assertThrows(InvalidBranchOperationException.class,
                 () -> staffService.assignStaff(request));
 
-        assertTrue(ex.getMessage().contains("vai trò STAFF"));
+        assertTrue(ex.getMessage().contains("STAFF role"));
     }
 
     @Test
@@ -132,16 +132,16 @@ public class BranchAndStaffTests {
         StaffRequest request = StaffRequest.builder()
                 .branchId(1L)
                 .userId(10L)
-                .position("Quản lý kho")
+                .position("Warehouse Manager")
                 .build();
 
-        Branch inactiveBranch = Branch.builder().id(1L).name("Chi nhánh HCM").status("INACTIVE").build();
+        Branch inactiveBranch = Branch.builder().id(1L).name("HCM Branch").status("INACTIVE").build();
         when(staffRepository.existsByUserId(10L)).thenReturn(false);
         when(branchRepository.findById(1L)).thenReturn(Optional.of(inactiveBranch));
 
         assertThrows(InvalidBranchOperationException.class, () -> staffService.assignStaff(request));
 
-        Branch activeBranch = Branch.builder().id(1L).name("Chi nhánh HCM").status("ACTIVE").build();
+        Branch activeBranch = Branch.builder().id(1L).name("HCM Branch").status("ACTIVE").build();
         Role staffRole = Role.builder().id(2L).name("STAFF").build();
         User blockedUser = User.builder().id(10L).role(staffRole).status("BLOCKED").build();
 
@@ -156,33 +156,75 @@ public class BranchAndStaffTests {
         StaffRequest request = StaffRequest.builder()
                 .branchId(1L)
                 .userId(10L)
-                .position("Quản lý kho")
+                .position("Warehouse Manager")
                 .build();
 
-        Branch branch = Branch.builder().id(1L).name("Chi nhánh HCM").status("ACTIVE").build();
+        Branch branch = Branch.builder().id(1L).name("HCM Branch").status("ACTIVE").build();
         Role staffRole = Role.builder().id(2L).name("STAFF").build();
-        User user = User.builder().id(10L).fullName("Nguyễn Văn A").role(staffRole).status("ACTIVE").build();
+        User user = User.builder().id(10L).fullName("John Doe").role(staffRole).status("ACTIVE").build();
 
         Staff savedStaff = Staff.builder()
                 .id(100L)
                 .branch(branch)
                 .user(user)
-                .position("Quản lý kho")
+                .position("Warehouse Manager")
                 .status("ACTIVE")
                 .build();
 
         when(staffRepository.existsByUserId(10L)).thenReturn(false);
         when(branchRepository.findById(1L)).thenReturn(Optional.of(branch));
         when(userRepository.findById(10L)).thenReturn(Optional.of(user));
+        when(userRepository.hasActiveGuideProfile(10L)).thenReturn(false);
         when(staffRepository.save(any(Staff.class))).thenReturn(savedStaff);
 
         StaffResponse response = staffService.assignStaff(request);
 
         assertNotNull(response);
         assertEquals(100L, response.getId());
-        assertEquals("Chi nhánh HCM", response.getBranchName());
-        assertEquals("Nguyễn Văn A", response.getUserName());
-        assertEquals("Quản lý kho", response.getPosition());
+        assertEquals("HCM Branch", response.getBranchName());
+        assertEquals("John Doe", response.getUserName());
+        assertEquals("Warehouse Manager", response.getPosition());
+    }
+
+    @Test
+    void testAssignStaff_FailsWhenActiveGuideProfileExists() {
+        StaffRequest request = StaffRequest.builder()
+                .branchId(1L)
+                .userId(10L)
+                .position("Warehouse Manager")
+                .build();
+
+        Branch branch = Branch.builder().id(1L).name("HCM Branch").status("ACTIVE").build();
+        Role staffRole = Role.builder().id(2L).name("STAFF").build();
+        User user = User.builder().id(10L).fullName("John Doe").role(staffRole).status("ACTIVE").build();
+
+        when(staffRepository.existsByUserId(10L)).thenReturn(false);
+        when(branchRepository.findById(1L)).thenReturn(Optional.of(branch));
+        when(userRepository.findById(10L)).thenReturn(Optional.of(user));
+        when(userRepository.hasActiveGuideProfile(10L)).thenReturn(true);
+
+        InvalidBranchOperationException ex = assertThrows(
+                InvalidBranchOperationException.class,
+                () -> staffService.assignStaff(request)
+        );
+        assertTrue(ex.getMessage().contains("active Tour Guide"));
+    }
+
+    @Test
+    void testUpdateStaffStatus_FailsWhenActiveGuideProfileExists() {
+        Branch branch = Branch.builder().id(1L).name("HCM Branch").status("ACTIVE").build();
+        Role staffRole = Role.builder().id(2L).name("STAFF").build();
+        User user = User.builder().id(10L).fullName("John Doe").role(staffRole).status("ACTIVE").build();
+        Staff staff = Staff.builder().id(100L).branch(branch).user(user).status("INACTIVE").build();
+
+        when(staffRepository.findById(100L)).thenReturn(Optional.of(staff));
+        when(userRepository.hasActiveGuideProfile(10L)).thenReturn(true);
+
+        InvalidBranchOperationException ex = assertThrows(
+                InvalidBranchOperationException.class,
+                () -> staffService.updateStaffStatus(100L, "ACTIVE")
+        );
+        assertTrue(ex.getMessage().contains("active Tour Guide"));
     }
 
     @Test

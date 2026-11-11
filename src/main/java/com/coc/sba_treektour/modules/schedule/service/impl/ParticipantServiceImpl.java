@@ -31,6 +31,9 @@ import com.coc.sba_treektour.modules.schedule.validator.ScheduleLifecycleRules;
 import com.coc.sba_treektour.modules.tour.enums.EventStatus;
 import com.coc.sba_treektour.modules.tour.service.EventService;
 import java.util.List;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import com.coc.sba_treektour.modules.schedule.repository.ScheduleIntegrationRepository.CustomerContact;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -173,7 +176,11 @@ public class ParticipantServiceImpl implements ParticipantService {
     public List<ParticipantResponse> findByScheduleId(Long id, int page, int size) {
         var schedule = eventScheduleRepository.findById(id).orElseThrow(() -> new ScheduleNotFoundException(id));
         scheduleAccessPolicy.requireAssignedGuideOrManager(schedule);
-        return eventParticipantRepository.findByScheduleIdOrderByIdAsc(id, SchedulePageRequests.of(page, size)).stream().map(this::toResponse).toList();
+        var participants = eventParticipantRepository.findByScheduleIdOrderByIdAsc(id, SchedulePageRequests.of(page, size));
+        if (participants.isEmpty()) return List.of();
+        var contacts = scheduleIntegrationRepository.customerContacts(participants.stream().map(EventParticipant::getUserId).distinct().toList())
+                .stream().collect(Collectors.toMap(CustomerContact::getId, Function.identity()));
+        return participants.stream().map(p -> toResponse(p, contacts.get(p.getUserId()))).toList();
     }
 
     @Override
@@ -240,7 +247,13 @@ public class ParticipantServiceImpl implements ParticipantService {
     private EventParticipant find(Long id) { return eventParticipantRepository.findById(id).orElseThrow(() -> new ParticipantNotFoundException(id)); }
 
     private ParticipantResponse toResponse(EventParticipant p) {
+        return toResponse(p, null);
+    }
+
+    private ParticipantResponse toResponse(EventParticipant p, CustomerContact customer) {
         return new ParticipantResponse(p.getId(), p.getSchedule().getId(), p.getUserId(), p.getRegistrationDate(),
-                p.getParticipantStatus(), p.getCheckInStatus(), p.getRegisteredPrice(), p.getNote(), p.getRegistrationReference(), p.getExpiresAt());
+                p.getParticipantStatus(), p.getCheckInStatus(), p.getRegisteredPrice(), p.getNote(), p.getRegistrationReference(), p.getExpiresAt(),
+                customer == null ? null : customer.getName(), customer == null ? null : customer.getPhone(),
+                customer == null ? null : customer.getEmail());
     }
 }

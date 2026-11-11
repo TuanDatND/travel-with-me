@@ -27,6 +27,6 @@ public class OrderPaymentQueryServiceImpl implements OrderPaymentQueryService {
         if (orderIds.isEmpty()) return Map.of();
         return transactions.findOrderBalances(orderIds).stream().collect(Collectors.toMap(
                 TransactionRepository.OrderBalanceTotals::getOrderId,
-                totals -> new OrderPaymentBalance(totals.getReceived(), totals.getRefunded(), totals.getPendingPayments())));
+                totals -> new OrderPaymentBalance(totals.getReceived(), totals.getRefunded(), totals.getPendingPayments(), totals.getPendingRefunds())));
     }
 }

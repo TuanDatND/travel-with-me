@@ -10,8 +10,11 @@ import java.util.Optional;
 
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
-    Optional<User> findByEmail(String email);
-    boolean existsByEmail(String email);
+    @Query("SELECT u FROM User u WHERE LOWER(u.email) = LOWER(:email)")
+    Optional<User> findByEmail(@Param("email") String email);
+
+    @Query("SELECT CASE WHEN COUNT(u) > 0 THEN true ELSE false END FROM User u WHERE LOWER(u.email) = LOWER(:email)")
+    boolean existsByEmail(@Param("email") String email);
 
     @Query(value = "SELECT EXISTS(SELECT 1 FROM tour_guides WHERE user_id = :userId AND status = 'ACTIVE')", nativeQuery = true)
     boolean hasActiveGuideProfile(@Param("userId") Long userId);
@@ -21,4 +24,19 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query(value = "SELECT EXISTS(SELECT 1 FROM staff WHERE user_id = :userId AND status = 'ACTIVE')", nativeQuery = true)
     boolean hasActiveStaffProfile(@Param("userId") Long userId);
+
+    @Query(value = """
+            SELECT EXISTS(
+                SELECT 1 FROM orders WHERE user_id = :userId
+                UNION ALL
+                SELECT 1 FROM event_participants WHERE user_id = :userId
+                UNION ALL
+                SELECT 1 FROM staff WHERE user_id = :userId
+                UNION ALL
+                SELECT 1 FROM tour_guides WHERE user_id = :userId
+                UNION ALL
+                SELECT 1 FROM transactions WHERE refund_confirmed_by = :userId
+            )
+            """, nativeQuery = true)
+    boolean hasLinkedBusinessRecords(@Param("userId") Long userId);
 }

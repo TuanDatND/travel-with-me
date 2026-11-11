@@ -35,13 +35,15 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
         BigDecimal getReceived();
         BigDecimal getRefunded();
         long getPendingPayments();
+        long getPendingRefunds();
     }
 
     @Query(value = """
             SELECT order_id AS "orderId",
                    COALESCE(SUM(CASE WHEN status = 'SUCCEEDED' AND transaction_type = 'PAYMENT' THEN amount ELSE 0 END), 0) AS "received",
                    COALESCE(SUM(CASE WHEN status = 'SUCCEEDED' AND transaction_type = 'REFUND' THEN amount ELSE 0 END), 0) AS "refunded",
-                   COUNT(*) FILTER (WHERE status = 'PENDING' AND transaction_type = 'PAYMENT') AS "pendingPayments"
+                   COUNT(*) FILTER (WHERE status = 'PENDING' AND transaction_type = 'PAYMENT') AS "pendingPayments",
+                   COUNT(*) FILTER (WHERE status = 'PENDING' AND transaction_type = 'REFUND') AS "pendingRefunds"
             FROM transactions WHERE order_id IN (:orderIds) AND participant_id IS NULL
             GROUP BY order_id
             """, nativeQuery = true)

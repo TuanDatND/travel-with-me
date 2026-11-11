@@ -13,15 +13,15 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class StaffRequest {
 
-    @NotNull(message = "Branch ID không được để trống")
+    @NotNull(message = "Branch ID is required")
     private Long branchId;
 
-    @NotNull(message = "User ID không được để trống")
+    @NotNull(message = "User ID is required")
     private Long userId;
 
-    @Size(max = 100, message = "Chức vụ không được vượt quá 100 ký tự")
+    @Size(max = 100, message = "Position must not exceed 100 characters")
     private String position;
 
-    @Size(max = 30, message = "Trạng thái không được vượt quá 30 ký tự")
+    @Size(max = 30, message = "Status must not exceed 30 characters")
     private String status;
 }

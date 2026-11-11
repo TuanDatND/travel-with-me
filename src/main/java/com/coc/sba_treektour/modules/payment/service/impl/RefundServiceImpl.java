@@ -3,9 +3,11 @@ package com.coc.sba_treektour.modules.payment.service.impl;
 import com.coc.sba_treektour.modules.account.entity.User;
 import com.coc.sba_treektour.modules.account.repository.UserRepository;
 import com.coc.sba_treektour.modules.order.entity.Order;
+import com.coc.sba_treektour.modules.order.service.OrderRefundService;
 import com.coc.sba_treektour.modules.order.enums.OrderStatus;
 import com.coc.sba_treektour.modules.order.repository.OrderRepository;
 import com.coc.sba_treektour.modules.payment.dto.request.RequestRefund;
+import com.coc.sba_treektour.modules.payment.dto.request.ConfirmRefundRequest;
 import com.coc.sba_treektour.modules.payment.dto.response.TransactionHistoryResponse;
 import com.coc.sba_treektour.modules.payment.entity.Transaction;
 import com.coc.sba_treektour.modules.payment.repository.TransactionRepository;
@@ -44,6 +46,7 @@ public class RefundServiceImpl implements RefundService {
     private final UserRepository users;
     private final EntityManager entities;
     private final EventParticipantRepository participantRepository;
+    private final OrderRefundService orderRefundService;
 
     @Override
     @Transactional
@@ -73,8 +76,8 @@ public class RefundServiceImpl implements RefundService {
     @Override
     @Transactional
     @PreAuthorize("hasAuthority('ADMIN')")
-    public TransactionHistoryResponse confirm(Long refundId) {
-        activeUser();
+    public TransactionHistoryResponse confirm(Long refundId, ConfirmRefundRequest request) {
+        User admin = activeUser();
         Transaction found = transactions.findById(refundId)
                 .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Refund not found"));
         requireManualRefund(found);
@@ -88,9 +91,15 @@ public class RefundServiceImpl implements RefundService {
         if (refund.getStatus() != PENDING) throw new ResponseStatusException(CONFLICT, "Refund is not pending");
         requireRefundableState(order, ticket);
         requireNoPendingPayment(refund.getOrderId(), refund.getParticipantId());
-        if (refund.getAmount().signum() <= 0 || refund.getAmount().compareTo(balance(refund.getOrderId(), refund.getParticipantId())) > 0)
-            throw new ResponseStatusException(CONFLICT, "Refund exceeds remaining received money");
+        BigDecimal remaining = balance(refund.getOrderId(), refund.getParticipantId());
+        if (refund.getAmount().signum() <= 0 || refund.getAmount().compareTo(remaining) > 0
+                || (order != null && refund.getAmount().compareTo(remaining) != 0))
+            throw new ResponseStatusException(CONFLICT, "Refund must match the remaining order balance and cannot exceed received money");
         // Admin attests that money was transferred manually outside this application.
+        if (order != null) orderRefundService.completeRefund(order);
+        refund.setRefundConfirmedBy(admin.getId());
+        refund.setRefundTransferReference(request.transferReference().trim());
+        refund.setRefundConfirmationNote(request.note() == null ? null : request.note().trim());
         refund.setStatus(SUCCEEDED);
         if (refund.getSucceededAt() == null) refund.setSucceededAt(OffsetDateTime.now());
         return response(transactions.saveAndFlush(refund));
@@ -179,6 +188,7 @@ public class RefundServiceImpl implements RefundService {
     private TransactionHistoryResponse response(Transaction transaction) {
         return new TransactionHistoryResponse(transaction.getId(), transaction.getOrderId(), transaction.getParticipantId(),
                 transaction.getTransactionType(), transaction.getAmount(), transaction.getPaymentMethod(),
-                transaction.getStatus(), transaction.getCreatedAt(), transaction.getRefundReason(), transaction.getSucceededAt());
+                transaction.getStatus(), transaction.getCreatedAt(), transaction.getRefundReason(), transaction.getSucceededAt(),
+                transaction.getRefundConfirmedBy(), transaction.getRefundTransferReference(), transaction.getRefundConfirmationNote());
     }
 }

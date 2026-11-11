@@ -15,19 +15,19 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class CreateInternalUserRequest {
 
-    @NotBlank(message = "Họ và tên không được để trống")
-    @Size(max = 150, message = "Họ và tên không được vượt quá 150 ký tự")
+    @NotBlank(message = "Full name is required")
+    @Size(max = 150, message = "Full name must not exceed 150 characters")
     private String fullName;
 
-    @NotBlank(message = "Email không được để trống")
-    @Email(message = "Email không hợp lệ")
-    @Size(max = 255, message = "Email không được vượt quá 255 ký tự")
+    @NotBlank(message = "Email is required")
+    @Email(message = "Invalid email format")
+    @Size(max = 255, message = "Email must not exceed 255 characters")
     private String email;
 
-    @Size(max = 30, message = "Số điện thoại không được vượt quá 30 ký tự")
+    @Size(max = 30, message = "Phone number must not exceed 30 characters")
     private String phone;
 
-    @NotBlank(message = "Vai trò (Role) không được để trống")
-    @Pattern(regexp = "^(STAFF|GUIDE)$", message = "Vai trò nội bộ chỉ có thể là STAFF hoặc GUIDE")
+    @NotBlank(message = "Role is required")
+    @Pattern(regexp = "^(STAFF|GUIDE)$", message = "Internal user role must be STAFF or GUIDE")
     private String role;
 }

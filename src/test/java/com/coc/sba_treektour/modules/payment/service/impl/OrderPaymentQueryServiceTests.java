@@ -19,10 +19,11 @@ class OrderPaymentQueryServiceTests {
         var totals = new SpelAwareProxyProjectionFactory().createProjection(
                 TransactionRepository.OrderBalanceTotals.class, Map.of(
                         "orderId", 9L, "received", new BigDecimal("100000"),
-                        "refunded", new BigDecimal("20000"), "pendingPayments", 1L));
+                        "refunded", new BigDecimal("20000"), "pendingPayments", 1L, "pendingRefunds", 1L));
         when(transactions.findOrderBalances(List.of(9L))).thenReturn(List.of(totals));
         assertThat(service.read(9L).net()).isEqualByComparingTo("80000");
         assertThat(service.read(9L).cancellable()).isFalse();
+        assertThat(service.read(9L).refundPending()).isTrue();
         assertThat(service.readMany(List.of(9L)).get(9L)).isEqualTo(service.read(9L));
     }
 

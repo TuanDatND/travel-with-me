@@ -1,8 +1,8 @@
-package com.coc.sba_treektour.modules.inventory.service;
+package com.coc.sba_treektour.modules.inventory.service.impl;
 
+import com.coc.sba_treektour.common.exception.CatalogException;
 import com.coc.sba_treektour.modules.account.entity.User;
 import com.coc.sba_treektour.modules.branch.repository.StaffRepository;
-import com.coc.sba_treektour.modules.product.service.CatalogException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -10,7 +10,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 @Component @RequiredArgsConstructor
-public class InventoryAccess {
+class InventoryAccess {
     private final StaffRepository staff;
     @Transactional(readOnly = true)
     public void requireBranch(Long branchId) {

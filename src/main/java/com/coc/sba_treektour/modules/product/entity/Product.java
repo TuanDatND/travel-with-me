@@ -1,7 +1,14 @@
 package com.coc.sba_treektour.modules.product.entity;
 
-import jakarta.persistence.*;
-import lombok.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -21,6 +28,10 @@ public class Product {
     private BigDecimal salePrice;
     @Column(name = "rental_price_per_day", precision = 18, scale = 2)
     private BigDecimal rentalPricePerDay;
+    @Column(name = "image_url", columnDefinition = "text")
+    private String imageUrl;
+    @Column(name = "image_public_id", columnDefinition = "text")
+    private String imagePublicId;
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;

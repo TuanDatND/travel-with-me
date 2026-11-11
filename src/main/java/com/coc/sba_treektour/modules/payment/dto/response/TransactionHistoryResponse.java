@@ -14,6 +14,9 @@ public record TransactionHistoryResponse(
         TransactionStatus status,
         OffsetDateTime createdAt,
         String refundReason,
-        OffsetDateTime succeededAt
+        OffsetDateTime succeededAt,
+        Long refundConfirmedBy,
+        String refundTransferReference,
+        String refundConfirmationNote
 ) {
 }

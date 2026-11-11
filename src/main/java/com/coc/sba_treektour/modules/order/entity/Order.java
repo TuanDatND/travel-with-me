@@ -50,6 +50,19 @@ public class Order {
     @Column(name = "customer_received_at")
     private OffsetDateTime customerReceivedAt;
 
+    @Column(name = "customer_name", length = 150)
+    private String customerName;
+    @Column(name = "customer_phone", length = 30)
+    private String customerPhone;
+    @Column(name = "customer_address", length = 500)
+    private String customerAddress;
+
+    public void setCustomerContact(String name, String phone, String address) {
+        customerName = name == null ? null : name.trim();
+        customerPhone = phone == null ? null : phone.trim();
+        customerAddress = address == null ? null : address.trim();
+    }
+
     public void confirmCustomerReceipt() {
         if (customerReceivedAt == null) customerReceivedAt = OffsetDateTime.now();
     }
@@ -61,6 +74,25 @@ public class Order {
 
     @Column(name = "total_amount", nullable = false, precision = 18, scale = 2)
     private BigDecimal totalAmount = BigDecimal.ZERO;
+
+    @Column(name = "delivery_type", length = 30)
+    private String deliveryType = "STORE_PICKUP";
+
+    @Column(name = "schedule_id")
+    private Long scheduleId;
+
+    @Column(name = "delivery_location")
+    private String deliveryLocation;
+
+    @Column(name = "delivery_notes")
+    private String deliveryNotes;
+
+    public void setDeliveryInfo(String deliveryType, Long scheduleId, String deliveryLocation, String deliveryNotes) {
+        this.deliveryType = deliveryType != null && !deliveryType.isBlank() ? deliveryType : "STORE_PICKUP";
+        this.scheduleId = scheduleId;
+        this.deliveryLocation = deliveryLocation;
+        this.deliveryNotes = deliveryNotes;
+    }
 
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();

@@ -44,7 +44,7 @@ public class StaffController {
     @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<ApiResponse<StaffResponse>> assignStaff(@Valid @RequestBody StaffRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.created("Gán nhân viên thành công", staffService.assignStaff(request)));
+                .body(ApiResponse.created("Staff assigned successfully", staffService.assignStaff(request)));
     }
 
     @PutMapping("/{id}")
@@ -52,7 +52,7 @@ public class StaffController {
     public ResponseEntity<ApiResponse<StaffResponse>> updateStaff(
             @PathVariable Long id,
             @Valid @RequestBody StaffRequest request) {
-        return ResponseEntity.ok(ApiResponse.success("Cập nhật thông tin nhân viên thành công", staffService.updateStaff(id, request)));
+        return ResponseEntity.ok(ApiResponse.success("Staff information updated successfully", staffService.updateStaff(id, request)));
     }
 
     @PutMapping("/{id}/status")
@@ -60,13 +60,13 @@ public class StaffController {
     public ResponseEntity<ApiResponse<StaffResponse>> updateStaffStatus(
             @PathVariable Long id,
             @RequestParam String status) {
-        return ResponseEntity.ok(ApiResponse.success("Cập nhật trạng thái nhân viên thành công", staffService.updateStaffStatus(id, status)));
+        return ResponseEntity.ok(ApiResponse.success("Staff status updated successfully", staffService.updateStaffStatus(id, status)));
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('ADMIN')")
     public ResponseEntity<ApiResponse<Void>> deleteStaff(@PathVariable Long id) {
         staffService.deleteStaff(id);
-        return ResponseEntity.ok(ApiResponse.success("Xóa nhân viên khỏi chi nhánh thành công", null));
+        return ResponseEntity.ok(ApiResponse.success("Staff removed from branch successfully", null));
     }
 }

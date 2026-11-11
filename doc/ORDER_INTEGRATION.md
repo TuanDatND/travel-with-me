@@ -122,3 +122,18 @@ Ví dụ phần thanh toán của đơn tổng 200000 đã thanh toán đủ nh�
 - `compileJava` và 8 tests `OrderServiceTests` PASS: giá/trạng thái server, ngày thuê thiếu, thiếu lượng thuê, giao/trả lặp, chưa trả/thiếu tiền không duyệt, đủ tiền vẫn chờ admin, đã thu/đang trả không hủy thường, hoàn tiền làm giảm số dư.
 - Frontend `npm run lint` và `npm run build` PASS.
 - Chưa test HTTP/provider thực tế, callback đồng thời với hủy, hoặc refund đồng thời với duyệt. Module Payment không bị chỉnh sửa trong mốc này.
+
+
+## Order refund completion — 2026-10-30 (contract hiện tại)
+
+Mục này thay thế mô tả lịch sử về việc hoàn thủ công chưa tự hủy Order.
+
+- Khách yêu cầu hoàn toàn bộ số dư còn lại cho Order PENDING hoặc CANCELLED, chưa bàn giao; owner/ACTIVE, số dư dương và không có PAYMENT PENDING. Đơn đã duyệt/giao cần quy trình khác, không mở rộng trong mốc này.
+- REFUND PENDING không trừ số dư đã thu nhưng OrderResponse.refundPending=true, canApprove=false; BE chặn duyệt/bàn giao và Payment create/retry dưới cùng khóa Order. FE hiển thị trạng thái chờ hoàn và khóa nút thanh toán.
+- POST /api/payments/refunds/{id}/confirm (ADMIN ACTIVE) yêu cầu JSON: {"transferReference":"BANK-123","note":"Đã chuyển lại cho khách"}. transferReference bắt buộc, không trắng, tối đa 200; note tùy chọn, tối đa 2000. Thiếu body bị từ chối; FE đã cập nhật đồng bộ.
+- Admin chuyển tiền bên ngoài trước khi xác nhận. BE kiểm tra lại trạng thái, PAYMENT PENDING và số tiền phải bằng toàn bộ số dư còn lại của Order; gọi OrderRefundService.completeRefund trong transaction bắt buộc của Payment, hủy Order và tất cả items rồi ghi REFUND SUCCEEDED/audit. Lỗi bất kỳ phải rollback cả hai. Không gọi provider, không tự chuyển tiền.
+- Order chưa bàn giao chưa trừ kho: chỉ CANCELLED Order/items để giải phóng đặt thuê theo truy vấn availability hiện tại, không gọi receiveRental/không cộng kho. Khóa theo thứ tự Order/target rồi Transaction; nhấn xác nhận lại trả kết quả cũ, không ghi đè người/mã/thời gian hoàn và không tạo giao dịch mới.
+- V2026103003__manual_refund_confirmation_audit.sql thêm transactions.refund_confirmed_by BIGINT FK users(user_id), refund_transfer_reference VARCHAR(200), refund_confirmation_note VARCHAR(2000), đều nullable. Giữ PK/FK Order/Participant và enum; dùng succeeded_at đã có làm thời gian xác nhận. Không backfill refund/Order cũ.
+- JSON history thêm refundConfirmedBy/refundTransferReference/refundConfirmationNote; dữ liệu cũ có thể NULL. Không đổi luồng lifecycle Tour/đóng schedule_payment_reviews.
+
+Verification: compileJava + compileTestJava và 71 tests Order/Payment PASS, 0 failures/0 skipped; gồm xác nhận lặp giữ audit, quyền/owner, số dư sai, đơn đã duyệt/giao, khóa create/retry/approve/handover và hủy Order/items thật trong unit test. FE lint/build PASS (cảnh báo bundle lớn hiện hữu). Chưa kiểm tra HTTP/trình duyệt, SQL migration/JPQL/concurrency hoặc rollback trên DB thật; chưa áp migration DB chung hay thực hiện chuyển tiền.

@@ -32,6 +32,16 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 import org.springframework.http.MediaType;
 
 class OrderPaymentTests {
+    @Test void pendingRefundBlocksCreateAndRetryBeforeCallingProvider() {
+        when(repository.existsByOrder_IdAndTransactionTypeAndStatus(5L, "REFUND", PENDING)).thenReturn(true);
+        CreateZaloPayPaymentRequest request = new CreateZaloPayPaymentRequest(5L, null, null, null, null);
+        assertEquals(409, assertThrows(ResponseStatusException.class,
+                () -> service.createZaloPayPayment(request)).getStatusCode().value());
+        assertEquals(409, assertThrows(ResponseStatusException.class,
+                () -> service.retryOrderPayment(request)).getStatusCode().value());
+        verify(repository, never()).saveAndFlush(any());
+        server.verify();
+    }
     TransactionRepository repository = mock(TransactionRepository.class);
     OrderRepository orders = mock(OrderRepository.class);
     Order order = mock(Order.class);

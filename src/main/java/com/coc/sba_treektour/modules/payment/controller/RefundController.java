@@ -2,6 +2,7 @@ package com.coc.sba_treektour.modules.payment.controller;
 
 import com.coc.sba_treektour.common.response.ApiResponse;
 import com.coc.sba_treektour.modules.payment.dto.request.RequestRefund;
+import com.coc.sba_treektour.modules.payment.dto.request.ConfirmRefundRequest;
 import com.coc.sba_treektour.modules.payment.dto.response.TransactionHistoryResponse;
 import com.coc.sba_treektour.modules.payment.service.RefundService;
 import jakarta.validation.Valid;
@@ -48,7 +49,7 @@ public class RefundController {
     }
 
     @PostMapping("/{id}/confirm")
-    public ApiResponse<TransactionHistoryResponse> confirm(@PathVariable Long id) {
-        return ApiResponse.success("Manual refund recorded; no ZaloPay request was made", refunds.confirm(id));
+    public ApiResponse<TransactionHistoryResponse> confirm(@PathVariable Long id, @Valid @RequestBody ConfirmRefundRequest request) {
+        return ApiResponse.success("Manual refund recorded; no ZaloPay request was made", refunds.confirm(id, request));
     }
 }

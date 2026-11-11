@@ -79,7 +79,7 @@ public class TourEvent {
     private EventDetail details;
 
     @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
-    @OrderBy("id ASC")
+    @OrderBy("sortOrder ASC, id ASC")
     private List<EventImage> images = new ArrayList<>();
 
     /** Khởi tạo nội dung nháp với tên, loại và giá; ID và timestamp do DB/JPA sinh. */

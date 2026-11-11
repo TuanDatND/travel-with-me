@@ -8,7 +8,6 @@ import com.coc.sba_treektour.modules.inventory.repository.InventoryRepository;
 import com.coc.sba_treektour.modules.inventory.service.InventoryService;
 import com.coc.sba_treektour.modules.order.dto.request.CreateOrderItemRequest;
 import com.coc.sba_treektour.modules.order.dto.request.CreateOrderRequest;
-import com.coc.sba_treektour.modules.order.dto.response.OrderItemResponse;
 import com.coc.sba_treektour.modules.order.dto.response.OrderResponse;
 import com.coc.sba_treektour.modules.order.entity.Order;
 import com.coc.sba_treektour.modules.order.entity.OrderItem;
@@ -51,6 +50,12 @@ public class OrderServiceImpl implements OrderService {
         Branch branch = activeBranch(request.branchId());
         Order order = new Order(user, branch,
                 OffsetDateTime.now(), OrderStatus.PENDING, BigDecimal.ZERO);
+        if (user.getFullName() == null || user.getFullName().isBlank()
+                || user.getPhone() == null || !user.getPhone().trim().matches("[+0-9\\s().-]{7,30}")
+                || user.getAddress() == null || user.getAddress().isBlank()) {
+            throw new InvalidOrderException("Please update your profile with your full name, phone number and address before placing an order");
+        }
+        order.setCustomerContact(user.getFullName(), user.getPhone(), user.getAddress());
         // Lock products in ID order to serialize reservations and stock changes.
         request.items().stream().map(CreateOrderItemRequest::productId).distinct().sorted()
                 .forEach(id -> productRepository.lockById(id).orElseThrow(() -> new InvalidOrderException("Product not found: " + id)));
@@ -58,15 +63,6 @@ public class OrderServiceImpl implements OrderService {
             throw new InvalidOrderException("Use one line per product in each order");
         for (var line : request.items()) {
             OrderItem item = toEntity(line);
-            if (item.getItemType() == OrderItemType.RENTAL) {
-                if (inventoryService.availability(branch.getId(), item.getProductId(), item.getRentalStartDate(), item.getRentalEndDate()).quantityRentable() < item.getQuantity())
-                    throw new InvalidOrderException("Not enough rental capacity");
-            } else {
-                var stock = inventoryRepository.lock(branch.getId(), item.getProductId())
-                        .orElseThrow(() -> new InvalidOrderException("No stock at selected branch"));
-                if (!"ACTIVE".equals(stock.getStatus()) || stock.getQuantityAvailable() < item.getQuantity())
-                    throw new InvalidOrderException("Not enough stock");
-            }
             order.addItem(item);
         }
         var total = order.getItems().stream().map(i -> i.getUnitPrice().multiply(BigDecimal.valueOf(i.getQuantity()))
@@ -74,6 +70,7 @@ public class OrderServiceImpl implements OrderService {
                                 ? ChronoUnit.DAYS.between(i.getRentalStartDate(), i.getRentalEndDate()) + 1 : 1)))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         order.update(branch, order.getOrderDate(), OrderStatus.PENDING, total);
+        order.setDeliveryInfo(request.deliveryType(), request.scheduleId(), request.deliveryLocation(), request.deliveryNotes());
         return toResponse(orderRepository.save(order));
     }
 
@@ -89,7 +86,7 @@ public class OrderServiceImpl implements OrderService {
         List<Order> orders = userId == null ? orderRepository.findAll() : orderRepository.findByUser_IdOrderByOrderDateDesc(userId);
         var balances = orderPaymentQueryService.readMany(orders.stream().map(Order::getId).toList());
         var unpaid = OrderPaymentBalance.EMPTY;
-        return orders.stream().map(order -> toResponse(order, balances.getOrDefault(order.getId(), unpaid))).toList();
+        return orders.stream().map(order -> OrderResponse.from(order, balances.getOrDefault(order.getId(), unpaid))).toList();
     }
 
     @Override
@@ -169,22 +166,7 @@ public class OrderServiceImpl implements OrderService {
     }
 
     private OrderResponse toResponse(Order order) {
-        return toResponse(order, orderPaymentQueryService.read(order.getId()));
-    }
-
-    private OrderResponse toResponse(Order order, OrderPaymentBalance balance) {
-        boolean pending = order.getStatus() == OrderStatus.PENDING;
-        return new OrderResponse(order.getId(), order.getUserId(), order.getBranchId(), order.getStatus(),
-                order.getTotalAmount(), order.getOrderDate(), order.getItems().stream().map(item -> new OrderItemResponse(
-                item.getId(), item.getProductId(), item.getItemType(), item.getQuantity(), item.getUnitPrice(),
-                item.getRentalStartDate(), item.getRentalEndDate(), item.getStatus())).toList(),
-                balance.status(order.getTotalAmount()), balance.net(),
-                order.getTotalAmount().subtract(balance.net()).max(BigDecimal.ZERO),
-                pending && balance.paid(order.getTotalAmount()), pending && balance.cancellable(),
-                order.getCustomerReceivedAt(),
-                order.getStatus() == OrderStatus.IN_PROGRESS && order.getCustomerReceivedAt() == null,
-                order.getStatus() == OrderStatus.IN_PROGRESS && order.getCustomerReceivedAt() != null
-                        && order.getItems().stream().anyMatch(item -> item.getStatus() == OrderItemStatus.RENTED));
+        return OrderResponse.from(order, orderPaymentQueryService.read(order.getId()));
     }
 
     @Override
@@ -227,6 +209,8 @@ public class OrderServiceImpl implements OrderService {
         };
         if (order.getStatus() != expected) throw new InvalidOrderException("Order must be " + expected);
         var items = order.getItems().stream().sorted(Comparator.comparing(OrderItem::getProductId)).toList();
+        if (orderPaymentQueryService.read(id).refundPending())
+            throw new InvalidOrderException("Refund is pending; approval and handover are blocked");
         if (action.equals("confirm")) {
             if (!orderPaymentQueryService.read(id).paid(order.getTotalAmount()))
                 throw new InvalidOrderException("Order must be fully paid before admin approval");

@@ -6,6 +6,14 @@ import com.coc.sba_treektour.modules.order.entity.Order;
 import com.coc.sba_treektour.modules.order.enums.OrderStatus;
 import com.coc.sba_treektour.modules.order.repository.OrderRepository;
 import com.coc.sba_treektour.modules.payment.dto.request.RequestRefund;
+import com.coc.sba_treektour.modules.payment.dto.request.ConfirmRefundRequest;
+import com.coc.sba_treektour.modules.order.service.OrderRefundService;
+import com.coc.sba_treektour.modules.order.service.impl.OrderRefundServiceImpl;
+import com.coc.sba_treektour.modules.order.entity.OrderItem;
+import com.coc.sba_treektour.modules.order.enums.OrderItemType;
+import com.coc.sba_treektour.modules.order.enums.OrderItemStatus;
+import java.time.OffsetDateTime;
+import org.springframework.test.util.ReflectionTestUtils;
 import com.coc.sba_treektour.modules.payment.entity.Transaction;
 import com.coc.sba_treektour.modules.payment.repository.TransactionRepository;
 import com.coc.sba_treektour.modules.payment.service.ParticipantPaymentBridge;
@@ -53,7 +61,9 @@ class RefundServiceTests {
     UserRepository users = mock(UserRepository.class);
     EntityManager entities = mock(EntityManager.class);
     EventParticipantRepository participantRepository = mock(EventParticipantRepository.class);
-    RefundServiceImpl service = new RefundServiceImpl(transactions, orders, participants, users, entities, participantRepository);
+    OrderRefundService orderRefundService = mock(OrderRefundService.class);
+    ConfirmRefundRequest confirmation = new ConfirmRefundRequest(" BANK-123 ", " Customer refunded ");
+    RefundServiceImpl service = new RefundServiceImpl(transactions, orders, participants, users, entities, participantRepository, orderRefundService);
     Order order = mock(Order.class);
     User user = User.builder().id(9L).email("owner@test").status("ACTIVE").build();
 
@@ -171,12 +181,16 @@ class RefundServiceTests {
     @Test void confirmationIsIdempotentAndKeepsOriginalPaymentSeparate() {
         login("ADMIN");
         var refund = refund(); find(refund);
-        assertEquals(SUCCEEDED, service.confirm(11L).status());
+        assertEquals(SUCCEEDED, service.confirm(11L, confirmation).status());
         var succeededAt = refund.getSucceededAt();
         assertNotNull(succeededAt);
-        assertEquals(SUCCEEDED, service.confirm(11L).status());
+        assertEquals(SUCCEEDED, service.confirm(11L, confirmation).status());
         assertEquals(succeededAt, refund.getSucceededAt());
         verify(transactions, times(1)).saveAndFlush(refund);
+        verify(orderRefundService, times(1)).completeRefund(order);
+        assertEquals(9L, refund.getRefundConfirmedBy());
+        assertEquals("BANK-123", refund.getRefundTransferReference());
+        assertEquals("Customer refunded", refund.getRefundConfirmationNote());
         var locks = inOrder(orders, transactions);
         locks.verify(orders).lockById(5L);
         locks.verify(transactions).findByIdForUpdate(11L);
@@ -185,14 +199,44 @@ class RefundServiceTests {
     @Test void staleBalanceAndChangedOrderStateBlockConfirmation() {
         var refund = refund(); find(refund);
         when(transactions.totalAmount(5L, "REFUND", SUCCEEDED)).thenReturn(BigDecimal.ONE);
-        assertThrows(ResponseStatusException.class, () -> service.confirm(11L));
+        assertThrows(ResponseStatusException.class, () -> service.confirm(11L, confirmation));
         when(order.getStatus()).thenReturn(OrderStatus.IN_PROGRESS);
-        assertThrows(ResponseStatusException.class, () -> service.confirm(11L));
+        assertThrows(ResponseStatusException.class, () -> service.confirm(11L, confirmation));
         assertEquals(PENDING, refund.getStatus());
+    }
+    @Test void successfulFullRefundCancelsRealOrderAndItemsAndPreservesAuditOnRetry() {
+        Order pending = new Order(user, null, OffsetDateTime.now(), OrderStatus.PENDING, new BigDecimal("1000"));
+        ReflectionTestUtils.setField(pending, "id", 5L);
+        OrderItem item = new OrderItem(2L, OrderItemType.SALE, 1, new BigDecimal("1000"), null, null, OrderItemStatus.PENDING);
+        pending.addItem(item);
+        when(orders.lockById(5L)).thenReturn(Optional.of(pending));
+        Transaction refund = refund();
+        refund.setOrder(pending);
+        find(refund);
+        RefundServiceImpl integrated = new RefundServiceImpl(transactions, orders, participants, users, entities,
+                participantRepository, new OrderRefundServiceImpl());
+
+        integrated.confirm(11L, confirmation);
+        integrated.confirm(11L, new ConfirmRefundRequest("RETRY-MUST-NOT-OVERWRITE", "different"));
+
+        assertEquals(OrderStatus.CANCELLED, pending.getStatus());
+        assertEquals(OrderItemStatus.CANCELLED, item.getStatus());
+        assertEquals(SUCCEEDED, refund.getStatus());
+        assertEquals("BANK-123", refund.getRefundTransferReference());
+        verify(transactions, times(1)).saveAndFlush(refund);
+    }
+    @Test void smallerRefundCannotCancelAnOrderWithMoneyRemaining() {
+        Transaction refund = refund();
+        refund.setAmount(new BigDecimal("500"));
+        find(refund);
+        assertThrows(ResponseStatusException.class, () -> service.confirm(11L, confirmation));
+        assertEquals(PENDING, refund.getStatus());
+        verify(orderRefundService, never()).completeRefund(any());
+        verify(transactions, never()).saveAndFlush(any());
     }
     @Test void cannotConfirmPaymentAsRefund() {
         var refund = refund(); refund.setTransactionType("PAYMENT"); find(refund);
-        assertThrows(ResponseStatusException.class, () -> service.confirm(11L));
+        assertThrows(ResponseStatusException.class, () -> service.confirm(11L, confirmation));
         verify(transactions, never()).saveAndFlush(any());
     }
     @Configuration
@@ -204,7 +248,7 @@ class RefundServiceTests {
             context.registerBean(RefundService.class, () -> service);
             context.refresh();
             var secured = context.getBean(RefundService.class);
-            assertThrows(AccessDeniedException.class, () -> secured.confirm(11L));
+            assertThrows(AccessDeniedException.class, () -> secured.confirm(11L, confirmation));
             assertThrows(AccessDeniedException.class, () -> secured.list(PENDING, 0, 20));
             login("STAFF");
             assertThrows(AccessDeniedException.class, () -> secured.request(new RequestRefund(5L, null, "Không còn nhu cầu")));
@@ -212,12 +256,15 @@ class RefundServiceTests {
             assertThrows(AccessDeniedException.class, () -> secured.preview(5L, null));
             login("ADMIN");
             var refund = refund(); find(refund);
-            assertEquals(SUCCEEDED, secured.confirm(11L).status());
+            assertEquals(SUCCEEDED, secured.confirm(11L, confirmation).status());
         }
     }
     @Test void dtoRejectsBothTargetsMissingTargetsAndNonpositiveIds() {
         try (var factory = Validation.buildDefaultValidatorFactory()) {
             var validator = factory.getValidator();
+            assertFalse(validator.validate(new ConfirmRefundRequest(" ", null)).isEmpty());
+            assertFalse(validator.validate(new ConfirmRefundRequest("x".repeat(201), null)).isEmpty());
+            assertFalse(validator.validate(new ConfirmRefundRequest("BANK-123", "x".repeat(2001))).isEmpty());
             assertFalse(validator.validate(new RequestRefund(5L, null, "  ")).isEmpty());
             assertFalse(validator.validate(new RequestRefund(5L, null, "x".repeat(2001))).isEmpty());
             assertFalse(validator.validate(new RequestRefund(null, null, "Không còn nhu cầu")).isEmpty());

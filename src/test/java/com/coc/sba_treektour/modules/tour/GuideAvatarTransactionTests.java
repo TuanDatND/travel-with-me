@@ -13,6 +13,8 @@ import static org.mockito.Mockito.when;
 import com.coc.sba_treektour.modules.tour.storage.CloudinaryImageStorage;
 import com.coc.sba_treektour.modules.tour.validator.ImageValidator;
 import com.coc.sba_treektour.modules.tour.entity.TourGuide;
+import com.coc.sba_treektour.modules.tour.enums.GuideStatus;
+import com.coc.sba_treektour.modules.tour.exception.TourException;
 import com.coc.sba_treektour.modules.tour.repository.AccountReadRepository;
 import com.coc.sba_treektour.modules.tour.repository.GuideRepository;
 import com.coc.sba_treektour.modules.tour.service.GuideService;
@@ -72,7 +74,7 @@ class GuideAvatarTransactionTests {
         assertThatThrownBy(
                         () ->
                                 service.uploadAvatar(
-                                        1L, new MockMultipartFile("file", new byte[] {1})))
+                                         1L, new MockMultipartFile("file", new byte[] {1})))
                 .isInstanceOf(IllegalStateException.class);
         TransactionSynchronizationManager.getSynchronizations()
                 .forEach(s -> s.afterCompletion(TransactionSynchronization.STATUS_ROLLED_BACK));
@@ -109,5 +111,56 @@ class GuideAvatarTransactionTests {
                                         .forEach(TransactionSynchronization::afterCommit))
                 .doesNotThrowAnyException();
         assertThat(guide.getAvatarPublicId()).isEqualTo("guides/new");
+    }
+
+    @Test
+    void activateGuideFailsWhenAccountIsActiveStaff() {
+        var accounts = mock(AccountReadRepository.class);
+        when(accounts.findAll(List.of(2L)))
+                .thenReturn(Map.of(2L, new AccountReadRepository.Account(2L, "Staff User", true, true, false)));
+        var svc = new GuideServiceImpl(guides, accounts, storage, mock(ImageValidator.class));
+        guide.setStatus(GuideStatus.INACTIVE);
+
+        assertThatThrownBy(() -> svc.status(1L, GuideStatus.ACTIVE))
+                .isInstanceOf(TourException.class)
+                .hasMessageContaining("Staff (STAFF)");
+    }
+
+    @Test
+    void activateGuideFailsWhenAccountIsBlocked() {
+        var accounts = mock(AccountReadRepository.class);
+        when(accounts.findAll(List.of(2L)))
+                .thenReturn(Map.of(2L, new AccountReadRepository.Account(2L, "Blocked User", false, false, true)));
+        var svc = new GuideServiceImpl(guides, accounts, storage, mock(ImageValidator.class));
+        guide.setStatus(GuideStatus.INACTIVE);
+
+        assertThatThrownBy(() -> svc.status(1L, GuideStatus.ACTIVE))
+                .isInstanceOf(TourException.class)
+                .hasMessageContaining("blocked");
+    }
+
+    @Test
+    void activateGuideSucceedsAndSyncsRoleEvenIfAccountWasInactive() {
+        var accounts = mock(AccountReadRepository.class);
+        when(accounts.findAll(List.of(2L)))
+                .thenReturn(Map.of(2L, new AccountReadRepository.Account(2L, "Inactive Guide User", false, false, false)));
+        var svc = new GuideServiceImpl(guides, accounts, storage, mock(ImageValidator.class));
+        guide.setStatus(GuideStatus.INACTIVE);
+
+        svc.status(1L, GuideStatus.ACTIVE);
+        verify(accounts).syncGuideRole(2L);
+        assertThat(guide.getStatus()).isEqualTo(GuideStatus.ACTIVE);
+    }
+
+    @Test
+    void deactivateGuideCallsDeactivateGuideUser() {
+        var accounts = mock(AccountReadRepository.class);
+        when(accounts.findAll(List.of(2L)))
+                .thenReturn(Map.of(2L, new AccountReadRepository.Account(2L, "Guide User", true, false, false)));
+        var svc = new GuideServiceImpl(guides, accounts, storage, mock(ImageValidator.class));
+
+        svc.status(1L, GuideStatus.INACTIVE);
+        verify(accounts).deactivateGuideUser(2L);
+        assertThat(guide.getStatus()).isEqualTo(GuideStatus.INACTIVE);
     }
 }

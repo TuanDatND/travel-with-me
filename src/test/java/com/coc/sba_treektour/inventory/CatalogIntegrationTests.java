@@ -3,11 +3,15 @@ package com.coc.sba_treektour.inventory;
 import com.coc.sba_treektour.common.config.JwtService;
 import com.coc.sba_treektour.modules.account.entity.User;
 import com.coc.sba_treektour.modules.account.repository.UserRepository;
-import com.coc.sba_treektour.modules.inventory.dto.InventoryDtos.AdjustRequest;
+import com.coc.sba_treektour.common.exception.CatalogException;
+import com.coc.sba_treektour.modules.inventory.dto.request.AdjustRequest;
+import com.coc.sba_treektour.modules.inventory.dto.request.RentalBookingRequest;
+import com.coc.sba_treektour.modules.inventory.enums.InventoryStatus;
 import com.coc.sba_treektour.modules.inventory.repository.InventoryRepository;
 import com.coc.sba_treektour.modules.inventory.service.InventoryService;
-import com.coc.sba_treektour.modules.product.dto.ProductDtos.*;
-import com.coc.sba_treektour.modules.product.service.*;
+import com.coc.sba_treektour.modules.product.dto.request.ProductRequest;
+import com.coc.sba_treektour.modules.product.enums.ProductStatus;
+import com.coc.sba_treektour.modules.product.service.ProductService;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -63,7 +67,7 @@ class CatalogIntegrationTests {
     @Test
     void publicSearchFiltersModesPricesAndHidesInactive() throws Exception {
         var hidden = products.create(new ProductRequest("HIDDEN-CATALOG", "Camping", null, BigDecimal.ONE));
-        products.status(hidden.id(), Status.INACTIVE);
+        products.status(hidden.id(), ProductStatus.INACTIVE);
         mvc.perform(get("/api/products").param("keyword", "Lều thử").param("category", "camping")
                 .param("mode", "RENTAL").param("minPrice", "100000").param("maxPrice", "150000"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.totalElements").value(1));
@@ -109,7 +113,7 @@ class CatalogIntegrationTests {
         products.update(product, new ProductRequest("Rental only", "Camping", null, BigDecimal.TEN));
         mvc.perform(get("/api/inventory/sale-availability").param("branchId", branch.toString())
                 .param("productId", product.toString())).andExpect(status().isConflict());
-        products.status(product, Status.INACTIVE);
+        products.status(product, ProductStatus.INACTIVE);
         mvc.perform(get("/api/inventory/sale-availability").param("branchId", branch.toString())
                 .param("productId", product.toString())).andExpect(status().isNotFound());
     }
@@ -253,7 +257,7 @@ class CatalogIntegrationTests {
                 context.setAuthentication(new UsernamePasswordAuthenticationToken(customer, null, customer.getAuthorities()));
                 SecurityContextHolder.setContext(context);
                 try {
-                    bookings.book(new com.coc.sba_treektour.modules.inventory.dto.InventoryDtos.RentalBookingRequest(
+                    bookings.book(new RentalBookingRequest(
                             branch, product, 1, LocalDate.now(), LocalDate.now()));
                     successes.incrementAndGet();
                 } catch (CatalogException expected) { assertThat(expected.status().value()).isEqualTo(409); }
@@ -288,7 +292,7 @@ class CatalogIntegrationTests {
         LocalDate day = LocalDate.now().plusDays(1);
         reservation(day, day, 3, "IN_PROGRESS", "RENTED");
         assertThat(inventory.availability(branch, product, day, day).quantityRentable()).isEqualTo(7);
-        inventory.status(branch, product, Status.INACTIVE);
+        inventory.status(branch, product, InventoryStatus.INACTIVE);
         assertThat(inventory.availability(branch, product, day, day).quantityRentable()).isZero();
     }
 
