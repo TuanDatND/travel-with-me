@@ -14,5 +14,13 @@ public record CreateOrderRequest(
         OffsetDateTime orderDate,
         OrderStatus status,
         BigDecimal totalAmount,
-        @NotEmpty List<@NotNull @Valid CreateOrderItemRequest> items) {
+        @NotEmpty List<@NotNull @Valid CreateOrderItemRequest> items,
+        String deliveryType,
+        Long scheduleId,
+        String deliveryLocation,
+        String deliveryNotes) {
+
+    public CreateOrderRequest(Long branchId, OffsetDateTime orderDate, OrderStatus status, BigDecimal totalAmount, List<CreateOrderItemRequest> items) {
+        this(branchId, orderDate, status, totalAmount, items, "STORE_PICKUP", null, null, null);
+    }
 }

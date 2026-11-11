@@ -15,7 +15,17 @@ public record OrderResponse(
         String paymentStatus, BigDecimal paidAmount, BigDecimal remainingAmount,
         boolean canApprove, boolean canCancel,
         OffsetDateTime customerReceivedAt, boolean canConfirmReceipt, boolean canReturn, boolean refundPending,
-        String customerName, String customerPhone, String customerAddress, String customerEmail) {
+        String deliveryType, Long scheduleId, String deliveryLocation, String deliveryNotes) {
+
+    public OrderResponse(Long id, Long userId, Long branchId, OrderStatus status,
+                         BigDecimal totalAmount, OffsetDateTime orderDate, List<OrderItemResponse> items,
+                         String paymentStatus, BigDecimal paidAmount, BigDecimal remainingAmount,
+                         boolean canApprove, boolean canCancel,
+                         OffsetDateTime customerReceivedAt, boolean canConfirmReceipt, boolean canReturn, boolean refundPending) {
+        this(id, userId, branchId, status, totalAmount, orderDate, items, paymentStatus, paidAmount, remainingAmount,
+                canApprove, canCancel, customerReceivedAt, canConfirmReceipt, canReturn, refundPending,
+                "STORE_PICKUP", null, null, null);
+    }
 
     public static OrderResponse from(Order order, OrderPaymentBalance balance) {
         boolean pending = order.getStatus() == OrderStatus.PENDING;
@@ -30,8 +40,9 @@ public record OrderResponse(
                 order.getStatus() == OrderStatus.IN_PROGRESS && order.getCustomerReceivedAt() == null,
                 order.getStatus() == OrderStatus.IN_PROGRESS && order.getCustomerReceivedAt() != null
                         && order.getItems().stream().anyMatch(item -> item.getStatus() == OrderItemStatus.RENTED), balance.refundPending(),
-                order.getCustomerName() != null ? order.getCustomerName() : order.getUser() == null ? null : order.getUser().getFullName(),
-                order.getCustomerPhone() != null ? order.getCustomerPhone() : order.getUser() == null ? null : order.getUser().getPhone(),
-                order.getCustomerAddress(), order.getUser() == null ? null : order.getUser().getEmail());
+                order.getDeliveryType() != null ? order.getDeliveryType() : "STORE_PICKUP",
+                order.getScheduleId(),
+                order.getDeliveryLocation(),
+                order.getDeliveryNotes());
     }
 }

@@ -75,6 +75,25 @@ public class Order {
     @Column(name = "total_amount", nullable = false, precision = 18, scale = 2)
     private BigDecimal totalAmount = BigDecimal.ZERO;
 
+    @Column(name = "delivery_type", length = 30)
+    private String deliveryType = "STORE_PICKUP";
+
+    @Column(name = "schedule_id")
+    private Long scheduleId;
+
+    @Column(name = "delivery_location")
+    private String deliveryLocation;
+
+    @Column(name = "delivery_notes")
+    private String deliveryNotes;
+
+    public void setDeliveryInfo(String deliveryType, Long scheduleId, String deliveryLocation, String deliveryNotes) {
+        this.deliveryType = deliveryType != null && !deliveryType.isBlank() ? deliveryType : "STORE_PICKUP";
+        this.scheduleId = scheduleId;
+        this.deliveryLocation = deliveryLocation;
+        this.deliveryNotes = deliveryNotes;
+    }
+
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> items = new ArrayList<>();
 
