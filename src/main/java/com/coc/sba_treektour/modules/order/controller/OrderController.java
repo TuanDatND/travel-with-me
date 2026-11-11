@@ -44,6 +44,12 @@ public class OrderController {
         return ApiResponse.success(orderService.findMyOrders(principal.getName()));
     }
 
+    @GetMapping("/schedule/{scheduleId}")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'STAFF', 'GUIDE')")
+    public ApiResponse<List<OrderResponse>> findBySchedule(@PathVariable Long scheduleId) {
+        return ApiResponse.success(orderService.findBySchedule(scheduleId));
+    }
+
     @GetMapping("/{id}")
     public ApiResponse<OrderResponse> findById(@PathVariable Long id, Principal principal) {
         return ApiResponse.success(orderService.findMyOrder(id, principal.getName()));
@@ -70,9 +76,9 @@ public class OrderController {
         return ApiResponse.success("Receipt confirmed", orderService.confirmReceipt(id, principal.getName()));
     }
 
-    @PostMapping("/{id}/{action:confirm|hand-over|return}")
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PostMapping("/{id}/{action:confirm|guide-pickup|hand-over|return}")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'STAFF', 'GUIDE')")
     public ApiResponse<OrderResponse> operate(@PathVariable Long id, @PathVariable String action) {
-        return ApiResponse.success(orderService.operate(id, action));
+        return ApiResponse.success(orderService.operateAsActor(id, action));
     }
 }

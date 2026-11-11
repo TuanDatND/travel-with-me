@@ -21,19 +21,20 @@ import com.coc.sba_treektour.modules.order.service.OrderService;
 import com.coc.sba_treektour.modules.payment.dto.response.OrderPaymentBalance;
 import com.coc.sba_treektour.modules.payment.service.OrderPaymentQueryService;
 import com.coc.sba_treektour.modules.product.repository.ProductRepository;
+import com.coc.sba_treektour.modules.schedule.repository.EventScheduleRepository;
+import com.coc.sba_treektour.modules.schedule.security.ScheduleAccessPolicy;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@RequiredArgsConstructor
 public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final UserRepository userRepository;
@@ -42,6 +43,41 @@ public class OrderServiceImpl implements OrderService {
     private final InventoryService inventoryService;
     private final InventoryRepository inventoryRepository;
     private final OrderPaymentQueryService orderPaymentQueryService;
+    private final EventScheduleRepository eventScheduleRepository;
+    private final ScheduleAccessPolicy scheduleAccessPolicy;
+
+    public OrderServiceImpl(
+            OrderRepository orderRepository,
+            UserRepository userRepository,
+            BranchRepository branchRepository,
+            ProductRepository productRepository,
+            InventoryService inventoryService,
+            InventoryRepository inventoryRepository,
+            OrderPaymentQueryService orderPaymentQueryService) {
+        this(orderRepository, userRepository, branchRepository, productRepository, inventoryService, inventoryRepository, orderPaymentQueryService, null, null);
+    }
+
+    @Autowired
+    public OrderServiceImpl(
+            OrderRepository orderRepository,
+            UserRepository userRepository,
+            BranchRepository branchRepository,
+            ProductRepository productRepository,
+            InventoryService inventoryService,
+            InventoryRepository inventoryRepository,
+            OrderPaymentQueryService orderPaymentQueryService,
+            EventScheduleRepository eventScheduleRepository,
+            ScheduleAccessPolicy scheduleAccessPolicy) {
+        this.orderRepository = orderRepository;
+        this.userRepository = userRepository;
+        this.branchRepository = branchRepository;
+        this.productRepository = productRepository;
+        this.inventoryService = inventoryService;
+        this.inventoryRepository = inventoryRepository;
+        this.orderPaymentQueryService = orderPaymentQueryService;
+        this.eventScheduleRepository = eventScheduleRepository;
+        this.scheduleAccessPolicy = scheduleAccessPolicy;
+    }
 
     @Override
     @Transactional
@@ -201,9 +237,11 @@ public class OrderServiceImpl implements OrderService {
     @Transactional
     public OrderResponse operate(Long id, String action) {
         Order order = orderRepository.lockById(id).orElseThrow(() -> new OrderNotFoundException(id));
+        boolean isTourDelivery = "TOUR_DELIVERY".equals(order.getDeliveryType());
         OrderStatus expected = switch (action) {
             case "confirm" -> OrderStatus.PENDING;
-            case "hand-over" -> OrderStatus.CONFIRMED;
+            case "guide-pickup" -> OrderStatus.CONFIRMED;
+            case "hand-over" -> isTourDelivery ? OrderStatus.WITH_GUIDE : OrderStatus.CONFIRMED;
             case "return" -> OrderStatus.IN_PROGRESS;
             default -> throw new InvalidOrderException("Invalid action");
         };
@@ -216,19 +254,18 @@ public class OrderServiceImpl implements OrderService {
                 throw new InvalidOrderException("Order must be fully paid before admin approval");
             order.setStatus(OrderStatus.CONFIRMED);
             items.forEach(i -> i.setStatus(OrderItemStatus.CONFIRMED));
+        } else if (action.equals("guide-pickup")) {
+            if (!isTourDelivery)
+                throw new InvalidOrderException("Only tour delivery orders can be dispatched to a guide");
+            if (!orderPaymentQueryService.read(id).paid(order.getTotalAmount()))
+                throw new InvalidOrderException("Order is no longer fully paid; cannot dispatch equipment to guide");
+            fulfillItemsOutOfStore(order.getBranchId(), items, false);
+            order.setStatus(OrderStatus.WITH_GUIDE);
         } else if (action.equals("hand-over")) {
             if (!orderPaymentQueryService.read(id).paid(order.getTotalAmount()))
                 throw new InvalidOrderException("Order is no longer fully paid; cannot hand over equipment");
-            for (var i : items) {
-                if (i.getItemType() == OrderItemType.SALE) {
-                    inventoryService.fulfillSale(order.getBranchId(), i.getProductId(), i.getQuantity());
-                    i.setStatus(OrderItemStatus.FULFILLED);
-                } else {
-                    if (i.getRentalStartDate().isAfter(LocalDate.now()))
-                        throw new InvalidOrderException("Rental has not started yet");
-                    inventoryService.handOutRental(order.getBranchId(), i.getProductId(), i.getQuantity());
-                    i.setStatus(OrderItemStatus.RENTED);
-                }
+            if (!isTourDelivery) {
+                fulfillItemsOutOfStore(order.getBranchId(), items, true);
             }
             order.setStatus(OrderStatus.IN_PROGRESS);
         } else {
@@ -244,5 +281,56 @@ public class OrderServiceImpl implements OrderService {
             order.setStatus(OrderStatus.COMPLETED);
         }
         return toResponse(order);
+    }
+
+    private void fulfillItemsOutOfStore(Long branchId, List<OrderItem> items, boolean checkRentalStartDate) {
+        for (var i : items) {
+            if (i.getStatus() == OrderItemStatus.FULFILLED || i.getStatus() == OrderItemStatus.RENTED) {
+                continue;
+            }
+            if (i.getItemType() == OrderItemType.SALE) {
+                inventoryService.fulfillSale(branchId, i.getProductId(), i.getQuantity());
+                i.setStatus(OrderItemStatus.FULFILLED);
+            } else {
+                if (checkRentalStartDate && i.getRentalStartDate().isAfter(LocalDate.now()))
+                    throw new InvalidOrderException("Rental has not started yet");
+                inventoryService.handOutRental(branchId, i.getProductId(), i.getQuantity());
+                i.setStatus(OrderItemStatus.RENTED);
+            }
+        }
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<OrderResponse> findBySchedule(Long scheduleId) {
+        var schedule = eventScheduleRepository.findById(scheduleId)
+                .orElseThrow(() -> new InvalidOrderException("Schedule not found: " + scheduleId));
+        scheduleAccessPolicy.requireAssignedGuideOrManager(schedule);
+        List<Order> orders = orderRepository.findByScheduleIdAndDeliveryTypeOrderByOrderDateDesc(scheduleId, "TOUR_DELIVERY");
+        var balances = orderPaymentQueryService.readMany(orders.stream().map(Order::getId).toList());
+        var unpaid = OrderPaymentBalance.EMPTY;
+        return orders.stream().map(order -> OrderResponse.from(order, balances.getOrDefault(order.getId(), unpaid))).toList();
+    }
+
+    @Override
+    @Transactional
+    public OrderResponse operateAsActor(Long id, String action) {
+        if (scheduleAccessPolicy != null && !scheduleAccessPolicy.hasRole("ADMIN")) {
+            Order order = findEntity(id);
+            if (scheduleAccessPolicy.hasRole("STAFF")) {
+                scheduleAccessPolicy.requireManager(order.getBranchId());
+            } else {
+                if (!"TOUR_DELIVERY".equals(order.getDeliveryType()) || order.getScheduleId() == null) {
+                    throw new AccessDeniedException("Only tour delivery orders for an assigned schedule can be managed here");
+                }
+                var schedule = eventScheduleRepository.findById(order.getScheduleId())
+                        .orElseThrow(() -> new InvalidOrderException("Schedule not found: " + order.getScheduleId()));
+                scheduleAccessPolicy.requireAssignedGuideOrManager(schedule);
+                if ("confirm".equals(action) || "guide-pickup".equals(action)) {
+                    throw new AccessDeniedException("Only store staff or admins can approve orders and dispatch gear to the guide");
+                }
+            }
+        }
+        return operate(id, action);
     }
 }

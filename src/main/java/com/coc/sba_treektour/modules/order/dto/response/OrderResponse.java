@@ -15,7 +15,8 @@ public record OrderResponse(
         String paymentStatus, BigDecimal paidAmount, BigDecimal remainingAmount,
         boolean canApprove, boolean canCancel,
         OffsetDateTime customerReceivedAt, boolean canConfirmReceipt, boolean canReturn, boolean refundPending,
-        String deliveryType, Long scheduleId, String deliveryLocation, String deliveryNotes) {
+        String deliveryType, Long scheduleId, String deliveryLocation, String deliveryNotes,
+        String customerName, String customerPhone, String customerAddress, String customerEmail) {
 
     public OrderResponse(Long id, Long userId, Long branchId, OrderStatus status,
                          BigDecimal totalAmount, OffsetDateTime orderDate, List<OrderItemResponse> items,
@@ -24,11 +25,23 @@ public record OrderResponse(
                          OffsetDateTime customerReceivedAt, boolean canConfirmReceipt, boolean canReturn, boolean refundPending) {
         this(id, userId, branchId, status, totalAmount, orderDate, items, paymentStatus, paidAmount, remainingAmount,
                 canApprove, canCancel, customerReceivedAt, canConfirmReceipt, canReturn, refundPending,
-                "STORE_PICKUP", null, null, null);
+                "STORE_PICKUP", null, null, null, null, null, null, null);
+    }
+
+    public OrderResponse(Long id, Long userId, Long branchId, OrderStatus status,
+                         BigDecimal totalAmount, OffsetDateTime orderDate, List<OrderItemResponse> items,
+                         String paymentStatus, BigDecimal paidAmount, BigDecimal remainingAmount,
+                         boolean canApprove, boolean canCancel,
+                         OffsetDateTime customerReceivedAt, boolean canConfirmReceipt, boolean canReturn, boolean refundPending,
+                         String deliveryType, Long scheduleId, String deliveryLocation, String deliveryNotes) {
+        this(id, userId, branchId, status, totalAmount, orderDate, items, paymentStatus, paidAmount, remainingAmount,
+                canApprove, canCancel, customerReceivedAt, canConfirmReceipt, canReturn, refundPending,
+                deliveryType, scheduleId, deliveryLocation, deliveryNotes, null, null, null, null);
     }
 
     public static OrderResponse from(Order order, OrderPaymentBalance balance) {
         boolean pending = order.getStatus() == OrderStatus.PENDING;
+        var user = order.getUser();
         return new OrderResponse(order.getId(), order.getUserId(), order.getBranchId(), order.getStatus(),
                 order.getTotalAmount(), order.getOrderDate(), order.getItems().stream().map(item -> new OrderItemResponse(
                 item.getId(), item.getProductId(), item.getItemType(), item.getQuantity(), item.getUnitPrice(),
@@ -43,6 +56,10 @@ public record OrderResponse(
                 order.getDeliveryType() != null ? order.getDeliveryType() : "STORE_PICKUP",
                 order.getScheduleId(),
                 order.getDeliveryLocation(),
-                order.getDeliveryNotes());
+                order.getDeliveryNotes(),
+                order.getCustomerName() != null ? order.getCustomerName() : (user != null ? user.getFullName() : null),
+                order.getCustomerPhone() != null ? order.getCustomerPhone() : (user != null ? user.getPhone() : null),
+                order.getCustomerAddress() != null ? order.getCustomerAddress() : (user != null ? user.getAddress() : null),
+                user != null ? user.getEmail() : null);
     }
 }
