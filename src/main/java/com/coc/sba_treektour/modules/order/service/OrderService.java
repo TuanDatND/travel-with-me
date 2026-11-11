@@ -11,6 +11,8 @@ public interface OrderService {
 
     List<OrderResponse> findAll(Long userId);
 
+    List<OrderResponse> findBySchedule(Long scheduleId);
+
     OrderResponse update(Long id, CreateOrderRequest request, String email);
 
     void delete(Long id, String email);
@@ -22,6 +24,8 @@ public interface OrderService {
     OrderResponse cancel(Long id, String email);
 
     OrderResponse operate(Long id, String action);
+
+    OrderResponse operateAsActor(Long id, String action);
 
     OrderResponse confirmReceipt(Long id, String email);
 }
