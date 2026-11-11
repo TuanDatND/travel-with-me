@@ -8,6 +8,7 @@ import com.coc.sba_treektour.modules.account.dto.response.AuthResponse;
 import com.coc.sba_treektour.modules.account.entity.Role;
 import com.coc.sba_treektour.modules.account.entity.User;
 import com.coc.sba_treektour.modules.account.enums.UserStatus;
+import com.coc.sba_treektour.modules.account.exception.AccountConflictException;
 import com.coc.sba_treektour.modules.account.exception.InvalidAccountException;
 import com.coc.sba_treektour.modules.account.exception.UserNotFoundException;
 import com.coc.sba_treektour.modules.account.repository.RoleRepository;
@@ -46,15 +47,25 @@ public class AuthServiceImpl implements AuthService {
         User user;
 
         if (existingUser != null) {
-            if (!UserStatus.INACTIVE.name().equals(existingUser.getStatus())) {
-                throw new InvalidAccountException("Email is already in use in the system!");
+            if (UserStatus.ACTIVE.name().equals(existingUser.getStatus())) {
+                throw new AccountConflictException("Email is already in use in the system!");
+            }
+            if (UserStatus.BLOCKED.name().equals(existingUser.getStatus())) {
+                throw new InvalidAccountException("Your account has been permanently blocked. Please contact support.");
+            }
+            String existingRole = existingUser.getRole() != null ? existingUser.getRole().getName() : "";
+            if (Roles.ADMIN.equals(existingRole)) {
+                throw new AccountConflictException("This email belongs to an Administrator account!");
             }
             Long existingId = existingUser.getId();
-            if (existingId != null && (userRepository.hasActiveGuideProfile(existingId) || userRepository.hasActiveStaffProfile(existingId))) {
-                throw new InvalidAccountException("This email belongs to an active staff member or tour guide!");
+            if (existingId != null) {
+                if (userRepository.hasActiveStaffProfile(existingId) || userRepository.hasActiveGuideProfile(existingId)) {
+                    throw new AccountConflictException("Email is already in use in the system!");
+                }
+                userRepository.deleteInactiveStaffByUserId(existingId);
+                userRepository.deleteUnreferencedInactiveGuidesByUserId(existingId);
             }
             existingUser.setFullName(request.getFullName().trim());
-            existingUser.setEmail(normalizedEmail);
             existingUser.setPhone(request.getPhone() != null && !request.getPhone().isBlank() ? request.getPhone().trim() : null);
             existingUser.setPassword(passwordEncoder.encode(request.getPassword()));
             existingUser.setRole(userRole);

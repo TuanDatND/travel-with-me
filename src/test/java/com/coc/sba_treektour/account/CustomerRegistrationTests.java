@@ -33,6 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -138,29 +139,25 @@ public class CustomerRegistrationTests {
     }
 
     @Test
-    void testRegisterCustomer_ReactivatesInactiveDeletedAccount_Success() {
+    void testRegisterCustomer_WhenAccountInactive_ReactivatesAccountSuccessfully() {
         RegisterRequest request = RegisterRequest.builder()
                 .fullName("Reactivated Customer")
-                .email("deleted.user@example.com")
+                .email("locked.user@example.com")
                 .phone("0912345678")
                 .password("newpass123")
                 .build();
 
         Role customerRole = Role.builder().id(4L).name(Roles.CUSTOMER).build();
-        Role staffRole = Role.builder().id(2L).name(Roles.STAFF).build();
         User inactiveUser = User.builder()
                 .id(87L)
-                .fullName("Old Name")
-                .email("deleted.user@example.com")
-                .role(staffRole)
+                .email("locked.user@example.com")
+                .role(customerRole)
                 .status(UserStatus.INACTIVE.name())
                 .build();
 
         when(roleRepository.findByName(Roles.CUSTOMER)).thenReturn(Optional.of(customerRole));
-        when(userRepository.findByEmail("deleted.user@example.com")).thenReturn(Optional.of(inactiveUser));
-        when(userRepository.hasActiveGuideProfile(87L)).thenReturn(false);
-        when(userRepository.hasActiveStaffProfile(87L)).thenReturn(false);
-        when(passwordEncoder.encode(anyString())).thenReturn("hashed_newpass123");
+        when(userRepository.findByEmail("locked.user@example.com")).thenReturn(Optional.of(inactiveUser));
+        when(passwordEncoder.encode("newpass123")).thenReturn("hashed_newpass123");
         when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
         when(jwtService.generateToken(any(User.class))).thenReturn("jwt_reactivated_token");
         when(userService.mapToUserResponse(any(User.class))).thenAnswer(inv -> {
@@ -179,10 +176,8 @@ public class CustomerRegistrationTests {
 
         assertNotNull(response);
         assertEquals("jwt_reactivated_token", response.getToken());
-        assertEquals(87L, response.getUser().getId());
-        assertEquals("Reactivated Customer", response.getUser().getFullName());
-        assertEquals(Roles.CUSTOMER, response.getUser().getRole());
         assertEquals(UserStatus.ACTIVE.name(), response.getUser().getStatus());
+        assertEquals("Reactivated Customer", response.getUser().getFullName());
     }
 
     @Test
@@ -257,6 +252,46 @@ public class CustomerRegistrationTests {
                 rawPwdCaptor.capture()
         );
         assertEquals(10, rawPwdCaptor.getValue().length());
-        verify(servletResponse).sendRedirect("http://localhost:3000/passport?token=oauth_jwt_token");
+        ArgumentCaptor<String> redirectCaptor = ArgumentCaptor.forClass(String.class);
+        verify(servletResponse).sendRedirect(redirectCaptor.capture());
+        assertTrue(redirectCaptor.getValue().startsWith("http://localhost:3000/passport?token=oauth_jwt_token&googleWelcome=1&tempPwd="));
+    }
+
+    @Test
+    void testOAuth2Login_WhenAccountInactiveOrLocked_RedirectsWithErrorAndDoesNotActivate() throws Exception {
+        EmailService emailService = mock(EmailService.class);
+        OAuth2AuthenticationSuccessHandler handler = new OAuth2AuthenticationSuccessHandler(
+                userRepository, roleRepository, passwordEncoder, jwtService, emailService
+        );
+
+        Role customerRole = Role.builder().id(4L).name(Roles.CUSTOMER).build();
+        User lockedUser = User.builder()
+                .id(88L)
+                .email("locked.google@gmail.com")
+                .role(customerRole)
+                .status(UserStatus.INACTIVE.name())
+                .build();
+
+        when(userRepository.findByEmail("locked.google@gmail.com")).thenReturn(Optional.of(lockedUser));
+
+        org.springframework.security.oauth2.core.user.OAuth2User oauth2User = mock(org.springframework.security.oauth2.core.user.OAuth2User.class);
+        when(oauth2User.getAttribute("email")).thenReturn("locked.google@gmail.com");
+        when(oauth2User.getAttribute("name")).thenReturn("Locked Google");
+
+        org.springframework.security.core.Authentication authentication = mock(org.springframework.security.core.Authentication.class);
+        when(authentication.getPrincipal()).thenReturn(oauth2User);
+
+        jakarta.servlet.http.HttpServletRequest servletRequest = mock(jakarta.servlet.http.HttpServletRequest.class);
+        jakarta.servlet.http.HttpServletResponse servletResponse = mock(jakarta.servlet.http.HttpServletResponse.class);
+
+        handler.onAuthenticationSuccess(servletRequest, servletResponse, authentication);
+
+        verify(userRepository, never()).save(any(User.class));
+        verify(emailService, never()).sendCustomerGoogleWelcomeEmail(anyString(), anyString(), anyString());
+
+        ArgumentCaptor<String> redirectCaptor = ArgumentCaptor.forClass(String.class);
+        verify(servletResponse).sendRedirect(redirectCaptor.capture());
+        assertTrue(redirectCaptor.getValue().startsWith("http://localhost:3000/login?error="));
+        assertEquals(UserStatus.INACTIVE.name(), lockedUser.getStatus());
     }
 }

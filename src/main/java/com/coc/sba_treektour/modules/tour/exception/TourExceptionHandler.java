@@ -1,6 +1,8 @@
 package com.coc.sba_treektour.modules.tour.exception;
 
 import com.coc.sba_treektour.common.response.ApiResponse;
+import com.coc.sba_treektour.modules.account.exception.AccountConflictException;
+import com.coc.sba_treektour.modules.account.exception.InvalidAccountException;
 
 import org.springframework.core.annotation.Order;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -45,6 +47,18 @@ public class TourExceptionHandler {
     @ExceptionHandler(TourException.class)
     public ResponseEntity<ApiResponse<?>> business(TourException e) {
         return error(e.status(), e.code(), e.getMessage(), Map.of());
+    }
+
+    /** Chuyển lỗi xung đột tài khoản (409) từ module account khi đăng ký/tạo Guide. */
+    @ExceptionHandler(AccountConflictException.class)
+    public ResponseEntity<ApiResponse<?>> accountConflict(AccountConflictException e) {
+        return error(HttpStatus.CONFLICT, "CONFLICT", e.getMessage(), Map.of());
+    }
+
+    /** Chuyển lỗi tài khoản không hợp lệ (400) từ module account khi đăng ký/tạo Guide. */
+    @ExceptionHandler(InvalidAccountException.class)
+    public ResponseEntity<ApiResponse<?>> invalidAccount(InvalidAccountException e) {
+        return error(HttpStatus.BAD_REQUEST, "INVALID_INPUT", e.getMessage(), Map.of());
     }
 
     /** Gom lỗi Bean Validation theo tên trường và trả HTTP 400. */
