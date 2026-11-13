@@ -6,7 +6,6 @@ import com.coc.sba_treektour.modules.account.repository.UserRepository;
 import com.coc.sba_treektour.modules.payment.controller.RevenueReportController;
 import com.coc.sba_treektour.modules.payment.dto.request.RevenueReportRequest;
 import com.coc.sba_treektour.modules.payment.dto.response.MoneyTotals;
-import com.coc.sba_treektour.modules.payment.dto.response.ReportTransactionRow;
 import com.coc.sba_treektour.modules.payment.dto.response.RevenuePoint;
 import com.coc.sba_treektour.modules.payment.enums.ReportPeriod;
 import com.coc.sba_treektour.modules.payment.enums.RevenueSector;
@@ -18,7 +17,6 @@ import org.springframework.validation.beanvalidation.MethodValidationPostProcess
 import org.springframework.context.annotation.Bean;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
@@ -113,18 +111,6 @@ class RevenueReportServiceTests {
         request.setPaymentMethod(null); request.setSector(RevenueSector.EQUIPMENT);
         assertThrows(ResponseStatusException.class, () -> service.tours(request));
     }
-    @Test void csvEscapesQuotesAndSpreadsheetFormulasAndCapsExport() {
-        when(repository.transactionCount(request)).thenReturn(1L);
-        var now = OffsetDateTime.now();
-        when(repository.transactions(request, 0, 10000)).thenReturn(List.of(new ReportTransactionRow(1L, 2L, null, 1L,
-                "=SUM(1,2)", 1L, "Tour \"name\"", "PAYMENT", "ZALOPAY", BigDecimal.TEN, now, now)));
-        String csv = service.csv(request);
-        assertTrue(csv.contains("\"'=SUM(1,2)\""));
-        assertTrue(csv.contains("\"Tour \"\"name\"\"\""));
-        assertTrue(csv.startsWith("\ufefftransactionId"));
-        when(repository.transactionCount(request)).thenReturn(10001L);
-        assertThrows(ResponseStatusException.class, () -> service.csv(request));
-    }
     @Test void paginationIsBoundedAndUsesExactTotal() {
         when(repository.transactionCount(request)).thenReturn(21L);
         assertEquals(2, service.transactions(request, 0, 20).totalPages());
@@ -162,7 +148,6 @@ class RevenueReportServiceTests {
             assertThrows(AccessDeniedException.class, () -> secured.products(request));
             assertThrows(AccessDeniedException.class, () -> secured.tours(request));
             assertThrows(AccessDeniedException.class, () -> secured.transactions(request, 0, 20));
-            assertThrows(AccessDeniedException.class, () -> secured.csv(request));
             login("ADMIN");
             assertEquals(3, secured.overview(request).series().size());
             assertThrows(ConstraintViolationException.class, () -> secured.overview(new RevenueReportRequest()));

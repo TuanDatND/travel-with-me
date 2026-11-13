@@ -108,7 +108,7 @@ paidTicketCount đếm DISTINCT participant_id có PAYMENT thành công trong k�
 Kỳ chỉ có REFUND có thể có paidTicketCount=0 và netAmount âm. Tên tour/chi nhánh là dữ liệu hiện tại.
 Có thể lọc scheduleId và branchId cùng tourId. Tour/schedule series không tự sinh bucket 0.
 
-## 4. Chi tiết và CSV
+## 4. Chi tiết giao dịch
 
 `GET /api/reports/revenue/transactions?from=2026-10-01&to=2026-10-31&page=0&size=20`
 
@@ -116,13 +116,6 @@ Trả content/page/size/totalElements/totalPages. size=1..100, page>=0.
 Mỗi dòng: transactionId/orderId/participantId/branchId/branchName/tourId/tourName,
 transactionType/paymentMethod/amount/createdAt/succeededAt.
 Sort succeededAt DESC, transactionId DESC; chỉ giao dịch thành công có ngày trong kỳ.
-
-`GET /api/reports/revenue/export?from=2026-10-01&to=2026-10-31`
-
-Cùng filter tiền thu/hoàn; text/csv UTF-8 BOM, attachment transactions.csv. Tối đa 10.000 dòng;
-vượt giới hạn trả 400 và yêu cầu thu hẹp filter, không xuất thiếu một phần mà không báo.
-Tên có dấu phẩy/dấu ngoặc kép được escape, chuỗi có thể tạo công thức spreadsheet được xử lý.
-Các timestamp CSV là ISO offset; report bucket dùng ngày Việt Nam.
 
 ## Kiểm tra
 
@@ -136,7 +129,7 @@ REPORT_TEST_DB_URL=jdbc:postgresql://127.0.0.1:55438/report_check bash gradlew c
 local riêng, schema ngẫu nhiên được xóa sau test. Test không dùng .env/Supabase; fixture chạy V1 và
 hai migration Payment mới. Kiểm tra thu/hoàn khác kỳ, ngày Việt Nam, giá item snapshot/thuê đủ ngày,
 tránh nhân tiền qua JOIN, nhiều lần trả tiền, timestamp cũ NULL, filters, pagination, tour/schedule,
-admin method security, HTTP validation, CSV và ghi timestamp chống lặp. FE hiện tại lint/build PASS;
+admin method security, HTTP validation và ghi timestamp chống lặp. FE hiện tại lint/build PASS;
 chưa nối trang report FE và chưa thử ZaloPay live hoặc migration trên Supabase.
 
 Repository tests yêu cầu REPORT_TEST_DB_URL local:55438 để tránh chạy nhầm database chung; nếu không
@@ -152,7 +145,7 @@ AdminReportsPage tại /admin/reports đã nối API thật (features/reports/re
 Ba tab Tổng quan/Sản phẩm/Tour & khởi hành; bộ lọc có nút Áp dụng, tách filter theo contract từng endpoint.
 Biểu đồ theo ngày/tháng, zero-fill, thu/hoàn/ròng, chi nhánh, donut tiền thu, so sánh sản phẩm/tour
 và nhiều đường có chọn tối đa 6 đối tượng; bảng item/schedule, transaction phân trang 20 dòng.
-CSV chỉ hiện cho báo cáo tiền (Overview/Tour), Tour luôn thêm sector=TOUR cho detail/export.
+Tour luôn thêm sector=TOUR cho bảng chi tiết giao dịch.
 Sản phẩm hiển thị giá trị item trong đơn đủ tiền trước hoàn, không gắn nhãn thu ròng.
 Hiển thị cảnh báo legacy missing timestamp và pending refund là backlog hiện tại ngoài kỳ.
 Dữ liệu lỗi/loading/empty không thay bằng số mock; request cũ bị abort khi đổi filter/tab.
@@ -173,3 +166,7 @@ qua JpaRepositoryFactory + Hibernate EntityManager trên PostgreSQL test localho
 Không mock JDBC để kiểm chứng query; JDBC trong test chỉ tạo fixture/cleanup. Không dùng .env/Supabase.
 
 Verification 2026-11-11: compileJava PASS; Payment compileTestJava/test riêng 81 tests PASS, gồm 8 test report qua Spring Data proxy + PostgreSQL test riêng, 0 skipped. Full compileTestJava lỗi OrderServiceImplTests dòng 125-128 do customerName/customerPhone/customerAddress/customerEmail không tồn tại trong OrderResponse; không sửa test/member Order. Test Payment dùng /tmp/payment-tests-only.init.gradle giới hạn source test vào modules/payment, không sửa build.gradle.kts và không bỏ qua validation migration để che lỗi. Schema fixture local chỉ phục vụ query test; không thay đổi DB local người dùng/Supabase.
+
+## 2026-11-14 — Bỏ xuất CSV
+
+Đã bỏ endpoint `/api/reports/revenue/export`, service tạo CSV và nút/API tải CSV trên FE. Bốn API overview/products/tours/transactions và bảng giao dịch phân trang giữ nguyên. Các ghi nhận export ở mốc kiểm thử cũ bên trên chỉ là lịch sử. Không đổi schema DB.

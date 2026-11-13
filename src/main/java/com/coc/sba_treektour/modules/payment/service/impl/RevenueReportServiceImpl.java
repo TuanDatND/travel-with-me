@@ -102,24 +102,4 @@ public class RevenueReportServiceImpl implements RevenueReportService {
         return new ReportTransactionPage(reports.transactions(request, (long) page * size, size), page, size, count, (count + size - 1) / size);
     }
 
-    @Override
-    public String csv(RevenueReportRequest request) {
-        requireAdmin(); moneyFilters(request);
-        long count = reports.transactionCount(request);
-        if (count > 10000) throw new ResponseStatusException(BAD_REQUEST, "CSV export is limited to 10000 transactions; narrow filters");
-        StringBuilder csv = new StringBuilder("\ufefftransactionId,orderId,participantId,branch,tour,type,method,amountVnd,createdAt,succeededAt\r\n");
-        for (var row : reports.transactions(request, 0, 10000)) {
-            csv.append(String.join(",", cell(row.transactionId()), cell(row.orderId()), cell(row.participantId()),
-                    cell(row.branchName()), cell(row.tourName()), cell(row.transactionType()), cell(row.paymentMethod()),
-                    cell(row.amount()), cell(row.createdAt()), cell(row.succeededAt()))).append("\r\n");
-        }
-        return csv.toString();
-    }
-
-    private String cell(Object value) {
-        String text = value == null ? "" : value.toString();
-        // Spreadsheet formulas in external names must not execute when the CSV is opened.
-        if (text.stripLeading().matches("^[=+@-].*")) text = "'" + text;
-        return "\"" + text.replace("\"", "\"\"") + "\"";
-    }
 }
