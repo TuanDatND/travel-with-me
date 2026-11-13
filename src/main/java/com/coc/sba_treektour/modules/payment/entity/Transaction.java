@@ -1,9 +1,13 @@
 package com.coc.sba_treektour.modules.payment.entity;
 
 import com.coc.sba_treektour.modules.order.entity.Order;
+import com.coc.sba_treektour.modules.payment.dto.response.ReportTransactionRow;
+import com.coc.sba_treektour.modules.payment.dto.response.ScheduleRevenueRow;
 import com.coc.sba_treektour.modules.payment.enums.TransactionStatus;
 import com.coc.sba_treektour.modules.schedule.entity.EventParticipant;
 import jakarta.persistence.Column;
+import jakarta.persistence.ColumnResult;
+import jakarta.persistence.ConstructorResult;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -13,6 +17,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.SqlResultSetMapping;
+import jakarta.persistence.SqlResultSetMappings;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -33,6 +39,34 @@ import org.hibernate.annotations.ColumnDefault;
 @Getter
 @Setter
 @ToString
+@SqlResultSetMappings({
+    @SqlResultSetMapping(name = "ReportSchedule", classes = @ConstructorResult(targetClass = ScheduleRevenueRow.class, columns = {
+        @ColumnResult(name = "schedule_id", type = Long.class),
+        @ColumnResult(name = "event_id", type = Long.class),
+        @ColumnResult(name = "event_name", type = String.class),
+        @ColumnResult(name = "start_datetime", type = OffsetDateTime.class),
+        @ColumnResult(name = "branch_id", type = Long.class),
+        @ColumnResult(name = "branch_name", type = String.class),
+        @ColumnResult(name = "tickets", type = Long.class),
+        @ColumnResult(name = "received", type = BigDecimal.class),
+        @ColumnResult(name = "refunded", type = BigDecimal.class),
+        @ColumnResult(name = "net", type = BigDecimal.class)
+    })),
+    @SqlResultSetMapping(name = "ReportTransaction", classes = @ConstructorResult(targetClass = ReportTransactionRow.class, columns = {
+        @ColumnResult(name = "transaction_id", type = Long.class),
+        @ColumnResult(name = "order_id", type = Long.class),
+        @ColumnResult(name = "participant_id", type = Long.class),
+        @ColumnResult(name = "branch_id", type = Long.class),
+        @ColumnResult(name = "branch_name", type = String.class),
+        @ColumnResult(name = "event_id", type = Long.class),
+        @ColumnResult(name = "event_name", type = String.class),
+        @ColumnResult(name = "transaction_type", type = String.class),
+        @ColumnResult(name = "payment_method", type = String.class),
+        @ColumnResult(name = "amount", type = BigDecimal.class),
+        @ColumnResult(name = "created_at", type = OffsetDateTime.class),
+        @ColumnResult(name = "succeeded_at", type = OffsetDateTime.class)
+    }))
+})
 @Entity
 @Table(name = "transactions")
 public class Transaction {

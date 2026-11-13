@@ -1,8 +1,8 @@
 # Revenue report backend
 
 Cập nhật 2026-10-30. Module Payment; frontend report chưa nối API trong mốc này.
-Cấu trúc: RevenueReportController → RevenueReportService → service.impl → RevenueReportRepository.
-Repository dùng NamedParameterJdbcTemplate cho SQL tổng hợp/PostgreSQL, không đặt SQL ở service/controller.
+Cấu trúc: RevenueReportController → RevenueReportService → service.impl → TransactionRepository.
+Report dùng TransactionRepository extends JpaRepository, @Query(nativeQuery=true) và @NativeQuery trả thẳng DTO record; không còn repository JDBC riêng, không projection/mapper. SQL được tái sử dụng bằng hằng compile-time trong repository, không đặt ở service/controller.
 
 ## Thời điểm ghi nhận thành công
 
@@ -156,3 +156,18 @@ Hiển thị cảnh báo legacy missing timestamp và pending refund là backlog
 Dữ liệu lỗi/loading/empty không thay bằng số mock; request cũ bị abort khi đổi filter/tab.
 Lint/build và 6 FE tests PASS. Browser local admin xác nhận tổng tháng 10 khớp dữ liệu demo, các
 tab Product/Tour có dữ liệu thật, tải CSV Tour 71 dòng và chỉ chứa participant targets.
+
+## Compact repository refactor — 2026-11-11
+
+Gộp report vào TransactionRepository hiện có; bỏ RevenueReportRepository dùng JDBC.
+Query trả thẳng response record, không thêm các lớp projection/mapper. Native query có cột cùng thứ tự
+constructor, số lượng được CAST bigint; hai response có timestamp dùng @NativeQuery + @SqlResultSetMapping
+trên entity Transaction để giữ OffsetDateTime thay vì Instant mặc định của Hibernate. Đây chỉ là metadata
+ánh xạ kết quả, không thêm/sửa cột hay quan hệ. SQL chung là hằng compile-time, filter dùng @Param/SpEL
+và CAST cho nullable; không nối chuỗi input thành SQL. Service giữ công thức/API và chuyển page → offset.
+
+Test repository đã chuyển thành TransactionReportRepositoryTests, tạo proxy TransactionRepository thật
+qua JpaRepositoryFactory + Hibernate EntityManager trên PostgreSQL test localhost:55438/schema ngẫu nhiên.
+Không mock JDBC để kiểm chứng query; JDBC trong test chỉ tạo fixture/cleanup. Không dùng .env/Supabase.
+
+Verification 2026-11-11: compileJava PASS; Payment compileTestJava/test riêng 81 tests PASS, gồm 8 test report qua Spring Data proxy + PostgreSQL test riêng, 0 skipped. Full compileTestJava lỗi OrderServiceImplTests dòng 125-128 do customerName/customerPhone/customerAddress/customerEmail không tồn tại trong OrderResponse; không sửa test/member Order. Test Payment dùng /tmp/payment-tests-only.init.gradle giới hạn source test vào modules/payment, không sửa build.gradle.kts và không bỏ qua validation migration để che lỗi. Schema fixture local chỉ phục vụ query test; không thay đổi DB local người dùng/Supabase.

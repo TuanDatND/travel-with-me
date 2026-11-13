@@ -8,7 +8,7 @@ import com.coc.sba_treektour.modules.payment.dto.response.TourReportResponse;
 import com.coc.sba_treektour.modules.payment.dto.response.RevenuePoint;
 import com.coc.sba_treektour.modules.payment.enums.ReportPeriod;
 import com.coc.sba_treektour.modules.payment.enums.RevenueSector;
-import com.coc.sba_treektour.modules.payment.repository.RevenueReportRepository;
+import com.coc.sba_treektour.modules.payment.repository.TransactionRepository;
 import com.coc.sba_treektour.modules.payment.service.RevenueReportService;
 import com.coc.sba_treektour.modules.account.repository.UserRepository;
 import java.math.BigDecimal;
@@ -35,7 +35,7 @@ import static org.springframework.http.HttpStatus.FORBIDDEN;
 @PreAuthorize("hasAuthority('ADMIN')")
 @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 public class RevenueReportServiceImpl implements RevenueReportService {
-    private final RevenueReportRepository reports;
+    private final TransactionRepository reports;
     private final UserRepository users;
 
     private void requireAdmin() {
@@ -91,7 +91,7 @@ public class RevenueReportServiceImpl implements RevenueReportService {
         requireAdmin(); moneyFilters(request);
         if (page < 0 || size < 1 || size > 100) throw new ResponseStatusException(BAD_REQUEST, "page >= 0; size 1-100");
         long count = reports.transactionCount(request);
-        return new ReportTransactionPage(reports.transactions(request, page, size), page, size, count, (count + size - 1) / size);
+        return new ReportTransactionPage(reports.transactions(request, (long) page * size, size), page, size, count, (count + size - 1) / size);
     }
 
     @Override

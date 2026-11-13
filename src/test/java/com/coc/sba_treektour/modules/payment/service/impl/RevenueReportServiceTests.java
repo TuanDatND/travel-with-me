@@ -10,7 +10,7 @@ import com.coc.sba_treektour.modules.payment.dto.response.ReportTransactionRow;
 import com.coc.sba_treektour.modules.payment.dto.response.RevenuePoint;
 import com.coc.sba_treektour.modules.payment.enums.ReportPeriod;
 import com.coc.sba_treektour.modules.payment.enums.RevenueSector;
-import com.coc.sba_treektour.modules.payment.repository.RevenueReportRepository;
+import com.coc.sba_treektour.modules.payment.repository.TransactionRepository;
 import com.coc.sba_treektour.modules.payment.service.RevenueReportService;
 import jakarta.validation.Validation;
 import jakarta.validation.ConstraintViolationException;
@@ -44,7 +44,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class RevenueReportServiceTests {
-    RevenueReportRepository repository = mock(RevenueReportRepository.class);
+    TransactionRepository repository = mock(TransactionRepository.class);
     UserRepository users = mock(UserRepository.class);
     RevenueReportServiceImpl service = new RevenueReportServiceImpl(repository, users);
     User admin = User.builder().id(1L).email("admin@test").status("ACTIVE").role(Role.builder().name("ADMIN").build()).build();
