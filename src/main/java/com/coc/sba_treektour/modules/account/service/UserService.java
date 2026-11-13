@@ -17,6 +17,7 @@ public interface UserService {
     UserResponse getUserByEmail(String email);
     UserResponse updateProfile(String email, UserProfileRequest request);
     void changePassword(String email, ChangePasswordRequest request);
+    InternalUserResponse sendTemporaryPassword(String email);
     UserResponse updateUserByAdmin(Long id, AdminUpdateUserRequest request);
     UserResponse updateUserStatus(Long id, String status);
     boolean deleteUser(Long id);

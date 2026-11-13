@@ -12,6 +12,7 @@ import com.coc.sba_treektour.modules.account.dto.response.UserResponse;
 import com.coc.sba_treektour.modules.account.entity.Role;
 import com.coc.sba_treektour.modules.account.entity.User;
 import com.coc.sba_treektour.modules.account.enums.UserStatus;
+import com.coc.sba_treektour.modules.account.exception.AccountConflictException;
 import com.coc.sba_treektour.modules.account.exception.InvalidAccountException;
 import com.coc.sba_treektour.modules.account.exception.UserNotFoundException;
 import com.coc.sba_treektour.modules.account.repository.RoleRepository;
@@ -62,11 +63,11 @@ public class UserServiceImpl implements UserService {
             String existingRole = existingUser.getRole() != null ? existingUser.getRole().getName() : "";
 
             if (Roles.ADMIN.equals(existingRole)) {
-                throw new InvalidAccountException("This email belongs to an Administrator (ADMIN) account!");
+                throw new AccountConflictException("This email belongs to an Administrator (ADMIN) account!");
             }
 
             if (Roles.CUSTOMER.equals(existingRole) && UserStatus.ACTIVE.name().equals(existingUser.getStatus())) {
-                throw new InvalidAccountException("This email belongs to an active Customer (CUSTOMER) account!");
+                throw new AccountConflictException("This email belongs to an active Customer (CUSTOMER) account!");
             }
 
             Long existingUserId = existingUser.getId();
@@ -76,26 +77,28 @@ public class UserServiceImpl implements UserService {
 
                 if (Roles.STAFF.equals(roleName)) {
                     if (activeGuide) {
-                        throw new InvalidAccountException(
+                        throw new AccountConflictException(
                                 "This email belongs to an active Tour Guide (GUIDE)! Please lock/deactivate the guide profile before assigning as STAFF.");
                     }
                     if (activeStaff) {
-                        throw new InvalidAccountException(
+                        throw new AccountConflictException(
                                 "This email is already assigned to an active branch Staff (STAFF) member!");
                     }
+                    userRepository.deleteUnreferencedInactiveGuidesByUserId(existingUserId);
                 } else if (Roles.GUIDE.equals(roleName)) {
                     if (activeStaff) {
-                        throw new InvalidAccountException(
+                        throw new AccountConflictException(
                                 "This email belongs to an active branch Staff (STAFF) member! Please remove/lock the staff member before assigning as GUIDE.");
                     }
                     if (activeGuide) {
-                        throw new InvalidAccountException(
+                        throw new AccountConflictException(
                                 "This email belongs to an active Tour Guide (GUIDE) in the system!");
                     }
                     if (userRepository.hasAnyGuideProfile(existingUserId)) {
-                        throw new InvalidAccountException(
+                        throw new AccountConflictException(
                                 "This email already has a Tour Guide profile (currently locked). Please unlock it directly in the Tour Guides list instead of creating a new one!");
                     }
+                    userRepository.deleteInactiveStaffByUserId(existingUserId);
                 }
             }
 
@@ -200,11 +203,44 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public InternalUserResponse sendTemporaryPassword(String email) {
+        String normalizedEmail = normalizeEmail(email);
+        User user = userRepository.findByEmail(normalizedEmail)
+                .orElseThrow(() -> new UserNotFoundException("User not found with email: " + normalizedEmail));
+
+        String rawPassword = PasswordGenerator.generateRandomPassword(10);
+        user.setPassword(passwordEncoder.encode(rawPassword));
+        User savedUser = userRepository.save(user);
+
+        boolean emailSent = emailService.sendCustomerGoogleWelcomeEmail(
+                savedUser.getEmail(),
+                savedUser.getFullName(),
+                rawPassword);
+
+        String message = emailSent
+                ? "A 10-character temporary password has been generated and sent to your email."
+                : "A 10-character temporary password has been generated below (email delivery failed).";
+
+        return InternalUserResponse.builder()
+                .id(savedUser.getId())
+                .fullName(savedUser.getFullName())
+                .email(savedUser.getEmail())
+                .phone(savedUser.getPhone())
+                .role(savedUser.getRole() != null ? savedUser.getRole().getName() : Roles.CUSTOMER)
+                .status(savedUser.getStatus())
+                .temporaryPassword(rawPassword)
+                .emailSent(emailSent)
+                .message(message)
+                .build();
+    }
+
+    @Override
     public UserResponse updateUserByAdmin(Long id, AdminUpdateUserRequest request) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
 
         boolean isSelf = isCurrentAuthenticatedUser(user);
+        String previousRole = user.getRole() != null ? user.getRole().getName() : "";
 
         user.setFullName(request.getFullName().trim());
         if (request.getPhone() != null) {
@@ -217,11 +253,14 @@ public class UserServiceImpl implements UserService {
                 throw new InvalidAccountException("Administrators cannot demote their own role!");
             }
             if (user.getId() != null) {
-                if (Roles.STAFF.equals(upperRole) && userRepository.hasActiveGuideProfile(user.getId())) {
-                    throw new InvalidAccountException("This user is currently an active Tour Guide (GUIDE)! Please lock/deactivate the guide profile before changing role to STAFF.");
+                boolean activeGuide = userRepository.hasActiveGuideProfile(user.getId());
+                boolean activeStaff = userRepository.hasActiveStaffProfile(user.getId());
+
+                if (Roles.STAFF.equals(upperRole) && activeGuide) {
+                    throw new AccountConflictException("This user is currently an active Tour Guide (GUIDE)! Please lock/deactivate the guide profile before changing role to STAFF.");
                 }
-                if (Roles.GUIDE.equals(upperRole) && userRepository.hasActiveStaffProfile(user.getId())) {
-                    throw new InvalidAccountException("This user is currently an active branch Staff (STAFF) member! Please remove/lock the staff assignment before changing role to GUIDE.");
+                if (Roles.GUIDE.equals(upperRole) && activeStaff) {
+                    throw new AccountConflictException("This user is currently an active branch Staff (STAFF) member! Please remove/lock the staff assignment before changing role to GUIDE.");
                 }
             }
             Role role = roleRepository.findByName(upperRole)
@@ -243,6 +282,7 @@ public class UserServiceImpl implements UserService {
         }
 
         User updatedUser = userRepository.save(user);
+        syncLinkedProfileStatuses(updatedUser);
         return mapToUserResponse(updatedUser);
     }
 
@@ -264,7 +304,32 @@ public class UserServiceImpl implements UserService {
 
         user.setStatus(upperStatus);
         User updatedUser = userRepository.save(user);
+        syncLinkedProfileStatuses(updatedUser);
         return mapToUserResponse(updatedUser);
+    }
+
+    private void syncLinkedProfileStatuses(User user) {
+        if (user == null || user.getId() == null) {
+            return;
+        }
+        Long userId = user.getId();
+        String roleName = user.getRole() != null ? user.getRole().getName() : "";
+        boolean isActive = UserStatus.ACTIVE.name().equals(user.getStatus());
+        String profileStatus = isActive ? UserStatus.ACTIVE.name() : UserStatus.INACTIVE.name();
+
+        if (Roles.GUIDE.equals(roleName)) {
+            userRepository.deleteInactiveStaffByUserId(userId);
+            userRepository.insertDefaultGuideProfile(userId, profileStatus);
+            userRepository.updateGuideStatusByUserId(userId, profileStatus);
+        } else if (Roles.STAFF.equals(roleName)) {
+            userRepository.deleteUnreferencedInactiveGuidesByUserId(userId);
+            userRepository.updateStaffStatusByUserId(userId, profileStatus);
+        } else {
+            if (!isActive) {
+                userRepository.updateGuideStatusByUserId(userId, UserStatus.INACTIVE.name());
+                userRepository.updateStaffStatusByUserId(userId, UserStatus.INACTIVE.name());
+            }
+        }
     }
 
     @Override
@@ -277,17 +342,21 @@ public class UserServiceImpl implements UserService {
         }
 
         if (userRepository.hasActiveStaffProfile(id)) {
-            throw new InvalidAccountException("Cannot delete user while they are an active branch Staff member! Please remove the staff member first.");
+            throw new AccountConflictException("Cannot delete user while they are an active branch Staff member! Please remove the staff member first.");
         }
         if (userRepository.hasActiveGuideProfile(id)) {
-            throw new InvalidAccountException("Cannot delete user while they are an active Tour Guide! Please deactivate the guide profile first.");
+            throw new AccountConflictException("Cannot delete user while they are an active Tour Guide! Please deactivate the guide profile first.");
         }
 
         if (userRepository.hasLinkedBusinessRecords(id)) {
             user.setStatus(UserStatus.INACTIVE.name());
             userRepository.save(user);
+            userRepository.updateGuideStatusByUserId(id, UserStatus.INACTIVE.name());
+            userRepository.updateStaffStatusByUserId(id, UserStatus.INACTIVE.name());
             return false;
         } else {
+            userRepository.deleteInactiveStaffByUserId(id);
+            userRepository.deleteUnreferencedInactiveGuidesByUserId(id);
             userRepository.delete(user);
             userRepository.flush();
             return true;

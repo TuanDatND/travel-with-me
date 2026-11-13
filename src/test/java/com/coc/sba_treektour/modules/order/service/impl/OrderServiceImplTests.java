@@ -21,6 +21,9 @@ import com.coc.sba_treektour.modules.product.repository.ProductRepository;
 import com.coc.sba_treektour.modules.inventory.repository.InventoryRepository;
 import com.coc.sba_treektour.modules.inventory.service.InventoryService;
 import com.coc.sba_treektour.modules.inventory.dto.response.AvailabilityResponse;
+import com.coc.sba_treektour.modules.schedule.entity.EventSchedule;
+import com.coc.sba_treektour.modules.schedule.repository.EventScheduleRepository;
+import com.coc.sba_treektour.modules.schedule.security.ScheduleAccessPolicy;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.security.access.AccessDeniedException;
@@ -258,5 +261,90 @@ class OrderServiceImplTests {
         when(payments.read(9L)).thenReturn(balance);
         assertThat(balance.status(new BigDecimal("100000"))).isEqualTo("PARTIALLY_PAID");
         assertThatThrownBy(() -> service.operate(9L, "confirm")).isInstanceOf(InvalidOrderException.class);
+    }
+
+    @Test void tourDeliveryRequiresGuidePickupBeforeHandoverAndDeductsStockOnce() {
+        var order = pendingOrder();
+        order.setDeliveryInfo("TOUR_DELIVERY", 42L, "Fansipan Basecamp", "Call guide");
+        order.addItem(new OrderItem(3L, OrderItemType.RENTAL, 2, new BigDecimal("100000"),
+                LocalDate.now().plusDays(1), LocalDate.now().plusDays(2), OrderItemStatus.CONFIRMED));
+        when(payments.read(9L)).thenReturn(new OrderPaymentBalance(new BigDecimal("100000"), BigDecimal.ZERO, 0));
+
+        service.operate(9L, "confirm");
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+        verifyNoInteractions(inventory);
+
+        assertThatThrownBy(() -> service.operate(9L, "hand-over")).isInstanceOf(InvalidOrderException.class);
+
+        var withGuide = service.operate(9L, "guide-pickup");
+        assertThat(withGuide.status()).isEqualTo(OrderStatus.WITH_GUIDE);
+        assertThat(withGuide.canConfirmReceipt()).isFalse();
+        verify(inventory, times(1)).handOutRental(2L, 3L, 2);
+
+        var handedOver = service.operate(9L, "hand-over");
+        assertThat(handedOver.status()).isEqualTo(OrderStatus.IN_PROGRESS);
+        assertThat(handedOver.canConfirmReceipt()).isTrue();
+        verify(inventory, times(1)).handOutRental(2L, 3L, 2);
+
+        service.confirmReceipt(9L, "customer@test.local");
+        var completed = service.operate(9L, "return");
+        assertThat(completed.status()).isEqualTo(OrderStatus.COMPLETED);
+        verify(inventory, times(1)).receiveRental(2L, 3L, 2);
+    }
+
+    @Test void guideCannotApproveOrDispatchAndStaffCanDispatchToGuide() {
+        var scheduleRepo = mock(EventScheduleRepository.class);
+        var policy = mock(ScheduleAccessPolicy.class);
+        var scopedService = new OrderServiceImpl(orders, users, branches, products, inventory, stocks, payments, scheduleRepo, policy);
+
+        var order = pendingOrder();
+        order.setDeliveryInfo("TOUR_DELIVERY", 42L, "Sapa Station", null);
+        order.addItem(new OrderItem(3L, OrderItemType.SALE, 1, new BigDecimal("100000"), null, null, OrderItemStatus.PENDING));
+        when(orders.findById(9L)).thenReturn(Optional.of(order));
+        when(payments.read(9L)).thenReturn(new OrderPaymentBalance(new BigDecimal("100000"), BigDecimal.ZERO, 0));
+        var schedule = mock(EventSchedule.class);
+        when(scheduleRepo.findById(42L)).thenReturn(Optional.of(schedule));
+
+        when(policy.hasRole("ADMIN")).thenReturn(false);
+        when(policy.hasRole("STAFF")).thenReturn(false);
+        assertThatThrownBy(() -> scopedService.operateAsActor(9L, "confirm"))
+                .isInstanceOf(AccessDeniedException.class);
+
+        when(policy.hasRole("STAFF")).thenReturn(true);
+        scopedService.operateAsActor(9L, "confirm");
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+
+        when(policy.hasRole("STAFF")).thenReturn(false);
+        assertThatThrownBy(() -> scopedService.operateAsActor(9L, "guide-pickup"))
+                .isInstanceOf(AccessDeniedException.class);
+
+        when(policy.hasRole("STAFF")).thenReturn(true);
+        scopedService.operateAsActor(9L, "guide-pickup");
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.WITH_GUIDE);
+        verify(inventory, times(1)).fulfillSale(2L, 3L, 1);
+
+        when(policy.hasRole("STAFF")).thenReturn(false);
+        var delivered = scopedService.operateAsActor(9L, "hand-over");
+        assertThat(delivered.status()).isEqualTo(OrderStatus.IN_PROGRESS);
+        verify(inventory, times(1)).fulfillSale(2L, 3L, 1);
+    }
+
+    @Test void staffCanFindOrdersForManagedBranchOnly() {
+        var scheduleRepo = mock(EventScheduleRepository.class);
+        var policy = mock(ScheduleAccessPolicy.class);
+        var scopedService = new OrderServiceImpl(orders, users, branches, products, inventory, stocks, payments, scheduleRepo, policy);
+
+        var order1 = pendingOrder();
+        var order2 = pendingOrder();
+        when(orders.findByBranch_IdOrderByOrderDateDesc(2L)).thenReturn(List.of(order1));
+        when(orders.findAll()).thenReturn(List.of(order1, order2));
+
+        when(policy.hasRole("ADMIN")).thenReturn(false);
+        when(policy.hasRole("STAFF")).thenReturn(true);
+        when(policy.manages(2L)).thenReturn(true);
+
+        var result = scopedService.findAll(null, 2L);
+        assertThat(result).hasSize(1);
+        verify(policy).requireManager(2L);
     }
 }

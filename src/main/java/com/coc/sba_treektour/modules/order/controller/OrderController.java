@@ -34,14 +34,22 @@ public class OrderController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAuthority('ADMIN')")
-    public ApiResponse<List<OrderResponse>> findAll(@RequestParam(required = false) Long userId) {
-        return ApiResponse.success(orderService.findAll(userId));
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'STAFF')")
+    public ApiResponse<List<OrderResponse>> findAll(
+            @RequestParam(required = false) Long userId,
+            @RequestParam(required = false) Long branchId) {
+        return ApiResponse.success(orderService.findAll(userId, branchId));
     }
 
     @GetMapping("/me")
     public ApiResponse<List<OrderResponse>> findMine(Principal principal) {
         return ApiResponse.success(orderService.findMyOrders(principal.getName()));
+    }
+
+    @GetMapping("/schedule/{scheduleId}")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'STAFF', 'GUIDE')")
+    public ApiResponse<List<OrderResponse>> findBySchedule(@PathVariable Long scheduleId) {
+        return ApiResponse.success(orderService.findBySchedule(scheduleId));
     }
 
     @GetMapping("/{id}")
@@ -70,9 +78,9 @@ public class OrderController {
         return ApiResponse.success("Receipt confirmed", orderService.confirmReceipt(id, principal.getName()));
     }
 
-    @PostMapping("/{id}/{action:confirm|hand-over|return}")
-    @PreAuthorize("hasAuthority('ADMIN')")
+    @PostMapping("/{id}/{action:confirm|guide-pickup|hand-over|return}")
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'STAFF', 'GUIDE')")
     public ApiResponse<OrderResponse> operate(@PathVariable Long id, @PathVariable String action) {
-        return ApiResponse.success(orderService.operate(id, action));
+        return ApiResponse.success(orderService.operateAsActor(id, action));
     }
 }

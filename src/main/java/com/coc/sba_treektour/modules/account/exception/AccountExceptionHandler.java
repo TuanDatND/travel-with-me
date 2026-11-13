@@ -22,6 +22,12 @@ public class AccountExceptionHandler {
                 .body(ApiResponse.error(HttpStatus.NOT_FOUND.value(), ex.getMessage()));
     }
 
+    @ExceptionHandler(AccountConflictException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAccountConflict(AccountConflictException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(HttpStatus.CONFLICT.value(), ex.getMessage()));
+    }
+
     @ExceptionHandler(InvalidAccountException.class)
     public ResponseEntity<ApiResponse<Void>> handleInvalidAccount(InvalidAccountException ex) {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
