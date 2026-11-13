@@ -328,4 +328,23 @@ class OrderServiceImplTests {
         assertThat(delivered.status()).isEqualTo(OrderStatus.IN_PROGRESS);
         verify(inventory, times(1)).fulfillSale(2L, 3L, 1);
     }
+
+    @Test void staffCanFindOrdersForManagedBranchOnly() {
+        var scheduleRepo = mock(EventScheduleRepository.class);
+        var policy = mock(ScheduleAccessPolicy.class);
+        var scopedService = new OrderServiceImpl(orders, users, branches, products, inventory, stocks, payments, scheduleRepo, policy);
+
+        var order1 = pendingOrder();
+        var order2 = pendingOrder();
+        when(orders.findByBranch_IdOrderByOrderDateDesc(2L)).thenReturn(List.of(order1));
+        when(orders.findAll()).thenReturn(List.of(order1, order2));
+
+        when(policy.hasRole("ADMIN")).thenReturn(false);
+        when(policy.hasRole("STAFF")).thenReturn(true);
+        when(policy.manages(2L)).thenReturn(true);
+
+        var result = scopedService.findAll(null, 2L);
+        assertThat(result).hasSize(1);
+        verify(policy).requireManager(2L);
+    }
 }

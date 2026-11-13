@@ -11,6 +11,10 @@ public interface OrderService {
 
     List<OrderResponse> findAll(Long userId);
 
+    default List<OrderResponse> findAll(Long userId, Long branchId) {
+        return findAll(userId);
+    }
+
     List<OrderResponse> findBySchedule(Long scheduleId);
 
     OrderResponse update(Long id, CreateOrderRequest request, String email);

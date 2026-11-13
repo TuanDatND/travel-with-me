@@ -119,7 +119,34 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(readOnly = true)
     public List<OrderResponse> findAll(Long userId) {
-        List<Order> orders = userId == null ? orderRepository.findAll() : orderRepository.findByUser_IdOrderByOrderDateDesc(userId);
+        return findAll(userId, null);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<OrderResponse> findAll(Long userId, Long branchId) {
+        List<Order> orders;
+        if (scheduleAccessPolicy != null && !scheduleAccessPolicy.hasRole("ADMIN")) {
+            if (branchId != null) {
+                scheduleAccessPolicy.requireManager(branchId);
+                orders = orderRepository.findByBranch_IdOrderByOrderDateDesc(branchId);
+            } else {
+                orders = orderRepository.findAll().stream()
+                        .filter(o -> scheduleAccessPolicy.manages(o.getBranchId()))
+                        .toList();
+            }
+        } else {
+            if (branchId != null) {
+                orders = orderRepository.findByBranch_IdOrderByOrderDateDesc(branchId);
+            } else if (userId != null) {
+                orders = orderRepository.findByUser_IdOrderByOrderDateDesc(userId);
+            } else {
+                orders = orderRepository.findAll();
+            }
+        }
+        if (userId != null && branchId != null) {
+            orders = orders.stream().filter(o -> o.getUserId().equals(userId)).toList();
+        }
         var balances = orderPaymentQueryService.readMany(orders.stream().map(Order::getId).toList());
         var unpaid = OrderPaymentBalance.EMPTY;
         return orders.stream().map(order -> OrderResponse.from(order, balances.getOrDefault(order.getId(), unpaid))).toList();
