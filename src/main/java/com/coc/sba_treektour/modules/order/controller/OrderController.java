@@ -34,9 +34,11 @@ public class OrderController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAuthority('ADMIN')")
-    public ApiResponse<List<OrderResponse>> findAll(@RequestParam(required = false) Long userId) {
-        return ApiResponse.success(orderService.findAll(userId));
+    @PreAuthorize("hasAnyAuthority('ADMIN', 'STAFF')")
+    public ApiResponse<List<OrderResponse>> findAll(
+            @RequestParam(required = false) Long userId,
+            @RequestParam(required = false) Long branchId) {
+        return ApiResponse.success(orderService.findAll(userId, branchId));
     }
 
     @GetMapping("/me")
