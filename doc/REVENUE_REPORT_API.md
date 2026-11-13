@@ -34,13 +34,15 @@ Tham số chung:
 
 | Tham số | Giá trị |
 | --- | --- |
-| from, to | Bắt buộc YYYY-MM-DD, hai ngày được bao gồm, tối đa 366 ngày |
-| period | DAY mặc định hoặc MONTH |
+| from, to | Bắt buộc YYYY-MM-DD, hai ngày được bao gồm; DAY tối đa 366 ngày, MONTH tối đa 60 tháng, YEAR tối đa 10 năm |
+| period | DAY mặc định, MONTH hoặc YEAR |
 | branchId | ID chi nhánh dương, tùy chọn |
 | sector | EQUIPMENT hoặc TOUR, tùy chọn |
 | paymentMethod | Ví dụ ZALOPAY hoặc MANUAL, tùy chọn, so sánh chính xác |
 | tourId, scheduleId | ID dương, tùy chọn để giới hạn tiền thuộc tour/lịch |
 | productId | Chỉ dùng endpoint products; không phân bổ tiền thu/hoàn theo sản phẩm |
+
+FE hiển thị bộ chọn ngày/tháng/năm theo period. Với MONTH, FE gửi ngày đầu tháng đến ngày cuối tháng; với YEAR, gửi 01/01 đến 31/12. Các chuỗi biểu đồ nhóm theo period, tổng quan bổ sung các kỳ trống bằng 0.
 
 Múi giờ cố định `Asia/Ho_Chi_Minh`: from 00:00 bao gồm, ngày sau to 00:00 không bao gồm.
 Không trộn productId với tourId/scheduleId/sector TOUR hoặc tourId/scheduleId với sector EQUIPMENT.

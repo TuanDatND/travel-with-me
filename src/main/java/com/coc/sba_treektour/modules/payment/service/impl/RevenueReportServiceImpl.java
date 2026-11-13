@@ -59,10 +59,18 @@ public class RevenueReportServiceImpl implements RevenueReportService {
         var undated = reports.undated(request);
         Map<LocalDate, RevenuePoint> found = reports.series(request).stream().collect(Collectors.toMap(RevenuePoint::date, Function.identity()));
         List<RevenuePoint> series = new ArrayList<>();
-        LocalDate cursor = request.getPeriod() == ReportPeriod.MONTH ? request.getFrom().withDayOfMonth(1) : request.getFrom();
+        LocalDate cursor = switch (request.getPeriod()) {
+            case DAY -> request.getFrom();
+            case MONTH -> request.getFrom().withDayOfMonth(1);
+            case YEAR -> request.getFrom().withDayOfYear(1);
+        };
         while (!cursor.isAfter(request.getTo())) {
             series.add(found.getOrDefault(cursor, new RevenuePoint(cursor, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO)));
-            cursor = request.getPeriod() == ReportPeriod.MONTH ? cursor.plusMonths(1) : cursor.plusDays(1);
+            cursor = switch (request.getPeriod()) {
+                case DAY -> cursor.plusDays(1);
+                case MONTH -> cursor.plusMonths(1);
+                case YEAR -> cursor.plusYears(1);
+            };
         }
         return new RevenueOverviewResponse(request.getFrom(), request.getTo(), "Asia/Ho_Chi_Minh", "BACKEND_VERIFIED_SUCCESS_AT",
                 totals, pending.refundedAmount(), pending.refundCount(), undated.paymentCount() + undated.refundCount(),

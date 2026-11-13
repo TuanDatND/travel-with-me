@@ -84,6 +84,25 @@ class RevenueReportServiceTests {
         assertEquals(LocalDate.parse("2026-09-01"), result.series().getFirst().date());
         assertEquals(3, result.undatedSucceededCount());
     }
+    @Test void yearlyBucketsIncludeEmptyYearsAndHaveBoundedRanges() {
+        request.setPeriod(ReportPeriod.YEAR);
+        request.setFrom(LocalDate.parse("2024-03-01")); request.setTo(LocalDate.parse("2026-12-31"));
+        var result = service.overview(request);
+        assertEquals(3, result.series().size());
+        assertEquals(LocalDate.parse("2024-01-01"), result.series().getFirst().date());
+        assertEquals(LocalDate.parse("2026-01-01"), result.series().getLast().date());
+        try (var factory = Validation.buildDefaultValidatorFactory()) {
+            request.setFrom(LocalDate.parse("2017-01-01"));
+            assertTrue(factory.getValidator().validate(request).isEmpty());
+            request.setFrom(LocalDate.parse("2016-01-01"));
+            assertFalse(factory.getValidator().validate(request).isEmpty());
+            request.setPeriod(ReportPeriod.MONTH); request.setFrom(LocalDate.parse("2022-01-01"));
+            assertTrue(factory.getValidator().validate(request).isEmpty());
+            request.setFrom(LocalDate.parse("2021-01-01"));
+            assertFalse(factory.getValidator().validate(request).isEmpty());
+        }
+    }
+
     @Test void rejectsAmbiguousAttributionAndMisleadingFilters() {
         request.setProductId(1L);
         assertThrows(ResponseStatusException.class, () -> service.overview(request));

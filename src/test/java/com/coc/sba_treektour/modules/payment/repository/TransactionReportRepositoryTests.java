@@ -154,6 +154,15 @@ class TransactionReportRepositoryTests {
         assertEquals(2, repository.transactions(october, 2L, 2).size());
     }
 
+    @Test void yearlyQueriesAggregateAllReportSeriesAtYearStart() {
+        var f = filter("2025-01-01", "2027-12-31"); f.setPeriod(ReportPeriod.YEAR);
+        var series = repository.series(f);
+        assertEquals(1, series.size()); assertEquals(LocalDate.parse("2026-01-01"), series.getFirst().date());
+        equal("2500", series.getFirst().receivedAmount()); equal("700", series.getFirst().refundedAmount());
+        assertEquals(LocalDate.parse("2026-01-01"), repository.productSeries(f).getFirst().date());
+        assertEquals(LocalDate.parse("2026-01-01"), repository.tourSeries(f).getFirst().date());
+    }
+
     @Test void transactionPaginationIsStableAndContainsSuccessTimestamp() {
         var f = filter("2026-10-01", "2026-10-31");
         assertEquals(4, repository.transactionCount(f));

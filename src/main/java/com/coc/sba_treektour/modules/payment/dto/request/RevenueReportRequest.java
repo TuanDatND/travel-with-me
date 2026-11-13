@@ -27,9 +27,16 @@ public class RevenueReportRequest {
     @NotNull private ReportPeriod period = ReportPeriod.DAY;
     private RevenueSector sector;
 
-    @AssertTrue(message = "Khoảng ngày không hợp lệ hoặc vượt quá 366 ngày")
+    @AssertTrue(message = "Invalid report range: daily up to 366 days, monthly up to 60 months, yearly up to 10 years")
     public boolean isDateRangeValid() {
-        return from == null || to == null || (!to.isBefore(from) && !to.isAfter(from.plusDays(365)));
+        if (from == null || to == null || period == null) return true;
+        if (to.isBefore(from)) return false;
+        LocalDate lastDay = switch (period) {
+            case DAY -> from.plusDays(365);
+            case MONTH -> from.plusMonths(60).minusDays(1);
+            case YEAR -> from.plusYears(10).minusDays(1);
+        };
+        return !to.isAfter(lastDay);
     }
 
     @AssertTrue(message = "Không kết hợp bộ lọc sản phẩm với tour/lịch khởi hành")
