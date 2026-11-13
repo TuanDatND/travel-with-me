@@ -6,11 +6,10 @@ import com.coc.sba_treektour.modules.account.repository.UserRepository;
 import com.coc.sba_treektour.modules.payment.controller.RevenueReportController;
 import com.coc.sba_treektour.modules.payment.dto.request.RevenueReportRequest;
 import com.coc.sba_treektour.modules.payment.dto.response.MoneyTotals;
-import com.coc.sba_treektour.modules.payment.dto.response.ReportTransactionRow;
 import com.coc.sba_treektour.modules.payment.dto.response.RevenuePoint;
 import com.coc.sba_treektour.modules.payment.enums.ReportPeriod;
 import com.coc.sba_treektour.modules.payment.enums.RevenueSector;
-import com.coc.sba_treektour.modules.payment.repository.RevenueReportRepository;
+import com.coc.sba_treektour.modules.payment.repository.TransactionRepository;
 import com.coc.sba_treektour.modules.payment.service.RevenueReportService;
 import jakarta.validation.Validation;
 import jakarta.validation.ConstraintViolationException;
@@ -18,7 +17,6 @@ import org.springframework.validation.beanvalidation.MethodValidationPostProcess
 import org.springframework.context.annotation.Bean;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.AfterEach;
@@ -44,7 +42,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class RevenueReportServiceTests {
-    RevenueReportRepository repository = mock(RevenueReportRepository.class);
+    TransactionRepository repository = mock(TransactionRepository.class);
     UserRepository users = mock(UserRepository.class);
     RevenueReportServiceImpl service = new RevenueReportServiceImpl(repository, users);
     User admin = User.builder().id(1L).email("admin@test").status("ACTIVE").role(Role.builder().name("ADMIN").build()).build();
@@ -84,6 +82,25 @@ class RevenueReportServiceTests {
         assertEquals(LocalDate.parse("2026-09-01"), result.series().getFirst().date());
         assertEquals(3, result.undatedSucceededCount());
     }
+    @Test void yearlyBucketsIncludeEmptyYearsAndHaveBoundedRanges() {
+        request.setPeriod(ReportPeriod.YEAR);
+        request.setFrom(LocalDate.parse("2024-03-01")); request.setTo(LocalDate.parse("2026-12-31"));
+        var result = service.overview(request);
+        assertEquals(3, result.series().size());
+        assertEquals(LocalDate.parse("2024-01-01"), result.series().getFirst().date());
+        assertEquals(LocalDate.parse("2026-01-01"), result.series().getLast().date());
+        try (var factory = Validation.buildDefaultValidatorFactory()) {
+            request.setFrom(LocalDate.parse("2017-01-01"));
+            assertTrue(factory.getValidator().validate(request).isEmpty());
+            request.setFrom(LocalDate.parse("2016-01-01"));
+            assertFalse(factory.getValidator().validate(request).isEmpty());
+            request.setPeriod(ReportPeriod.MONTH); request.setFrom(LocalDate.parse("2022-01-01"));
+            assertTrue(factory.getValidator().validate(request).isEmpty());
+            request.setFrom(LocalDate.parse("2021-01-01"));
+            assertFalse(factory.getValidator().validate(request).isEmpty());
+        }
+    }
+
     @Test void rejectsAmbiguousAttributionAndMisleadingFilters() {
         request.setProductId(1L);
         assertThrows(ResponseStatusException.class, () -> service.overview(request));
@@ -93,18 +110,6 @@ class RevenueReportServiceTests {
         assertThrows(ResponseStatusException.class, () -> service.products(request));
         request.setPaymentMethod(null); request.setSector(RevenueSector.EQUIPMENT);
         assertThrows(ResponseStatusException.class, () -> service.tours(request));
-    }
-    @Test void csvEscapesQuotesAndSpreadsheetFormulasAndCapsExport() {
-        when(repository.transactionCount(request)).thenReturn(1L);
-        var now = OffsetDateTime.now();
-        when(repository.transactions(request, 0, 10000)).thenReturn(List.of(new ReportTransactionRow(1L, 2L, null, 1L,
-                "=SUM(1,2)", 1L, "Tour \"name\"", "PAYMENT", "ZALOPAY", BigDecimal.TEN, now, now)));
-        String csv = service.csv(request);
-        assertTrue(csv.contains("\"'=SUM(1,2)\""));
-        assertTrue(csv.contains("\"Tour \"\"name\"\"\""));
-        assertTrue(csv.startsWith("\ufefftransactionId"));
-        when(repository.transactionCount(request)).thenReturn(10001L);
-        assertThrows(ResponseStatusException.class, () -> service.csv(request));
     }
     @Test void paginationIsBoundedAndUsesExactTotal() {
         when(repository.transactionCount(request)).thenReturn(21L);
@@ -143,7 +148,6 @@ class RevenueReportServiceTests {
             assertThrows(AccessDeniedException.class, () -> secured.products(request));
             assertThrows(AccessDeniedException.class, () -> secured.tours(request));
             assertThrows(AccessDeniedException.class, () -> secured.transactions(request, 0, 20));
-            assertThrows(AccessDeniedException.class, () -> secured.csv(request));
             login("ADMIN");
             assertEquals(3, secured.overview(request).series().size());
             assertThrows(ConstraintViolationException.class, () -> secured.overview(new RevenueReportRequest()));

@@ -12,5 +12,4 @@ public interface RevenueReportService {
     ProductReportResponse products(@Valid RevenueReportRequest request);
     TourReportResponse tours(@Valid RevenueReportRequest request);
     ReportTransactionPage transactions(@Valid RevenueReportRequest request, int page, int size);
-    String csv(@Valid RevenueReportRequest request);
 }

@@ -8,7 +8,7 @@ import com.coc.sba_treektour.modules.payment.dto.response.TourReportResponse;
 import com.coc.sba_treektour.modules.payment.dto.response.RevenuePoint;
 import com.coc.sba_treektour.modules.payment.enums.ReportPeriod;
 import com.coc.sba_treektour.modules.payment.enums.RevenueSector;
-import com.coc.sba_treektour.modules.payment.repository.RevenueReportRepository;
+import com.coc.sba_treektour.modules.payment.repository.TransactionRepository;
 import com.coc.sba_treektour.modules.payment.service.RevenueReportService;
 import com.coc.sba_treektour.modules.account.repository.UserRepository;
 import java.math.BigDecimal;
@@ -35,7 +35,7 @@ import static org.springframework.http.HttpStatus.FORBIDDEN;
 @PreAuthorize("hasAuthority('ADMIN')")
 @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 public class RevenueReportServiceImpl implements RevenueReportService {
-    private final RevenueReportRepository reports;
+    private final TransactionRepository reports;
     private final UserRepository users;
 
     private void requireAdmin() {
@@ -59,10 +59,18 @@ public class RevenueReportServiceImpl implements RevenueReportService {
         var undated = reports.undated(request);
         Map<LocalDate, RevenuePoint> found = reports.series(request).stream().collect(Collectors.toMap(RevenuePoint::date, Function.identity()));
         List<RevenuePoint> series = new ArrayList<>();
-        LocalDate cursor = request.getPeriod() == ReportPeriod.MONTH ? request.getFrom().withDayOfMonth(1) : request.getFrom();
+        LocalDate cursor = switch (request.getPeriod()) {
+            case DAY -> request.getFrom();
+            case MONTH -> request.getFrom().withDayOfMonth(1);
+            case YEAR -> request.getFrom().withDayOfYear(1);
+        };
         while (!cursor.isAfter(request.getTo())) {
             series.add(found.getOrDefault(cursor, new RevenuePoint(cursor, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO)));
-            cursor = request.getPeriod() == ReportPeriod.MONTH ? cursor.plusMonths(1) : cursor.plusDays(1);
+            cursor = switch (request.getPeriod()) {
+                case DAY -> cursor.plusDays(1);
+                case MONTH -> cursor.plusMonths(1);
+                case YEAR -> cursor.plusYears(1);
+            };
         }
         return new RevenueOverviewResponse(request.getFrom(), request.getTo(), "Asia/Ho_Chi_Minh", "BACKEND_VERIFIED_SUCCESS_AT",
                 totals, pending.refundedAmount(), pending.refundCount(), undated.paymentCount() + undated.refundCount(),
@@ -91,27 +99,7 @@ public class RevenueReportServiceImpl implements RevenueReportService {
         requireAdmin(); moneyFilters(request);
         if (page < 0 || size < 1 || size > 100) throw new ResponseStatusException(BAD_REQUEST, "page >= 0; size 1-100");
         long count = reports.transactionCount(request);
-        return new ReportTransactionPage(reports.transactions(request, page, size), page, size, count, (count + size - 1) / size);
+        return new ReportTransactionPage(reports.transactions(request, (long) page * size, size), page, size, count, (count + size - 1) / size);
     }
 
-    @Override
-    public String csv(RevenueReportRequest request) {
-        requireAdmin(); moneyFilters(request);
-        long count = reports.transactionCount(request);
-        if (count > 10000) throw new ResponseStatusException(BAD_REQUEST, "CSV export is limited to 10000 transactions; narrow filters");
-        StringBuilder csv = new StringBuilder("\ufefftransactionId,orderId,participantId,branch,tour,type,method,amountVnd,createdAt,succeededAt\r\n");
-        for (var row : reports.transactions(request, 0, 10000)) {
-            csv.append(String.join(",", cell(row.transactionId()), cell(row.orderId()), cell(row.participantId()),
-                    cell(row.branchName()), cell(row.tourName()), cell(row.transactionType()), cell(row.paymentMethod()),
-                    cell(row.amount()), cell(row.createdAt()), cell(row.succeededAt()))).append("\r\n");
-        }
-        return csv.toString();
-    }
-
-    private String cell(Object value) {
-        String text = value == null ? "" : value.toString();
-        // Spreadsheet formulas in external names must not execute when the CSV is opened.
-        if (text.stripLeading().matches("^[=+@-].*")) text = "'" + text;
-        return "\"" + text.replace("\"", "\"\"") + "\"";
-    }
 }

@@ -12,7 +12,11 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.data.jpa.repository.support.JpaRepositoryFactory;
+import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
+import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
+import jakarta.persistence.EntityManager;
+import java.util.Properties;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -21,10 +25,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /** Explicit local-only PostgreSQL fixture, in an isolated schema; never uses .env or shared DB. */
 @EnabledIfEnvironmentVariable(named = "REPORT_TEST_DB_URL", matches = "jdbc:postgresql://127\\.0\\.0\\.1:55438/.*")
-class RevenueReportRepositoryTests {
+class TransactionReportRepositoryTests {
     static JdbcTemplate sql;
     static JdbcTemplate admin;
-    static RevenueReportRepository repository;
+    static TransactionRepository repository;
+    static LocalContainerEntityManagerFactoryBean factory;
+    static EntityManager entityManager;
     static final String SCHEMA = "report_" + UUID.randomUUID().toString().replace("-", "");
 
     @BeforeAll static void setup() {
@@ -67,10 +73,20 @@ class RevenueReportRepositoryTests {
             (7,1,'PAYMENT',500,'ZALOPAY','SUCCEEDED','2026-10-30 08:00+07','2026-10-31 23:59:59+07'),
             (8,1,'REFUND',500,'MANUAL','SUCCEEDED','2026-10-31 23:59:59+07','2026-11-01 00:00:00+07');
             """);
-        repository = new RevenueReportRepository(new NamedParameterJdbcTemplate(dataSource));
+        factory = new LocalContainerEntityManagerFactoryBean();
+        factory.setDataSource(dataSource);
+        factory.setPackagesToScan("com.coc.sba_treektour.modules");
+        factory.setJpaVendorAdapter(new HibernateJpaVendorAdapter());
+        var properties = new Properties();
+        properties.setProperty("hibernate.hbm2ddl.auto", "none");
+        properties.setProperty("hibernate.default_schema", SCHEMA);
+        factory.setJpaProperties(properties);
+        factory.afterPropertiesSet();
+        entityManager = factory.getObject().createEntityManager();
+        repository = new JpaRepositoryFactory(entityManager).getRepository(TransactionRepository.class);
     }
 
-    @AfterAll static void cleanup() { if (admin != null) admin.execute("DROP SCHEMA " + SCHEMA + " CASCADE"); }
+    @AfterAll static void cleanup() { if (entityManager != null) entityManager.close(); if (factory != null) factory.destroy(); if (admin != null) admin.execute("DROP SCHEMA " + SCHEMA + " CASCADE"); }
     static RevenueReportRequest filter(String from, String to) {
         var f = new RevenueReportRequest(); f.setFrom(LocalDate.parse(from)); f.setTo(LocalDate.parse(to)); return f;
     }
@@ -125,12 +141,34 @@ class RevenueReportRepositoryTests {
         assertEquals(2L, repository.schedules(f).getFirst().branchId());
         f.setTourId(999L); assertTrue(repository.tours(f).isEmpty());
     }
+    @Test void directRecordMappingPreservesNullableTargetsTimestampAndPagedOffset() {
+        var f = filter("2026-10-01", "2026-11-30");
+        f.setTourId(1L); f.setScheduleId(1L); f.setPaymentMethod("   ");
+        var row = repository.transactions(f, 0L, 20).getFirst();
+        assertNull(row.orderId()); assertEquals(1L, row.participantId());
+        assertEquals("2026-10-31T17:00:00Z", row.succeededAt().toInstant().toString());
+        assertEquals("2026-11-20T01:00:00Z", repository.schedules(f).getFirst().startDatetime().toInstant().toString());
+        f.setScheduleId(999L); assertTrue(repository.schedules(f).isEmpty());
+        var october = filter("2026-10-01", "2026-10-31");
+        assertEquals(3L, repository.transactions(october, 2L, 2).getFirst().transactionId());
+        assertEquals(2, repository.transactions(october, 2L, 2).size());
+    }
+
+    @Test void yearlyQueriesAggregateAllReportSeriesAtYearStart() {
+        var f = filter("2025-01-01", "2027-12-31"); f.setPeriod(ReportPeriod.YEAR);
+        var series = repository.series(f);
+        assertEquals(1, series.size()); assertEquals(LocalDate.parse("2026-01-01"), series.getFirst().date());
+        equal("2500", series.getFirst().receivedAmount()); equal("700", series.getFirst().refundedAmount());
+        assertEquals(LocalDate.parse("2026-01-01"), repository.productSeries(f).getFirst().date());
+        assertEquals(LocalDate.parse("2026-01-01"), repository.tourSeries(f).getFirst().date());
+    }
+
     @Test void transactionPaginationIsStableAndContainsSuccessTimestamp() {
         var f = filter("2026-10-01", "2026-10-31");
         assertEquals(4, repository.transactionCount(f));
         assertEquals(7L, repository.transactions(f, 0, 1).getFirst().transactionId());
         assertEquals(4L, repository.transactions(f, 1, 1).getFirst().transactionId());
-        assertTrue(repository.transactions(f, 9, 20).isEmpty());
+        assertTrue(repository.transactions(f, 180L, 20).isEmpty());
         assertEquals(2L, repository.transactions(f, 0, 1).getFirst().branchId());
     }
 }
