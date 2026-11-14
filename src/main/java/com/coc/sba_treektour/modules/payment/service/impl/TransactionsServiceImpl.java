@@ -354,7 +354,8 @@ public class TransactionsServiceImpl implements TransactionsService, PaymentReco
                 transaction.getPaymentMethod(),
                 transaction.getStatus(),
                 transaction.getCreatedAt(), transaction.getRefundReason(), transaction.getSucceededAt(),
-                transaction.getRefundConfirmedBy(), transaction.getRefundTransferReference(), transaction.getRefundConfirmationNote());
+                transaction.getRefundConfirmedBy(), transaction.getRefundTransferReference(), transaction.getRefundConfirmationNote(),
+                transaction.getRefundRejectedBy(), transaction.getRefundRejectedAt(), transaction.getRefundRejectionReason());
     }
 
     private Transaction findZaloPayTransaction(Long transactionId) {

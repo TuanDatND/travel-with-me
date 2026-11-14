@@ -7,6 +7,7 @@ import com.coc.sba_treektour.modules.order.enums.OrderStatus;
 import com.coc.sba_treektour.modules.order.repository.OrderRepository;
 import com.coc.sba_treektour.modules.payment.dto.request.RequestRefund;
 import com.coc.sba_treektour.modules.payment.dto.request.ConfirmRefundRequest;
+import com.coc.sba_treektour.modules.payment.dto.request.RejectRefundRequest;
 import com.coc.sba_treektour.modules.order.service.OrderRefundService;
 import com.coc.sba_treektour.modules.order.service.impl.OrderRefundServiceImpl;
 import com.coc.sba_treektour.modules.order.entity.OrderItem;
@@ -38,6 +39,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.server.ResponseStatusException;
 import static com.coc.sba_treektour.modules.payment.enums.TransactionStatus.PENDING;
+import static com.coc.sba_treektour.modules.payment.enums.TransactionStatus.REJECTED;
 import static com.coc.sba_treektour.modules.payment.enums.TransactionStatus.SUCCEEDED;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -110,9 +112,54 @@ class RefundServiceTests {
         login("ADMIN");
         service.list(PENDING, 0, 20);
         service.list(SUCCEEDED, 0, 20);
+        service.list(REJECTED, 0, 20);
+        verify(transactions).findByTransactionTypeAndPaymentMethodAndStatusOrderByIdDesc(eq("REFUND"), eq("MANUAL"), eq(REJECTED), any());
         verify(transactions).findByTransactionTypeAndPaymentMethodAndStatusOrderByIdDesc(eq("REFUND"), eq("MANUAL"), eq(PENDING), any());
         verify(transactions).findByTransactionTypeAndPaymentMethodAndStatusOrderByIdDesc(eq("REFUND"), eq("MANUAL"), eq(SUCCEEDED), any());
         assertThrows(ResponseStatusException.class, () -> service.list(null, 0, 20));
+    }
+
+    @Test void rejectionKeepsAuditOnRetryAndNeverReturnsMoneyOrChangesOrder() {
+        login("ADMIN");
+        var refund = refund(); find(refund);
+        var result = service.reject(11L, new RejectRefundRequest(" Outside refund policy "));
+        assertEquals(REJECTED, result.status());
+        assertEquals("Outside refund policy", result.refundRejectionReason());
+        assertEquals(9L, result.refundRejectedBy());
+        assertNotNull(result.refundRejectedAt());
+        assertEquals(null, result.succeededAt());
+        var retry = service.reject(11L, new RejectRefundRequest("Do not overwrite"));
+        assertEquals(result.refundRejectedAt(), retry.refundRejectedAt());
+        assertEquals(result.refundRejectionReason(), retry.refundRejectionReason());
+        verify(transactions, times(1)).saveAndFlush(refund);
+        verify(orderRefundService, never()).completeRefund(any());
+        verify(order, never()).setStatus(any());
+        var locks = inOrder(orders, transactions);
+        locks.verify(orders).lockById(5L);
+        locks.verify(transactions).findByIdForUpdate(11L);
+        assertThrows(ResponseStatusException.class, () -> service.confirm(11L, confirmation));
+    }
+    @Test void rejectionLocksTourAndAllowsNewRequestAfterRejection() {
+        login("ADMIN");
+        var ticket = mock(EventParticipant.class);
+        when(ticket.getId()).thenReturn(7L);
+        when(participants.lock(7L)).thenReturn(ticket);
+        var refund = refund(); refund.setOrder(null); refund.setParticipant(ticket); find(refund);
+        assertEquals(REJECTED, service.reject(11L, new RejectRefundRequest("Policy" )).status());
+        verify(participants).lock(7L);
+        verify(orderRefundService, never()).completeRefund(any());
+        login("CUSTOMER");
+        assertEquals(PENDING, service.request(new RequestRefund(5L, null, "New evidence")).status());
+    }
+    @Test void completedOrNonRefundTransactionsCannotBeRejectedAndInactiveAdminIsBlocked() {
+        login("ADMIN");
+        var refund = refund(); refund.setStatus(SUCCEEDED); find(refund);
+        assertThrows(ResponseStatusException.class, () -> service.reject(11L, new RejectRefundRequest("Policy")));
+        refund.setStatus(PENDING); refund.setTransactionType("PAYMENT");
+        assertThrows(ResponseStatusException.class, () -> service.reject(11L, new RejectRefundRequest("Policy")));
+        refund.setTransactionType("REFUND"); user.setStatus("BLOCKED");
+        assertThrows(ResponseStatusException.class, () -> service.reject(11L, new RejectRefundRequest("Policy")));
+        verify(transactions, never()).saveAndFlush(any());
     }
 
     @Test void previewUsesServerBalanceAndRejectsAnotherOwner() {
@@ -249,8 +296,10 @@ class RefundServiceTests {
             context.refresh();
             var secured = context.getBean(RefundService.class);
             assertThrows(AccessDeniedException.class, () -> secured.confirm(11L, confirmation));
+            assertThrows(AccessDeniedException.class, () -> secured.reject(11L, new RejectRefundRequest("Policy")));
             assertThrows(AccessDeniedException.class, () -> secured.list(PENDING, 0, 20));
             login("STAFF");
+            assertThrows(AccessDeniedException.class, () -> secured.reject(11L, new RejectRefundRequest("Policy")));
             assertThrows(AccessDeniedException.class, () -> secured.request(new RequestRefund(5L, null, "Không còn nhu cầu")));
             assertThrows(AccessDeniedException.class, () -> secured.mine(0, 20));
             assertThrows(AccessDeniedException.class, () -> secured.preview(5L, null));
@@ -262,6 +311,9 @@ class RefundServiceTests {
     @Test void dtoRejectsBothTargetsMissingTargetsAndNonpositiveIds() {
         try (var factory = Validation.buildDefaultValidatorFactory()) {
             var validator = factory.getValidator();
+            assertFalse(validator.validate(new RejectRefundRequest(" ")).isEmpty());
+            assertFalse(validator.validate(new RejectRefundRequest(null)).isEmpty());
+            assertFalse(validator.validate(new RejectRefundRequest("x".repeat(2001))).isEmpty());
             assertFalse(validator.validate(new ConfirmRefundRequest(" ", null)).isEmpty());
             assertFalse(validator.validate(new ConfirmRefundRequest("x".repeat(201), null)).isEmpty());
             assertFalse(validator.validate(new ConfirmRefundRequest("BANK-123", "x".repeat(2001))).isEmpty());

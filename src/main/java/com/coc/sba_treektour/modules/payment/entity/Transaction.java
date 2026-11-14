@@ -107,6 +107,15 @@ public class Transaction {
     @Column(name = "refund_confirmation_note", length = 2000)
     private String refundConfirmationNote;
 
+    @Column(name = "refund_rejected_by")
+    private Long refundRejectedBy;
+
+    @Column(name = "refund_rejected_at")
+    private OffsetDateTime refundRejectedAt;
+
+    @Column(name = "refund_rejection_reason", length = 2000)
+    private String refundRejectionReason;
+
     @Size(max = 30)
     @NotNull
     @Column(name = "transaction_type", nullable = false, length = 30)
