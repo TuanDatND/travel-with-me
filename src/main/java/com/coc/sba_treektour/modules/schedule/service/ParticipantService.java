@@ -13,6 +13,7 @@ public interface ParticipantService {
     ParticipantResponse cancel(Long id, CancelParticipantRequest request);
     ParticipantResponse confirmPayment(Long id, ConfirmParticipantPaymentRequest request);
     ParticipantResponse checkIn(Long id);
+    ParticipantResponse checkOut(Long id);
     ParticipantResponse markNoShow(Long id);
     ParticipantResponse findById(Long id);
     List<ParticipantResponse> findByScheduleId(Long id, int page, int size);
