@@ -92,13 +92,12 @@ public class OrderServiceImpl implements OrderService {
     public OrderResponse create(CreateOrderRequest request, String email) {
         User user = activeUser(email);
         Branch branch = activeBranch(request.branchId());
-        Order order = new Order(user, branch,
-                OffsetDateTime.now(), OrderStatus.PENDING, BigDecimal.ZERO);
         if (user.getFullName() == null || user.getFullName().isBlank()
                 || user.getPhone() == null || !user.getPhone().trim().matches("[+0-9\\s().-]{7,30}")
                 || user.getAddress() == null || user.getAddress().isBlank()) {
             throw new InvalidOrderException("Please update your profile with your full name, phone number and address before placing an order");
         }
+        Order order = request.toEntity(user, branch);
         order.setCustomerContact(user.getFullName(), user.getPhone(), user.getAddress());
         // Lock products in ID order to serialize reservations and stock changes.
         request.items().stream().map(CreateOrderItemRequest::productId).distinct().sorted()
@@ -106,7 +105,9 @@ public class OrderServiceImpl implements OrderService {
         if (request.items().stream().map(CreateOrderItemRequest::productId).distinct().count() != request.items().size())
             throw new InvalidOrderException("Use one line per product in each order");
         for (var line : request.items()) {
-            OrderItem item = toEntity(line);
+            var product = productRepository.findById(line.productId()).filter(p -> "ACTIVE".equals(p.getStatus()))
+                    .orElseThrow(() -> new InvalidOrderException("Active product not found"));
+            OrderItem item = line.toEntity(product);
             order.addItem(item);
         }
         var total = order.getItems().stream().map(i -> i.getUnitPrice().multiply(BigDecimal.valueOf(i.getQuantity()))
@@ -114,7 +115,6 @@ public class OrderServiceImpl implements OrderService {
                                 ? ChronoUnit.DAYS.between(i.getRentalStartDate(), i.getRentalEndDate()) + 1 : 1)))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         order.update(branch, order.getOrderDate(), OrderStatus.PENDING, total);
-        order.setDeliveryInfo(request.deliveryType(), request.scheduleId(), request.deliveryLocation(), request.deliveryNotes());
         return toResponse(orderRepository.save(order));
     }
 
@@ -227,27 +227,6 @@ public class OrderServiceImpl implements OrderService {
         User actor = activeUser(email);
         if (!order.getUserId().equals(actor.getId())) {
             throw new AccessDeniedException("You do not own this order");
-        }
-    }
-
-    private OrderItem toEntity(CreateOrderItemRequest request) {
-        validateRentalDates(request);
-        var product = productRepository.findById(request.productId()).filter(p -> "ACTIVE".equals(p.getStatus()))
-                .orElseThrow(() -> new InvalidOrderException("Active product not found"));
-        var price = request.itemType() == OrderItemType.SALE ? product.getSalePrice() : product.getRentalPricePerDay();
-        if (price == null) throw new InvalidOrderException("Product does not support selected mode");
-        return new OrderItem(request.productId(), request.itemType(), request.quantity(), price,
-                request.rentalStartDate(), request.rentalEndDate(),
-                OrderItemStatus.PENDING);
-    }
-
-    private void validateRentalDates(CreateOrderItemRequest request) {
-        boolean hasDates = request.rentalStartDate() != null || request.rentalEndDate() != null;
-        if (request.itemType() == OrderItemType.RENTAL && (request.rentalStartDate() == null || request.rentalEndDate() == null || request.rentalEndDate().isBefore(request.rentalStartDate()))) {
-            throw new InvalidOrderException("Rental items require valid start and end dates");
-        }
-        if (request.itemType() == OrderItemType.SALE && hasDates) {
-            throw new InvalidOrderException("Sale items must not include rental dates");
         }
     }
 
