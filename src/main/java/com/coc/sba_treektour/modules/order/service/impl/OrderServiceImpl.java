@@ -80,6 +80,13 @@ public class OrderServiceImpl implements OrderService {
         this.scheduleAccessPolicy = scheduleAccessPolicy;
     }
 
+    /**
+     * Tạo đơn hàng mới từ giỏ hàng.
+     * 1. Kiểm tra tài khoản (phải ACTIVE và đã cập nhật họ tên, SĐT, địa chỉ giao nhận).
+     * 2. Khóa bi quan (pessimistic lock) các sản phẩm theo thứ tự ID tăng dần để chống deadlock và tranh chấp tồn kho.
+     * 3. Tính tổng tiền: Đồ bán = Giá * SL; Đồ thuê = Giá thuê/ngày * SL * (Số ngày thuê).
+     * 4. Lưu đơn ở trạng thái PENDING cùng thông tin giao hàng (Tại trạm hoặc Giao theo tour).
+     */
     @Override
     @Transactional
     public OrderResponse create(CreateOrderRequest request, String email) {
@@ -123,6 +130,12 @@ public class OrderServiceImpl implements OrderService {
         return findAll(userId, null);
     }
 
+    /**
+     * Lấy danh sách đơn hàng cho Admin/Staff:
+     * - Nếu là Staff: kiểm tra quyền quản lý chi nhánh (`manages(branchId)`).
+     * - Nếu là Admin: có thể lọc theo chi nhánh, khách hàng hoặc xem toàn bộ.
+     * - Tự động truy vấn số dư thanh toán (`OrderPaymentBalance`) từ module Payment gắn vào response.
+     */
     @Override
     @Transactional(readOnly = true)
     public List<OrderResponse> findAll(Long userId, Long branchId) {
@@ -173,6 +186,10 @@ public class OrderServiceImpl implements OrderService {
         return toResponse(order);
     }
 
+    /**
+     * Khách hàng lấy danh sách tất cả các đơn hàng do chính mình đặt.
+     * Sắp xếp theo ngày đặt giảm dần (mới nhất lên đầu) kèm thông tin thanh toán.
+     */
     @Override
     @Transactional(readOnly = true)
     public List<OrderResponse> findMyOrders(String email) {
@@ -238,6 +255,13 @@ public class OrderServiceImpl implements OrderService {
         return OrderResponse.from(order, orderPaymentQueryService.read(order.getId()));
     }
 
+    /**
+     * Khách hàng hủy đơn hàng (Cancel Order):
+     * 1. Xác thực người gọi là chủ sở hữu của đơn hàng (`requireOwner`).
+     * 2. Chỉ cho phép hủy khi đơn ở trạng thái PENDING.
+     * 3. Kiểm tra phía thanh toán: nếu đã thanh toán hoặc đang xử lý giao dịch thì không được hủy trực tiếp (phải qua luồng Refund).
+     * 4. Đổi trạng thái Order và tất cả OrderItem sang CANCELLED.
+     */
     @Override
     @Transactional
     public OrderResponse cancel(Long id, String email) {
@@ -252,6 +276,12 @@ public class OrderServiceImpl implements OrderService {
         return toResponse(order);
     }
 
+    /**
+     * Khách hàng xác nhận đã nhận hàng (Confirm Customer Receipt):
+     * 1. Kiểm tra đơn phải đang ở trạng thái IN_PROGRESS (đã được nhân viên bàn giao tại quầy hoặc HDV giao tại tour).
+     * 2. Ghi nhận thời điểm nhận hàng `customerReceivedAt = now()`.
+     * 3. Nếu đơn hàng chỉ bao gồm đồ mua (SALE, không có đồ thuê RENTAL), đơn được hoàn tất (COMPLETED) ngay lập tức.
+     */
     @Override
     @Transactional
     public OrderResponse confirmReceipt(Long id, String email) {
@@ -266,6 +296,29 @@ public class OrderServiceImpl implements OrderService {
         return toResponse(order);
     }
 
+    /**
+     * Máy trạng thái đơn hàng (Order State Machine transitions):
+     *
+     * 1. action = "confirm":
+     *    - Đơn phải đang PENDING, đã thanh toán đủ 100%, không bị treo yêu cầu hoàn tiền (refund pending).
+     *    - Chuyển trạng thái Order và các Items sang CONFIRMED.
+     *
+     * 2. action = "guide-pickup":
+     *    - Áp dụng riêng cho đơn giao theo tour (TOUR_DELIVERY).
+     *    - Đơn phải đang CONFIRMED. Xuất kho trạm bàn giao đồ cho Tour Guide mang đi.
+     *    - Chuyển trạng thái Order sang WITH_GUIDE.
+     *
+     * 3. action = "hand-over":
+     *    - Đơn tại trạm (STORE_PICKUP): nhân viên bàn giao trực tiếp cho khách, trừ tồn kho bán hoặc đánh dấu đồ thuê đang xuất ngoại.
+     *    - Đơn theo tour (TOUR_DELIVERY): Tour Guide bàn giao đồ tận tay khách tại điểm tập kết tour.
+     *    - Chuyển trạng thái Order sang IN_PROGRESS.
+     *
+     * 4. action = "return":
+     *    - Áp dụng khi khách trả đồ thuê (RENTAL).
+     *    - Yêu cầu bắt buộc: Khách phải bấm xác nhận đã nhận đồ trước đó (`customerReceivedAt != null`).
+     *    - Nghiệm thu đồ thuê: Kiểm tra đồ trả, hoàn trả số lượng vào kho khả dụng của chi nhánh (`receiveRental`).
+     *    - Cập nhật trạng thái từng món đồ sang RETURNED và hoàn tất đơn hàng sang COMPLETED.
+     */
     @Override
     @Transactional
     public OrderResponse operate(Long id, String action) {
@@ -320,6 +373,11 @@ public class OrderServiceImpl implements OrderService {
         return toResponse(order);
     }
 
+    /**
+     * Xuất kho thực tế khi bàn giao đồ:
+     * - Đồ bán (SALE): Trừ vĩnh viễn tồn kho khả dụng (`fulfillSale`).
+     * - Đồ thuê (RENTAL): Kiểm tra ngày bắt đầu thuê không được ở tương lai, ghi nhận xuất kho cho thuê (`handOutRental`).
+     */
     private void fulfillItemsOutOfStore(Long branchId, List<OrderItem> items, boolean checkRentalStartDate) {
         for (var i : items) {
             if (i.getStatus() == OrderItemStatus.FULFILLED || i.getStatus() == OrderItemStatus.RENTED) {
@@ -337,6 +395,10 @@ public class OrderServiceImpl implements OrderService {
         }
     }
 
+    /**
+     * Lấy các đơn hàng đồ dã ngoại đi theo một lịch tour cụ thể (TOUR_DELIVERY).
+     * Chỉ Tour Guide phụ trách tour đó hoặc Quản lý trạm mới có quyền xem danh sách này.
+     */
     @Override
     @Transactional(readOnly = true)
     public List<OrderResponse> findBySchedule(Long scheduleId) {
@@ -349,6 +411,13 @@ public class OrderServiceImpl implements OrderService {
         return orders.stream().map(order -> OrderResponse.from(order, balances.getOrDefault(order.getId(), unpaid))).toList();
     }
 
+    /**
+     * Kiểm tra phân quyền theo vai trò (Admin, Staff, Guide) trước khi thực hiện thao tác nghiệp vụ:
+     * - Admin: Bỏ qua kiểm tra, có thể thao tác mọi đơn trên toàn hệ thống.
+     * - Staff: Kiểm tra quyền quản lý chi nhánh (`requireManager(branchId)`).
+     * - Guide: Chỉ được thao tác đơn giao theo tour của lịch trình mà hướng dẫn viên đó được phân công.
+     *          Guide không được phép duyệt đơn (`confirm`) hoặc tự ý nhận đồ trước khi trạm bàn giao.
+     */
     @Override
     @Transactional
     public OrderResponse operateAsActor(Long id, String action) {
