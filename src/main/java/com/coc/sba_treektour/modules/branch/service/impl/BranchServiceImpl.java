@@ -47,11 +47,15 @@ public class BranchServiceImpl implements BranchService {
             status = validateBranchStatus(request.getStatus());
         }
 
+        String returnCutoff = request.getReturnCutoffTime() != null && !request.getReturnCutoffTime().isBlank()
+                ? request.getReturnCutoffTime().trim() : "18:00";
+
         Branch branch = Branch.builder()
                 .name(request.getName())
                 .phone(request.getPhone())
                 .address(request.getAddress())
                 .status(status)
+                .returnCutoffTime(returnCutoff)
                 .build();
 
         Branch savedBranch = branchRepository.save(branch);
@@ -69,6 +73,10 @@ public class BranchServiceImpl implements BranchService {
 
         if (request.getStatus() != null && !request.getStatus().isBlank()) {
             branch.setStatus(validateBranchStatus(request.getStatus()));
+        }
+
+        if (request.getReturnCutoffTime() != null && !request.getReturnCutoffTime().isBlank()) {
+            branch.setReturnCutoffTime(request.getReturnCutoffTime().trim());
         }
 
         Branch updatedBranch = branchRepository.save(branch);
@@ -120,6 +128,7 @@ public class BranchServiceImpl implements BranchService {
                 .phone(branch.getPhone())
                 .address(branch.getAddress())
                 .status(branch.getStatus())
+                .returnCutoffTime(branch.getReturnCutoffTime() != null ? branch.getReturnCutoffTime() : "18:00")
                 .build();
     }
 }

@@ -1,5 +1,6 @@
 package com.coc.sba_treektour.modules.order.dto.response;
 
+import com.coc.sba_treektour.modules.order.enums.OrderItemType;
 import com.coc.sba_treektour.modules.order.entity.Order;
 import com.coc.sba_treektour.modules.order.enums.OrderItemStatus;
 import com.coc.sba_treektour.modules.order.enums.OrderStatus;
@@ -16,7 +17,8 @@ public record OrderResponse(
         boolean canApprove, boolean canCancel,
         OffsetDateTime customerReceivedAt, boolean canConfirmReceipt, boolean canReturn, boolean refundPending,
         String deliveryType, Long scheduleId, String deliveryLocation, String deliveryNotes,
-        String customerName, String customerPhone, String customerAddress, String customerEmail) {
+        String customerName, String customerPhone, String customerAddress, String customerEmail,
+        String returnCutoffTime) {
 
     public OrderResponse(Long id, Long userId, Long branchId, OrderStatus status,
                          BigDecimal totalAmount, OffsetDateTime orderDate, List<OrderItemResponse> items,
@@ -25,7 +27,7 @@ public record OrderResponse(
                          OffsetDateTime customerReceivedAt, boolean canConfirmReceipt, boolean canReturn, boolean refundPending) {
         this(id, userId, branchId, status, totalAmount, orderDate, items, paymentStatus, paidAmount, remainingAmount,
                 canApprove, canCancel, customerReceivedAt, canConfirmReceipt, canReturn, refundPending,
-                "STORE_PICKUP", null, null, null, null, null, null, null);
+                "STORE_PICKUP", null, null, null, null, null, null, null, "18:00");
     }
 
     public OrderResponse(Long id, Long userId, Long branchId, OrderStatus status,
@@ -36,12 +38,14 @@ public record OrderResponse(
                          String deliveryType, Long scheduleId, String deliveryLocation, String deliveryNotes) {
         this(id, userId, branchId, status, totalAmount, orderDate, items, paymentStatus, paidAmount, remainingAmount,
                 canApprove, canCancel, customerReceivedAt, canConfirmReceipt, canReturn, refundPending,
-                deliveryType, scheduleId, deliveryLocation, deliveryNotes, null, null, null, null);
+                deliveryType, scheduleId, deliveryLocation, deliveryNotes, null, null, null, null, "18:00");
     }
 
     public static OrderResponse from(Order order, OrderPaymentBalance balance) {
         boolean pending = order.getStatus() == OrderStatus.PENDING;
         var user = order.getUser();
+        String cutoff = order.getBranch() != null && order.getBranch().getReturnCutoffTime() != null
+                ? order.getBranch().getReturnCutoffTime() : "18:00";
         return new OrderResponse(order.getId(), order.getUserId(), order.getBranchId(), order.getStatus(),
                 order.getTotalAmount(), order.getOrderDate(), order.getItems().stream().map(item -> new OrderItemResponse(
                 item.getId(), item.getProductId(), item.getItemType(), item.getQuantity(), item.getUnitPrice(),
@@ -52,7 +56,7 @@ public record OrderResponse(
                 order.getCustomerReceivedAt(),
                 order.getStatus() == OrderStatus.IN_PROGRESS && order.getCustomerReceivedAt() == null,
                 order.getStatus() == OrderStatus.IN_PROGRESS && order.getCustomerReceivedAt() != null
-                        && order.getItems().stream().anyMatch(item -> item.getStatus() == OrderItemStatus.RENTED), balance.refundPending(),
+                        && order.getItems().stream().anyMatch(item -> item.getItemType() == OrderItemType.RENTAL && item.getStatus() != OrderItemStatus.RETURNED && item.getStatus() != OrderItemStatus.CANCELLED), balance.refundPending(),
                 order.getDeliveryType() != null ? order.getDeliveryType() : "STORE_PICKUP",
                 order.getScheduleId(),
                 order.getDeliveryLocation(),
@@ -60,6 +64,7 @@ public record OrderResponse(
                 order.getCustomerName() != null ? order.getCustomerName() : (user != null ? user.getFullName() : null),
                 order.getCustomerPhone() != null ? order.getCustomerPhone() : (user != null ? user.getPhone() : null),
                 order.getCustomerAddress() != null ? order.getCustomerAddress() : (user != null ? user.getAddress() : null),
-                user != null ? user.getEmail() : null);
+                user != null ? user.getEmail() : null,
+                cutoff);
     }
 }

@@ -107,6 +107,19 @@ class OrderServiceImplTests {
         verify(payments).readMany(List.of(9L));
         verify(payments, never()).read(any());
     }
+    @Test void findMyOrdersReturnsCustomerOrdersDirectly() {
+        User user = User.builder().id(1L).email("customer@test.local").status("ACTIVE").build();
+        when(users.findByEmail("customer@test.local")).thenReturn(Optional.of(user));
+        Order order = mock(Order.class);
+        when(order.getId()).thenReturn(15L);
+        when(order.getStatus()).thenReturn(OrderStatus.PENDING);
+        when(order.getTotalAmount()).thenReturn(new BigDecimal("200000"));
+        when(order.getItems()).thenReturn(List.of());
+        when(orders.findByUser_IdOrderByOrderDateDesc(1L)).thenReturn(List.of(order));
+        var myOrders = service.findMyOrders("customer@test.local");
+        assertThat(myOrders).hasSize(1);
+        assertThat(myOrders.getFirst().id()).isEqualTo(15L);
+    }
     final OrderRepository orders = mock(OrderRepository.class);
     final UserRepository users = mock(UserRepository.class);
     final BranchRepository branches = mock(BranchRepository.class);
@@ -375,5 +388,92 @@ class OrderServiceImplTests {
         var result = scopedService.findAll(null, 2L);
         assertThat(result).hasSize(1);
         verify(policy).requireManager(2L);
+    }
+
+    @Test void mixedOrderWithSaleAndRentalHandlesFulfillmentCustomerReceiptAndReturnInspection() {
+        var order = pendingOrder();
+        when(orders.findById(9L)).thenReturn(Optional.of(order));
+        var saleItem = new OrderItem(3L, OrderItemType.SALE, 1, new BigDecimal("50000"), null, null, OrderItemStatus.PENDING);
+        var rentalItem = new OrderItem(4L, OrderItemType.RENTAL, 2, new BigDecimal("100000"), LocalDate.now(), LocalDate.now().plusDays(2), OrderItemStatus.PENDING);
+        order.addItem(saleItem);
+        order.addItem(rentalItem);
+        when(payments.read(9L)).thenReturn(new OrderPaymentBalance(new BigDecimal("250000"), BigDecimal.ZERO, 0));
+
+        // 1. Approve
+        service.operate(9L, "confirm");
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+        assertThat(saleItem.getStatus()).isEqualTo(OrderItemStatus.CONFIRMED);
+        assertThat(rentalItem.getStatus()).isEqualTo(OrderItemStatus.CONFIRMED);
+        verifyNoInteractions(inventory);
+
+        // 2. Handover at store
+        var handedOver = service.operate(9L, "hand-over");
+        assertThat(handedOver.status()).isEqualTo(OrderStatus.IN_PROGRESS);
+        assertThat(handedOver.canConfirmReceipt()).isTrue();
+        assertThat(handedOver.canReturn()).isFalse(); // Cannot return before customer receipt
+        assertThat(saleItem.getStatus()).isEqualTo(OrderItemStatus.FULFILLED);
+        assertThat(rentalItem.getStatus()).isEqualTo(OrderItemStatus.RENTED);
+        verify(inventory, times(1)).fulfillSale(2L, 3L, 1);
+        verify(inventory, times(1)).handOutRental(2L, 4L, 2);
+
+        // 3. Customer confirms receipt
+        service.confirmReceipt(9L, "customer@test.local");
+        // Because the order contains a RENTAL item, it must remain IN_PROGRESS
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.IN_PROGRESS);
+        assertThat(order.getCustomerReceivedAt()).isNotNull();
+
+        var midState = service.findById(9L);
+        assertThat(midState.canConfirmReceipt()).isFalse();
+        assertThat(midState.canReturn()).isTrue(); // Now eligible for return inspection
+
+        // 4. Return inspection for the rental equipment
+        var completed = service.operate(9L, "return");
+        assertThat(completed.status()).isEqualTo(OrderStatus.COMPLETED);
+        assertThat(rentalItem.getStatus()).isEqualTo(OrderItemStatus.RETURNED);
+        assertThat(saleItem.getStatus()).isEqualTo(OrderItemStatus.FULFILLED); // Sale item remains fulfilled
+        verify(inventory, times(1)).receiveRental(2L, 4L, 2);
+        verify(inventory, never()).receiveRental(any(), org.mockito.Mockito.eq(3L), anyInt());
+
+        // 5. Subsequent return attempts are blocked
+        assertThatThrownBy(() -> service.operate(9L, "return")).isInstanceOf(InvalidOrderException.class);
+    }
+
+    @Test void mixedOrderTourDeliveryFulfillsAtGuidePickupAndReturnsAfterCustomerReceipt() {
+        var order = pendingOrder();
+        when(orders.findById(9L)).thenReturn(Optional.of(order));
+        order.setDeliveryInfo("TOUR_DELIVERY", 55L, "Summit Outpost", "Handle with care");
+        var saleItem = new OrderItem(3L, OrderItemType.SALE, 1, new BigDecimal("50000"), null, null, OrderItemStatus.PENDING);
+        var rentalItem = new OrderItem(4L, OrderItemType.RENTAL, 1, new BigDecimal("100000"), LocalDate.now().plusDays(1), LocalDate.now().plusDays(3), OrderItemStatus.PENDING);
+        order.addItem(saleItem);
+        order.addItem(rentalItem);
+        when(payments.read(9L)).thenReturn(new OrderPaymentBalance(new BigDecimal("350000"), BigDecimal.ZERO, 0));
+
+        // 1. Approve
+        service.operate(9L, "confirm");
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.CONFIRMED);
+
+        // 2. Dispatch to guide (gear leaves warehouse)
+        var withGuide = service.operate(9L, "guide-pickup");
+        assertThat(withGuide.status()).isEqualTo(OrderStatus.WITH_GUIDE);
+        assertThat(saleItem.getStatus()).isEqualTo(OrderItemStatus.FULFILLED);
+        assertThat(rentalItem.getStatus()).isEqualTo(OrderItemStatus.RENTED);
+        verify(inventory, times(1)).fulfillSale(2L, 3L, 1);
+        verify(inventory, times(1)).handOutRental(2L, 4L, 1);
+
+        // 3. Handover to customer on tour (no duplicate inventory deduction)
+        var inField = service.operate(9L, "hand-over");
+        assertThat(inField.status()).isEqualTo(OrderStatus.IN_PROGRESS);
+        verify(inventory, times(1)).fulfillSale(2L, 3L, 1);
+        verify(inventory, times(1)).handOutRental(2L, 4L, 1);
+
+        // 4. Customer confirms receipt
+        service.confirmReceipt(9L, "customer@test.local");
+        assertThat(order.getStatus()).isEqualTo(OrderStatus.IN_PROGRESS);
+
+        // 5. Rental return at end of tour
+        var completed = service.operate(9L, "return");
+        assertThat(completed.status()).isEqualTo(OrderStatus.COMPLETED);
+        assertThat(rentalItem.getStatus()).isEqualTo(OrderItemStatus.RETURNED);
+        verify(inventory, times(1)).receiveRental(2L, 4L, 1);
     }
 }

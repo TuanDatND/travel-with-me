@@ -1,0 +1,2 @@
+ALTER TABLE branches ADD COLUMN IF NOT EXISTS return_cutoff_time VARCHAR(10) NOT NULL DEFAULT '18:00';
+
