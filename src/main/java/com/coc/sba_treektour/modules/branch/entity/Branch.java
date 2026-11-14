@@ -39,4 +39,8 @@ public class Branch {
     @Column(name = "status", length = 30, nullable = false)
     @Builder.Default
     private String status = "ACTIVE"; // ACTIVE, INACTIVE
+
+    @Column(name = "return_cutoff_time", length = 10, nullable = false)
+    @Builder.Default
+    private String returnCutoffTime = "18:00";
 }

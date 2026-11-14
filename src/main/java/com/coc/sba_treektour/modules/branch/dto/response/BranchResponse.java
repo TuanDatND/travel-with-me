@@ -15,4 +15,5 @@ public class BranchResponse {
     private String phone;
     private String address;
     private String status;
+    private String returnCutoffTime;
 }

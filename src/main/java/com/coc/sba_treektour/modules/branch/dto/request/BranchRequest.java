@@ -24,4 +24,7 @@ public class BranchRequest {
 
     @Size(max = 30, message = "Status must not exceed 30 characters")
     private String status;
+
+    @Size(max = 10, message = "Return cut-off time must not exceed 10 characters")
+    private String returnCutoffTime;
 }

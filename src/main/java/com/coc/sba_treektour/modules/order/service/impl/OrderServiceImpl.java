@@ -23,16 +23,17 @@ import com.coc.sba_treektour.modules.payment.service.OrderPaymentQueryService;
 import com.coc.sba_treektour.modules.product.repository.ProductRepository;
 import com.coc.sba_treektour.modules.schedule.repository.EventScheduleRepository;
 import com.coc.sba_treektour.modules.schedule.security.ScheduleAccessPolicy;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.access.AccessDeniedException;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class OrderServiceImpl implements OrderService {
@@ -175,7 +176,11 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(readOnly = true)
     public List<OrderResponse> findMyOrders(String email) {
-        return findAll(activeUser(email).getId());
+        User user = activeUser(email);
+        List<Order> orders = orderRepository.findByUser_IdOrderByOrderDateDesc(user.getId());
+        var balances = orderPaymentQueryService.readMany(orders.stream().map(Order::getId).toList());
+        var unpaid = OrderPaymentBalance.EMPTY;
+        return orders.stream().map(order -> OrderResponse.from(order, balances.getOrDefault(order.getId(), unpaid))).toList();
     }
 
     private Order findEntity(Long id) {
@@ -298,13 +303,17 @@ public class OrderServiceImpl implements OrderService {
         } else {
             if (order.getCustomerReceivedAt() == null)
                 throw new InvalidOrderException("The customer must confirm receipt before return inspection");
-            if (items.stream().noneMatch(item -> item.getStatus() == OrderItemStatus.RENTED))
+            var returnableRentals = items.stream()
+                    .filter(item -> item.getItemType() == OrderItemType.RENTAL && item.getStatus() != OrderItemStatus.RETURNED && item.getStatus() != OrderItemStatus.CANCELLED)
+                    .toList();
+            if (returnableRentals.isEmpty())
                 throw new InvalidOrderException("This order has no equipment awaiting return inspection");
-            for (var i : items)
+            for (var i : returnableRentals) {
                 if (i.getStatus() == OrderItemStatus.RENTED) {
                     inventoryService.receiveRental(order.getBranchId(), i.getProductId(), i.getQuantity());
-                    i.setStatus(OrderItemStatus.RETURNED);
                 }
+                i.setStatus(OrderItemStatus.RETURNED);
+            }
             order.setStatus(OrderStatus.COMPLETED);
         }
         return toResponse(order);
