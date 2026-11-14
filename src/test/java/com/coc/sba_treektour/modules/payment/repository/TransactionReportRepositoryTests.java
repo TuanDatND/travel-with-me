@@ -9,6 +9,8 @@ import java.util.UUID;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
+import org.springframework.dao.DataIntegrityViolationException;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -60,7 +62,9 @@ class TransactionReportRepositoryTests {
                 VALUES(90,3,'PAYMENT',600,'ZALOPAY','SUCCEEDED');
             """);
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V2026103001__transaction_refund_reason.sql"),
-                new ClassPathResource("db/migration/V2026103002__transaction_succeeded_at.sql")).execute(dataSource);
+                new ClassPathResource("db/migration/V2026103002__transaction_succeeded_at.sql"),
+                new ClassPathResource("db/migration/V2026103003__manual_refund_confirmation_audit.sql"),
+                new ClassPathResource("db/migration/V2026111401__refund_rejection.sql")).execute(dataSource);
         sql.execute("""
             INSERT INTO transactions(transaction_id,order_id,transaction_type,amount,payment_method,status,created_at,succeeded_at) VALUES
             (1,1,'PAYMENT',1000,'ZALOPAY','SUCCEEDED','2026-09-30 08:00+07','2026-10-01 00:00+07'),
@@ -91,6 +95,26 @@ class TransactionReportRepositoryTests {
         var f = new RevenueReportRequest(); f.setFrom(LocalDate.parse(from)); f.setTo(LocalDate.parse(to)); return f;
     }
     static void equal(String expected, BigDecimal actual) { assertEquals(0, new BigDecimal(expected).compareTo(actual)); }
+
+    @Test void rejectionMigrationPersistsAuditAndDoesNotAffectMoneyReports() {
+        var f = filter("2026-10-01", "2026-10-31");
+        var before = repository.totals(f);
+        sql.execute("""
+            INSERT INTO transactions(transaction_id,order_id,transaction_type,amount,payment_method,status,
+                refund_rejected_by,refund_rejected_at,refund_rejection_reason)
+            VALUES (91,1,'REFUND',100,'MANUAL','REJECTED',1,now(),'Outside refund policy')
+            """);
+        try {
+            var row = repository.findById(91L).orElseThrow();
+            assertEquals("REJECTED", row.getStatus().name());
+            assertEquals("Outside refund policy", row.getRefundRejectionReason());
+            assertEquals(1L, row.getRefundRejectedBy());
+            assertEquals(null, row.getSucceededAt());
+            assertEquals(before, repository.totals(f));
+            assertThrows(DataIntegrityViolationException.class,
+                    () -> sql.execute("UPDATE transactions SET transaction_type='PAYMENT' WHERE transaction_id=91"));
+        } finally { sql.execute("DELETE FROM transactions WHERE transaction_id=91"); entityManager.clear(); }
+    }
 
     @Test void migrationDoesNotInventHistoricalSuccessTime() {
         assertNull(sql.queryForObject("SELECT succeeded_at FROM transactions WHERE transaction_id=90", Object.class));

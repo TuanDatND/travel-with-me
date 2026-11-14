@@ -3,6 +3,7 @@ package com.coc.sba_treektour.modules.payment.controller;
 import com.coc.sba_treektour.common.response.ApiResponse;
 import com.coc.sba_treektour.modules.payment.dto.request.RequestRefund;
 import com.coc.sba_treektour.modules.payment.dto.request.ConfirmRefundRequest;
+import com.coc.sba_treektour.modules.payment.dto.request.RejectRefundRequest;
 import com.coc.sba_treektour.modules.payment.dto.response.TransactionHistoryResponse;
 import com.coc.sba_treektour.modules.payment.service.RefundService;
 import jakarta.validation.Valid;
@@ -46,6 +47,11 @@ public class RefundController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         return ApiResponse.success(refunds.list(status, page, size));
+    }
+
+    @PostMapping("/{id}/reject")
+    public ApiResponse<TransactionHistoryResponse> reject(@PathVariable Long id, @Valid @RequestBody RejectRefundRequest request) {
+        return ApiResponse.success("Refund request rejected; no money was returned", refunds.reject(id, request));
     }
 
     @PostMapping("/{id}/confirm")

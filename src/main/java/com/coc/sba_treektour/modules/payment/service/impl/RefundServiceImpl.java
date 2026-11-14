@@ -8,6 +8,7 @@ import com.coc.sba_treektour.modules.order.enums.OrderStatus;
 import com.coc.sba_treektour.modules.order.repository.OrderRepository;
 import com.coc.sba_treektour.modules.payment.dto.request.RequestRefund;
 import com.coc.sba_treektour.modules.payment.dto.request.ConfirmRefundRequest;
+import com.coc.sba_treektour.modules.payment.dto.request.RejectRefundRequest;
 import com.coc.sba_treektour.modules.payment.dto.response.TransactionHistoryResponse;
 import com.coc.sba_treektour.modules.payment.entity.Transaction;
 import com.coc.sba_treektour.modules.payment.repository.TransactionRepository;
@@ -31,6 +32,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import static com.coc.sba_treektour.modules.payment.enums.TransactionStatus.PENDING;
+import static com.coc.sba_treektour.modules.payment.enums.TransactionStatus.REJECTED;
 import static com.coc.sba_treektour.modules.payment.enums.TransactionStatus.SUCCEEDED;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.CONFLICT;
@@ -106,6 +108,29 @@ public class RefundServiceImpl implements RefundService {
     }
 
     @Override
+    @Transactional
+    @PreAuthorize("hasAuthority('ADMIN')")
+    public TransactionHistoryResponse reject(Long refundId, RejectRefundRequest request) {
+        User admin = activeUser();
+        Transaction found = transactions.findById(refundId)
+                .orElseThrow(() -> new ResponseStatusException(NOT_FOUND, "Refund not found"));
+        requireManualRefund(found);
+        // Serialize with requests and confirmations: target first, then transaction.
+        if (found.getOrderId() != null) lockOrder(found.getOrderId());
+        else participants.lock(found.getParticipantId());
+        Transaction refund = transactions.findByIdForUpdate(refundId).orElseThrow();
+        entities.refresh(refund, LockModeType.PESSIMISTIC_WRITE);
+        requireManualRefund(refund);
+        if (refund.getStatus() == REJECTED) return response(refund);
+        if (refund.getStatus() != PENDING) throw new ResponseStatusException(CONFLICT, "Refund is not pending");
+        refund.setStatus(REJECTED);
+        refund.setRefundRejectedBy(admin.getId());
+        refund.setRefundRejectedAt(OffsetDateTime.now());
+        refund.setRefundRejectionReason(request.reason().trim());
+        return response(transactions.saveAndFlush(refund));
+    }
+
+    @Override
     @Transactional(readOnly = true)
     @PreAuthorize("hasAuthority('CUSTOMER')")
     public List<TransactionHistoryResponse> mine(int page, int size) {
@@ -117,7 +142,7 @@ public class RefundServiceImpl implements RefundService {
     @PreAuthorize("hasAuthority('ADMIN')")
     public List<TransactionHistoryResponse> list(TransactionStatus status, int page, int size) {
         activeUser();
-        if (status != PENDING && status != SUCCEEDED) throw new ResponseStatusException(BAD_REQUEST, "Refund filter must be PENDING or SUCCEEDED");
+        if (status != PENDING && status != SUCCEEDED && status != REJECTED) throw new ResponseStatusException(BAD_REQUEST, "Refund filter must be PENDING, SUCCEEDED or REJECTED");
         return transactions.findByTransactionTypeAndPaymentMethodAndStatusOrderByIdDesc("REFUND", "MANUAL", status,
                 page(page, size)).stream().map(this::response).toList();
     }
@@ -189,6 +214,7 @@ public class RefundServiceImpl implements RefundService {
         return new TransactionHistoryResponse(transaction.getId(), transaction.getOrderId(), transaction.getParticipantId(),
                 transaction.getTransactionType(), transaction.getAmount(), transaction.getPaymentMethod(),
                 transaction.getStatus(), transaction.getCreatedAt(), transaction.getRefundReason(), transaction.getSucceededAt(),
-                transaction.getRefundConfirmedBy(), transaction.getRefundTransferReference(), transaction.getRefundConfirmationNote());
+                transaction.getRefundConfirmedBy(), transaction.getRefundTransferReference(), transaction.getRefundConfirmationNote(),
+                transaction.getRefundRejectedBy(), transaction.getRefundRejectedAt(), transaction.getRefundRejectionReason());
     }
 }

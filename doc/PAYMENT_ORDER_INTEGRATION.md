@@ -253,3 +253,14 @@ Mục này thay thế mô tả lịch sử về việc hoàn thủ công chưa t
 - JSON history thêm refundConfirmedBy/refundTransferReference/refundConfirmationNote; dữ liệu cũ có thể NULL. Không đổi luồng lifecycle Tour/đóng schedule_payment_reviews.
 
 Verification: compileJava + compileTestJava và 71 tests Order/Payment PASS, 0 failures/0 skipped; gồm xác nhận lặp giữ audit, quyền/owner, số dư sai, đơn đã duyệt/giao, khóa create/retry/approve/handover và hủy Order/items thật trong unit test. FE lint/build PASS (cảnh báo bundle lớn hiện hữu). Chưa kiểm tra HTTP/trình duyệt, SQL migration/JPQL/concurrency hoặc rollback trên DB thật; chưa áp migration DB chung hay thực hiện chuyển tiền.
+
+
+## Admin từ chối hoàn tiền — 2026-11-14
+
+- `POST /api/payments/refunds/{id}/reject`, JWT ADMIN với account ACTIVE.
+- Body: `{ "reason": "Outside refund policy" }`; lý do bắt buộc, tối đa 2000 ký tự.
+- Chỉ REFUND/MANUAL đang PENDING chuyển REJECTED. Lock Order/Participant trước rồi lock Transaction, cùng thứ tự confirm. Retry REJECTED trả kết quả cũ, giữ nguyên audit; phiếu SUCCEEDED hoặc trạng thái khác trả 409, không được từ chối sau khi đã hoàn tiền. Confirm phiếu REJECTED cũng trả 409.
+- History response thêm `refundRejectedBy`, `refundRejectedAt`, `refundRejectionReason`; giữ riêng lý do yêu cầu của khách (`refundReason`). `GET /api/payments/refunds?status=REJECTED` dùng phân trang hiện có; `/me` vẫn giới hạn chủ yêu cầu.
+- Không chuyển tiền/gọi ZaloPay, không ghi succeededAt, không đổi Order/Participant. REJECTED không được cộng vào tiền hoàn/doanh thu, không còn là pending refund chặn xử lý đơn. Khách có thể gửi yêu cầu mới nếu trạng thái target và số dư vẫn hợp lệ; không mở lại phiếu cũ.
+- Migration mới `V2026111401__refund_rejection.sql` thêm ba cột audit vào transactions, FK người từ chối → users.user_id; bổ sung REJECTED vào CHECK status, chỉ cho REFUND/MANUAL có lý do/người/ngày và succeeded_at NULL. Không sửa migration cũ. Cần chạy migration trước khi dùng phiên bản backend mới.
+- FE admin có nút Reject Request mở modal lý do, thông báo kết quả, tab Rejected; lịch sử của khách hiển thị lý do/ngày bị từ chối. UI dùng tiếng Anh theo giao diện hiện tại.

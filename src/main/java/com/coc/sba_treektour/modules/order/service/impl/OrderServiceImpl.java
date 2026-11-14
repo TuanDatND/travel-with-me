@@ -176,11 +176,12 @@ public class OrderServiceImpl implements OrderService {
     @Override
     @Transactional(readOnly = true)
     public List<OrderResponse> findMyOrders(String email) {
-        User user = activeUser(email);
-        List<Order> orders = orderRepository.findByUser_IdOrderByOrderDateDesc(user.getId());
+        Long userId = activeUser(email).getId();
+        // Customer ownership is independent of administrative branch-management access.
+        List<Order> orders = orderRepository.findByUser_IdOrderByOrderDateDesc(userId);
         var balances = orderPaymentQueryService.readMany(orders.stream().map(Order::getId).toList());
-        var unpaid = OrderPaymentBalance.EMPTY;
-        return orders.stream().map(order -> OrderResponse.from(order, balances.getOrDefault(order.getId(), unpaid))).toList();
+        return orders.stream().map(order -> OrderResponse.from(order,
+                balances.getOrDefault(order.getId(), OrderPaymentBalance.EMPTY))).toList();
     }
 
     private Order findEntity(Long id) {

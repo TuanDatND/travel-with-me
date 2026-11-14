@@ -63,6 +63,35 @@ class OrderServiceImplTests {
         verify(order, never()).setStatus(any());
         verifyNoInteractions(inventory);
     }
+    @Test void myOrdersUsesAuthenticatedOwnerWithoutAdministrativeBranchFilter() {
+        var policy = mock(ScheduleAccessPolicy.class);
+        var scoped = new OrderServiceImpl(orders, users, branches, products, inventory, stocks, payments,
+                mock(EventScheduleRepository.class), policy);
+        var user = User.builder().id(1L).email("customer@test.local").status("ACTIVE").build();
+        when(users.findByEmail(user.getEmail())).thenReturn(Optional.of(user));
+        Order order = mock(Order.class);
+        when(order.getId()).thenReturn(9L);
+        when(order.getUserId()).thenReturn(1L);
+        when(order.getStatus()).thenReturn(OrderStatus.PENDING);
+        when(order.getTotalAmount()).thenReturn(new BigDecimal("100000"));
+        when(order.getItems()).thenReturn(List.of());
+        when(orders.findByUser_IdOrderByOrderDateDesc(1L)).thenReturn(List.of(order));
+        when(payments.readMany(List.of(9L))).thenReturn(Map.of(9L,
+                new OrderPaymentBalance(new BigDecimal("100000"), BigDecimal.ZERO, 0)));
+
+        var result = scoped.findMyOrders(user.getEmail());
+
+        assertThat(result).hasSize(1);
+        assertThat(result.getFirst().id()).isEqualTo(9L);
+        assertThat(result.getFirst().paymentStatus()).isEqualTo("PAID");
+        verify(orders).findByUser_IdOrderByOrderDateDesc(1L);
+        verify(orders, never()).findAll();
+        verifyNoInteractions(policy);
+        verify(payments).readMany(List.of(9L));
+        user.setStatus("BLOCKED");
+        assertThatThrownBy(() -> scoped.findMyOrders(user.getEmail())).isInstanceOf(InvalidOrderException.class);
+    }
+
     @Test void listUsesBatchedPaymentBalances() {
         Order order = mock(Order.class);
         when(order.getId()).thenReturn(9L);
