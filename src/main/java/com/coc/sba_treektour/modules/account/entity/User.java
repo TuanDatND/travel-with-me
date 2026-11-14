@@ -61,6 +61,10 @@ public class User implements UserDetails {
     @Builder.Default
     private String status = "ACTIVE"; // ACTIVE, INACTIVE, BLOCKED
 
+    @Column(name = "requires_password_change", nullable = false)
+    @Builder.Default
+    private boolean requiresPasswordChange = false;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;

@@ -17,4 +17,5 @@ public class UserResponse {
     private String address;
     private String role;
     private String status;
+    private Boolean requiresPasswordChange;
 }

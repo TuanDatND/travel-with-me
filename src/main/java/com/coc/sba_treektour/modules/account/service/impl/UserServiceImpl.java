@@ -107,6 +107,7 @@ public class UserServiceImpl implements UserService {
             existingUser.setPassword(passwordEncoder.encode(rawPassword));
             existingUser.setRole(role);
             existingUser.setStatus(UserStatus.ACTIVE.name());
+            existingUser.setRequiresPasswordChange(true);
             user = existingUser;
         } else {
             user = User.builder()
@@ -116,6 +117,7 @@ public class UserServiceImpl implements UserService {
                     .password(passwordEncoder.encode(rawPassword))
                     .role(role)
                     .status(UserStatus.ACTIVE.name())
+                    .requiresPasswordChange(true)
                     .build();
         }
 
@@ -199,6 +201,7 @@ public class UserServiceImpl implements UserService {
         }
 
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        user.setRequiresPasswordChange(false);
         userRepository.save(user);
     }
 
@@ -388,6 +391,7 @@ public class UserServiceImpl implements UserService {
                 .address(user.getAddress())
                 .role(user.getRole() != null ? user.getRole().getName() : null)
                 .status(user.getStatus())
+                .requiresPasswordChange(user.isRequiresPasswordChange())
                 .build();
     }
 }
