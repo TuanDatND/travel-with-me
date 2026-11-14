@@ -34,6 +34,8 @@ public class ScheduleSecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/schedules/*/participants").hasAuthority("CUSTOMER")
                         .requestMatchers(HttpMethod.GET, "/api/schedules/*/participants", "/api/schedules/*/history")
                             .hasAnyAuthority("ADMIN", "STAFF", "GUIDE")
+                        .requestMatchers(HttpMethod.POST, "/api/participants/*/checkouts")
+                            .hasAnyAuthority("ADMIN", "STAFF", "GUIDE")
                         .requestMatchers(HttpMethod.PATCH, "/api/participants/*/attendance")
                             .hasAnyAuthority("ADMIN", "STAFF", "GUIDE")
                         .requestMatchers(HttpMethod.POST, "/api/participants/*/manual-payment-confirmations").hasAnyAuthority("ADMIN", "STAFF")

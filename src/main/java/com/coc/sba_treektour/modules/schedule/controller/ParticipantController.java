@@ -79,6 +79,12 @@ public class ParticipantController {
         };
     }
 
+    @Operation(summary = "Record participant check-out after the trip ends")
+    @PostMapping("/api/participants/{participantId}/checkouts")
+    public ApiResponse<ParticipantResponse> checkOut(@PathVariable Long participantId) {
+        return ApiResponse.success("Customer checked out successfully", participantService.checkOut(participantId));
+    }
+
     @Operation(summary = "Cancel a participant registration")
     @PostMapping("/api/participants/{participantId}/cancellations")
     public ApiResponse<ParticipantResponse> cancel(@PathVariable Long participantId,

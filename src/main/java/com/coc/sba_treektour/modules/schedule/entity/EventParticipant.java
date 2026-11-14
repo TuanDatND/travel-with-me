@@ -16,6 +16,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -54,6 +55,9 @@ public class EventParticipant {
     @Column(name = "check_in_status", nullable = false, length = 30)
     private CheckInStatus checkInStatus = CheckInStatus.NOT_CHECKED_IN;
 
+    @Column(name = "checked_out_at")
+    private OffsetDateTime checkedOutAt;
+
     @Column(name = "registered_price", nullable = false, precision = 18, scale = 2)
     private BigDecimal registeredPrice;
 
@@ -91,6 +95,7 @@ public class EventParticipant {
         this.expiresAt = expiresAt;
         this.registrationReference = UUID.randomUUID();
         this.confirmationReference = null;
+        this.checkedOutAt = null;
         this.participantStatus = ParticipantStatus.PENDING;
         this.checkInStatus = CheckInStatus.NOT_CHECKED_IN;
     }
@@ -123,6 +128,15 @@ public class EventParticipant {
         if (participantStatus != ParticipantStatus.CONFIRMED || checkInStatus != CheckInStatus.CHECKED_IN)
             throw new IllegalStateException("Chỉ hoàn tất vé đã xác nhận và điểm danh");
         this.participantStatus = ParticipantStatus.COMPLETED;
+    }
+
+    public void checkOut(OffsetDateTime now) {
+        if (checkInStatus != CheckInStatus.CHECKED_IN
+                || (participantStatus != ParticipantStatus.CONFIRMED && participantStatus != ParticipantStatus.COMPLETED))
+            throw new IllegalStateException("Only checked-in confirmed or completed tickets can check out");
+        if (checkedOutAt != null) return;
+        this.participantStatus = ParticipantStatus.COMPLETED;
+        this.checkedOutAt = now.truncatedTo(ChronoUnit.MICROS);
     }
 
     public boolean occupiesSeat() {
