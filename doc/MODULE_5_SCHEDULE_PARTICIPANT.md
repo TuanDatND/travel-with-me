@@ -340,3 +340,18 @@ Bảng API và ví dụ hiện hành: MODULE_5_API_MIGRATION.md.
 Kết quả naming API mới: compileJava + compileTestJava và 183 tests PASS (34 Schedule/59 Payment),
 0 skipped trên PostgreSQL 17.11 riêng/Flyway/Hibernate validate; FE 21 tests/lint/build PASS
 (cảnh báo bundle lớn). Body/response/schema/Payment contract giữ nguyên.
+
+
+## Participant checkout (2026-11-14)
+
+`POST /api/participants/{participantId}/checkouts` accepts a Bearer token and no body.
+Allowed actors: assigned ACTIVE guide with an active account, ADMIN, or STAFF assigned to the organizing branch. Anonymous requests return 401; unauthorized actors return 403.
+
+The schedule must be IN_PROGRESS or COMPLETED and server time must be at/after endDatetime. The ticket must be CHECKED_IN and CONFIRMED or COMPLETED. Invalid time/state returns 400.
+Checkout completes the ticket, records checkedOutAt, and writes a CHECK_OUT history entry with the actor. Schedule and participant write locks serialize concurrent operations. Repeated calls return the original timestamp without creating another audit record.
+
+Completing a schedule remains an ADMIN/STAFF action. FINISH_TOUR does not record customer checkout; previously completed tickets retain checkedOutAt=null until checkout is explicitly confirmed. Checkout also works after the manager completes the schedule.
+
+Migration V2026111404__participant_checkout.sql adds nullable event_participants.checked_out_at TIMESTAMPTZ without backfill. Existing PK/FK and enum values remain unchanged. Restart the application with Flyway enabled to apply it.
+
+Frontend flow: Guide assignments -> departure -> Participants -> Check Out -> Confirm. The roster and customer ticket display the checkout time, and customer history displays Checked out.

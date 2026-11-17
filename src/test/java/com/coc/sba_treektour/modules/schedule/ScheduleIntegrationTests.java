@@ -58,6 +58,63 @@ class ScheduleIntegrationTests {
     private String admin, customer, other, guide;
     private OffsetDateTime start;
 
+
+    @Test
+    void checkoutEnforcesAuthorizationTimeAndAttendanceAndIsIdempotent() throws Exception {
+        long schedule = schedule(2);
+        long present = id(call(post("/api/schedules/{id}/participants", schedule), customer, "{}", 201));
+        long absent = id(call(post("/api/schedules/{id}/participants", schedule), other, "{}", 201));
+        confirm(present);
+        confirm(absent);
+        call(post("/api/participants/{id}/checkouts", present), null, null, 401);
+        call(post("/api/participants/{id}/checkouts", present), customer, null, 403);
+        call(post("/api/participants/{id}/checkouts", present), guide, null, 400);
+        changeStatus(schedule, "CLOSED", 200);
+        jdbc.update("UPDATE event_schedules SET start_datetime=now()-interval '1 minute',end_datetime=now()+interval '2 hours',registration_closes_at=now()-interval '1 minute' WHERE schedule_id=?", schedule);
+        call(attendanceRequest(present, "CHECKED_IN"), guide, null, 200);
+        changeStatus(schedule, "IN_PROGRESS", 200);
+        call(post("/api/participants/{id}/checkouts", present), guide, null, 400);
+        jdbc.update("UPDATE event_schedules SET start_datetime=now()-interval '4 hours',end_datetime=now()-interval '1 hour',registration_closes_at=now()-interval '4 hours' WHERE schedule_id=?", schedule);
+        call(post("/api/participants/{id}/checkouts", absent), guide, null, 400);
+        String outsider = account("GUIDE");
+        call(post("/api/participants/{id}/checkouts", present), outsider, null, 403);
+        String staff = account("STAFF");
+        call(post("/api/participants/{id}/checkouts", present), staff, null, 403);
+        jdbc.update("UPDATE tour_guides SET status='INACTIVE' WHERE guide_id=?", guideId);
+        call(post("/api/participants/{id}/checkouts", present), guide, null, 403);
+        jdbc.update("UPDATE tour_guides SET status='ACTIVE' WHERE guide_id=?", guideId);
+        var first = call(post("/api/participants/{id}/checkouts", present), guide, null, 200);
+        String checkedOut = JsonPath.read(first.getResponse().getContentAsString(), "$.data.checkedOutAt");
+        assertThat(checkedOut).isNotBlank();
+        assertThat(JsonPath.<String>read(first.getResponse().getContentAsString(), "$.data.participantStatus")).isEqualTo("COMPLETED");
+        var second = call(post("/api/participants/{id}/checkouts", present), guide, null, 200);
+        assertThat(JsonPath.<String>read(second.getResponse().getContentAsString(), "$.data.checkedOutAt")).isEqualTo(checkedOut);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM schedule_participant_history WHERE participant_id=? AND action='CHECK_OUT' AND changed_by=?", Integer.class, present, users.get(3))).isEqualTo(1);
+        changeStatus(schedule, "COMPLETED", 200);
+        call(post("/api/participants/{id}/checkouts", absent), guide, null, 400);
+        call(post("/api/participants/{id}/checkouts", present), admin, null, 200);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM schedule_participant_history WHERE participant_id=? AND action='CHECK_OUT'", Integer.class, present)).isEqualTo(1);
+    }
+
+    @Test
+    void checkoutAfterScheduleCompletionIsRecordedSeparatelyAndVisibleToCustomer() throws Exception {
+        long schedule = schedule(1);
+        long ticket = id(call(post("/api/schedules/{id}/participants", schedule), customer, "{}", 201));
+        confirm(ticket);
+        changeStatus(schedule, "CLOSED", 200);
+        jdbc.update("UPDATE event_schedules SET start_datetime=now()-interval '1 minute',end_datetime=now()+interval '2 hours',registration_closes_at=now()-interval '1 minute' WHERE schedule_id=?", schedule);
+        call(attendanceRequest(ticket, "CHECKED_IN"), guide, null, 200);
+        changeStatus(schedule, "IN_PROGRESS", 200);
+        jdbc.update("UPDATE event_schedules SET start_datetime=now()-interval '4 hours',end_datetime=now()-interval '1 hour',registration_closes_at=now()-interval '4 hours' WHERE schedule_id=?", schedule);
+        changeStatus(schedule, "COMPLETED", 200);
+        assertThat(jdbc.queryForObject("SELECT checked_out_at FROM event_participants WHERE participant_id=?", OffsetDateTime.class, ticket)).isNull();
+        call(post("/api/participants/{id}/checkouts", ticket), guide, null, 200);
+        var ownTicket = call(get("/api/participants/{id}", ticket), customer, null, 200);
+        assertThat(JsonPath.<String>read(ownTicket.getResponse().getContentAsString(), "$.data.checkedOutAt")).isNotBlank();
+        var roster = call(get("/api/schedules/{id}/participants", schedule), guide, null, 200);
+        assertThat(JsonPath.<String>read(roster.getResponse().getContentAsString(), "$.data[0].checkedOutAt")).isNotBlank();
+    }
+
     /** Tạo fixture đã commit và JWT thật để kiểm thử cả giao dịch đồng thời. */
     @BeforeEach
     void setup() throws Exception {

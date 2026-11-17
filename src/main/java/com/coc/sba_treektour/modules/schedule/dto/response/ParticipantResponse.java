@@ -19,5 +19,6 @@ public record ParticipantResponse(
         OffsetDateTime expiresAt,
         String customerName,
         String customerPhone,
-        String customerEmail
+        String customerEmail,
+        OffsetDateTime checkedOutAt
 ) {}

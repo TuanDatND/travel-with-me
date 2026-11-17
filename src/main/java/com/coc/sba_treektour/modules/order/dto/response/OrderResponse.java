@@ -47,9 +47,7 @@ public record OrderResponse(
         String cutoff = order.getBranch() != null && order.getBranch().getReturnCutoffTime() != null
                 ? order.getBranch().getReturnCutoffTime() : "18:00";
         return new OrderResponse(order.getId(), order.getUserId(), order.getBranchId(), order.getStatus(),
-                order.getTotalAmount(), order.getOrderDate(), order.getItems().stream().map(item -> new OrderItemResponse(
-                item.getId(), item.getProductId(), item.getItemType(), item.getQuantity(), item.getUnitPrice(),
-                item.getRentalStartDate(), item.getRentalEndDate(), item.getStatus())).toList(),
+                order.getTotalAmount(), order.getOrderDate(), order.getItems().stream().map(OrderItemResponse::from).toList(),
                 balance.status(order.getTotalAmount()), balance.net(),
                 order.getTotalAmount().subtract(balance.net()).max(BigDecimal.ZERO),
                 pending && !balance.refundPending() && balance.paid(order.getTotalAmount()), pending && balance.cancellable(),

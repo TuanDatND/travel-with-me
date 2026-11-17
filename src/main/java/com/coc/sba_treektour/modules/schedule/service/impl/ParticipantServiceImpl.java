@@ -150,6 +150,27 @@ public class ParticipantServiceImpl implements ParticipantService {
     @Override
     @PreAuthorize("hasAnyAuthority('ADMIN','STAFF','GUIDE')")
     @Transactional
+    public ParticipantResponse checkOut(Long id) {
+        var p = locked(id);
+        var schedule = p.getSchedule();
+        scheduleAccessPolicy.requireAssignedGuideOrManager(schedule);
+        var now = scheduleSettings.now();
+        if ((schedule.getStatus() != ScheduleStatus.IN_PROGRESS && schedule.getStatus() != ScheduleStatus.COMPLETED)
+                || now.isBefore(schedule.getEndDatetime()))
+            throw new InvalidScheduleOperationException("Check-out is available after the trip end time for in-progress or completed trips");
+        if (p.getCheckInStatus() != CheckInStatus.CHECKED_IN
+                || (p.getParticipantStatus() != ParticipantStatus.CONFIRMED && p.getParticipantStatus() != ParticipantStatus.COMPLETED))
+            throw new InvalidScheduleOperationException("Only checked-in confirmed or completed tickets can check out");
+        if (p.getCheckedOutAt() != null) return toResponse(p);
+        var previous = p.getParticipantStatus();
+        p.checkOut(now);
+        participantLifecycle.audit(p, "CHECK_OUT", previous, scheduleAccessPolicy.userId(), "Customer checked out at the end of the trip");
+        return toResponse(p);
+    }
+
+    @Override
+    @PreAuthorize("hasAnyAuthority('ADMIN','STAFF','GUIDE')")
+    @Transactional
     public ParticipantResponse markNoShow(Long id) {
         var p = locked(id);
         scheduleAccessPolicy.requireAssignedGuideOrManager(p.getSchedule());
@@ -254,6 +275,6 @@ public class ParticipantServiceImpl implements ParticipantService {
         return new ParticipantResponse(p.getId(), p.getSchedule().getId(), p.getUserId(), p.getRegistrationDate(),
                 p.getParticipantStatus(), p.getCheckInStatus(), p.getRegisteredPrice(), p.getNote(), p.getRegistrationReference(), p.getExpiresAt(),
                 customer == null ? null : customer.getName(), customer == null ? null : customer.getPhone(),
-                customer == null ? null : customer.getEmail());
+                customer == null ? null : customer.getEmail(), p.getCheckedOutAt());
     }
 }

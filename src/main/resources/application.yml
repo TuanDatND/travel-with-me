@@ -11,7 +11,7 @@ spring:
             client-secret: ${GOOGLE_CLIENT_SECRET:thay_bang_client_secret_cua_ban}
             scope:
               - email
-              - profilez
+              - profile
 
   application:
     name: ${APP_NAME:treektour}
