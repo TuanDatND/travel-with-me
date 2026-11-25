@@ -21,7 +21,7 @@ Request mẫu: [doc/product-inventory.http](doc/product-inventory.http).
 
 
 Tài khoản admin được migration tạo sẵn: `admin@gmail.com` / `admin123`.
-Google OAuth, email và upload Cloudinary cần thông tin dịch vụ thật trong `.env` để sử dụng.
+
 
 ## Thiết lập trên máy khác
 
